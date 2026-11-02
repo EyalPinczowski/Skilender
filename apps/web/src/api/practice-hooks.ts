@@ -252,3 +252,36 @@ export function useSendMessage(planId: string, sessionId: string) {
     },
   });
 }
+
+const HISTORY = '/api/v1/plans/{planId}/practice/history' as const;
+const TRENDS = '/api/v1/plans/{planId}/practice/trends' as const;
+
+export type PracticeHistory = JsonOf<paths[typeof HISTORY]['get']>;
+export type PracticeHistoryItem = PracticeHistory['sessions'][number];
+export type PracticeTrends = JsonOf<paths[typeof TRENDS]['get']>;
+export type KindTrendData = PracticeTrends['kinds'][number];
+
+/** Finished practice sessions, newest first, optionally one day (`from` = `to`). Read-only. */
+export function usePracticeHistory(
+  planId: string | undefined,
+  range: { from?: string; to?: string; kind?: string; limit?: number } = {},
+) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['practice-history', planId ?? '', range] as const,
+    queryFn: ({ signal }) =>
+      unwrap(api.raw.GET(HISTORY, { params: { path: { planId: planId! }, query: range }, signal })),
+    enabled: !!planId,
+  });
+}
+
+/** Score points and last, average and delta per practice kind. All computed by the API. */
+export function usePracticeTrends(planId: string | undefined) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['practice-trends', planId ?? ''] as const,
+    queryFn: ({ signal }) =>
+      unwrap(api.raw.GET(TRENDS, { params: { path: { planId: planId! } }, signal })),
+    enabled: !!planId,
+  });
+}
