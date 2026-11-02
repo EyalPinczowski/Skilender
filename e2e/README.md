@@ -13,6 +13,10 @@ Playwright tests of the core flows (spec section 9) against the **real stack**, 
 | `tests/flow-2-daily-loop.spec.ts`   | Open the briefing, start the day from it, log time, "reached the estimate" prompt without auto-complete, mark done explicitly, end the day.                              |
 | `tests/flow-3-review-adjust.spec.ts`| Two heavy-day reviews through the review screen, the suggestion (Accept disabled until Preview), accept, the finish date moves; API calls cross-check. |
 
+| `tests/flow-4-practice-external.spec.ts` | Practice with another assistant: copy the prompt, paste a feedback block, finish, mark done on purpose.                                |
+| `tests/flow-5-practice-in-app.spec.ts`   | In-app chat: broken feedback JSON is saved as plain text; a 429 on the first provider shows "Continuing on ...", then AI feedback and done. |
+| `tests/flow-6-practice-no-ai.spec.ts`    | No AI provider: the chat is not offered; the AI going away mid-chat shows the fallbacks; a self-check (rubric) finishes the practice.       |
+
 Every screen of every flow is also checked with axe-core (WCAG 2.x A and AA), and every test fails on a console error, an uncaught page error or a Content-Security-Policy violation.
 
 ## Run it locally
@@ -48,6 +52,10 @@ Failures leave `e2e/test-results/` (screenshot, trace: `pnpm exec playwright sho
 | Database passwords                                                              | `support/db.ts`                                    | Random per run, passed in memory and through the API's environment. Nothing is written to disk. The CI password of the Postgres service container is a throwaway of that container.                                                          |
 
 The tokens are verified by the real API code (signature, issuer, audience, expiry); only where the keys come from is different.
+
+## AI in the practice flows
+
+The API's own Groq and Cloudflare provider code runs (`AI_PROVIDERS=groq,cloudflare-ai`, made-up keys), but `support/ai-fetch-preload.mjs`, loaded into the e2e API process only, sends their two HTTPS addresses to `support/ai-stub.ts`, a scripted server on 127.0.0.1. By default it answers chat with one fixed line and feedback requests with valid JSON; a test queues a 429 or broken text with `scriptAi`. The fake provider (`AI_FAKE_PROVIDER`) is not used because it is a single provider with a fixed answer, so it cannot show a 429 or the switch to the next provider. A second API process of the same build has no provider at all ("AI off"); a test points the page at it with `switchToApiWithoutAi`. A provider that answered 429 stays in a cooldown for the rest of the run (the API's clock is fixed), so the 429 test is the last one that relies on the first provider.
 
 ## How a run works
 

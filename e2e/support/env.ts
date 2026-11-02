@@ -9,8 +9,13 @@ const port = (name: string, fallback: number) => Number(process.env[name] ?? fal
 export const API_PORT = port('E2E_API_PORT', 4310);
 export const WEB_PORT = port('E2E_WEB_PORT', 4311);
 export const AUTH_PORT = port('E2E_AUTH_PORT', 4312);
+/** The scripted stand-in for the AI providers' HTTPS APIs (support/ai-stub.ts). */
+export const AI_STUB_PORT = port('E2E_AI_STUB_PORT', 4313);
+/** A second API process of the same build, with no AI provider configured. */
+export const API_NO_AI_PORT = port('E2E_API_NO_AI_PORT', 4314);
 
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
+export const API_NO_AI_URL = `http://127.0.0.1:${API_NO_AI_PORT}`;
 export const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 
 /**
@@ -26,6 +31,7 @@ export const WORKER_ENV = {
   signingKey: 'E2E_SIGNING_JWK',
   issuer: 'E2E_ISSUER',
   superuserUrl: 'E2E_SUPERUSER_URL',
+  aiStubUrl: 'E2E_AI_STUB_URL',
 } as const;
 
 export function requireEnv(name: string): string {

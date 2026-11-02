@@ -1,9 +1,14 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { startAiStub } from './support/ai-stub';
 import { startAuthServer } from './support/auth-server';
 import { prepareDatabase } from './support/db';
 import {
+  AI_STUB_PORT,
+  API_NO_AI_PORT,
+  API_NO_AI_URL,
   API_PORT,
   API_URL,
   AUTH_PORT,
@@ -28,10 +33,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   const dir = mkdtempSync(join(tmpdir(), 'skillstack-e2e-'));
   const services: ReturnType<typeof startService>[] = [];
   let auth: Awaited<ReturnType<typeof startAuthServer>> | undefined;
+  let aiStub: Awaited<ReturnType<typeof startAiStub>> | undefined;
 
   const teardown = async () => {
     services.forEach(stopService);
     await auth?.close();
+    await aiStub?.close();
     rmSync(dir, { recursive: true, force: true });
   };
 
@@ -42,6 +49,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     process.env[WORKER_ENV.signingKey] = JSON.stringify(auth.privateJwk);
     process.env[WORKER_ENV.issuer] = auth.issuer;
     process.env[WORKER_ENV.superuserUrl] = superuserUrl;
+    aiStub = await startAiStub(AI_STUB_PORT);
+    const aiStubUrl = `http://127.0.0.1:${AI_STUB_PORT}`;
+    process.env[WORKER_ENV.aiStubUrl] = aiStubUrl;
 
     // What the child processes inherit: no database admin URLs and no signing key.
     const base: NodeJS.ProcessEnv = { ...process.env };
@@ -52,25 +62,47 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       cwd: REPO_ROOT,
       env: base,
     });
+    const apiEnv: NodeJS.ProcessEnv = {
+      ...base,
+      // Not production: E2E_NOW is ignored there (apps/api/src/test-clock.ts).
+      NODE_ENV: 'test',
+      APP_ENV: 'rnd',
+      HOST: '127.0.0.1',
+      LOG_LEVEL: 'warn',
+      DATABASE_URL: apiDatabaseUrl,
+      SUPABASE_JWKS_URL: auth.jwksUrl,
+      SUPABASE_JWT_ISSUER: auth.issuer,
+      NODE_EXTRA_CA_CERTS: auth.certFile,
+      CORS_ORIGINS: `http://127.0.0.1:${WEB_PORT}`,
+      RATE_LIMIT_PER_MINUTE: '100000',
+      E2E_NOW,
+    };
     const api = startService('api', dir, 'node', ['apps/api/dist/server.js'], {
       cwd: REPO_ROOT,
       env: {
-        ...base,
-        // Not production: E2E_NOW is ignored there (apps/api/src/test-clock.ts).
-        NODE_ENV: 'test',
-        APP_ENV: 'rnd',
-        HOST: '127.0.0.1',
+        ...apiEnv,
         PORT: String(API_PORT),
-        LOG_LEVEL: 'warn',
-        DATABASE_URL: apiDatabaseUrl,
-        SUPABASE_JWKS_URL: auth.jwksUrl,
-        SUPABASE_JWT_ISSUER: auth.issuer,
-        NODE_EXTRA_CA_CERTS: auth.certFile,
-        CORS_ORIGINS: `http://127.0.0.1:${WEB_PORT}`,
-        RATE_LIMIT_PER_MINUTE: '100000',
-        E2E_NOW,
+        // Two providers so a 429 on the first can switch to the second. Their own code runs; only
+        // the HTTPS calls are redirected to the local stub (support/ai-fetch-preload.mjs). These
+        // values are made up and open nothing; "confirmed" only lets the providers start.
+        AI_PROVIDERS: 'groq,cloudflare-ai',
+        GROQ_API_KEY: 'e2e-not-a-real-key-groq',
+        GROQ_NO_CARD_CONFIRMED: 'true',
+        CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+        CLOUDFLARE_API_TOKEN: 'e2e-not-a-real-token-cloudflare',
+        CLOUDFLARE_FREE_PLAN_CONFIRMED: 'true',
+        AI_BUDGET_GROQ_DAILY: '1000',
+        AI_BUDGET_CLOUDFLARE_AI_DAILY: '1000',
+        E2E_AI_STUB_URL: aiStubUrl,
+        NODE_OPTIONS: `--import=${pathToFileURL(join(REPO_ROOT, 'e2e/support/ai-fetch-preload.mjs')).href}`,
       },
     });
+    // The same build with no AI provider at all: "AI is off" (AI_PROVIDERS is empty).
+    const apiNoAi = startService('api-no-ai', dir, 'node', ['apps/api/dist/server.js'], {
+      cwd: REPO_ROOT,
+      env: { ...apiEnv, PORT: String(API_NO_AI_PORT) },
+    });
+    services.push(apiNoAi);
     services.push(api);
 
     // The e2e build of the web app: VITE_E2E=1 turns on the localStorage sign-in, and the fake
@@ -112,6 +144,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     services.push(web);
 
     await waitForHttp(`${API_URL}/api/v1/health`, api);
+    await waitForHttp(`${API_NO_AI_URL}/api/v1/health`, apiNoAi);
     await waitForHttp(`http://127.0.0.1:${WEB_PORT}/`, web);
   } catch (error) {
     await teardown();
