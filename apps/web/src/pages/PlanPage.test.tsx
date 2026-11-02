@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe';
@@ -266,6 +266,78 @@ describe('Manage plans', () => {
     renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
     return api;
   }
+
+  it('announces and focuses even when the plan list refetches slowly after the delete', async () => {
+    let deleted = false;
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': async () => {
+          if (deleted) await new Promise((r) => setTimeout(r, 50));
+          return json({ plans: deleted ? [] : [planSummary()] });
+        },
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Plan deleted.');
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('clears the announcement on the next action and announces a second delete again', async () => {
+    const THIRD = '55555555-5555-4555-8555-555555555555';
+    const remaining = [PLAN_ID, OTHER_ID, THIRD];
+    const names: Record<string, string> = {
+      [PLAN_ID]: 'Demo plan',
+      [OTHER_ID]: 'Other plan',
+      [THIRD]: 'Third plan',
+    };
+    const route = (id: string, delay = 0) => ({
+      [`GET /api/v1/plans/${id}/tasks`]: () => json({ tasks: [] }),
+      [`DELETE /api/v1/plans/${id}`]: async () => {
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        remaining.splice(remaining.indexOf(id), 1);
+        return new Response(null, { status: 204 });
+      },
+    });
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({ plans: remaining.map((id) => planSummary({ id, name: names[id]! })) }),
+        ...route(OTHER_ID, 100),
+        ...route(THIRD),
+        [`DELETE ${BASE}`]: () => {
+          remaining.splice(remaining.indexOf(PLAN_ID), 1);
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Plan deleted.');
+    await screen.findByRole('heading', { name: 'Other plan' });
+    // Starting another delete clears the old announcement while it runs.
+    await user.click(screen.getByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.'));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('says a lost connection may or may not have deleted the plan', async () => {
+    open('/plan', { [`DELETE ${BASE}`]: () => Promise.reject(new TypeError('Failed to fetch')) });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('may or may not have been deleted');
+  });
 
   it('after deleting one of two plans the page shows the remaining one', async () => {
     twoPlans();

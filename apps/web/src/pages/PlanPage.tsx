@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
 import { Button, ErrorText, linkClass } from '../components/ui';
-import { describeError, isConnectionProblem } from '../lib/messages';
+import { isConnectionProblem } from '../lib/messages';
 import { formatHours } from '../lib/format';
 import { anchorText, dependencyText } from '../lib/task-text';
 import { TASK_TYPE_META } from '../lib/task-types';
@@ -43,21 +43,31 @@ function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => strin
 
 /** Every task of the plan, in plan order. */
 export function PlanPage() {
-  const [deleted, setDeleted] = useState(false);
+  // A counter, so a second delete announces and focuses again. It is cleared by the next action.
+  const count = useRef(0);
+  const [notice, setNotice] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
   // The deleted plan's button is gone: focus moves to the page heading, which stays.
   useEffect(() => {
-    if (deleted) heading.current?.focus();
-  }, [deleted]);
+    if (notice > 0) heading.current?.focus();
+  }, [notice]);
+  // The mutation lives here, not in the part that disappears with the deleted plan.
+  const remove = useDeletePlan(() => {
+    count.current += 1;
+    setNotice(count.current);
+  });
+  const clearNotice = () => setNotice(0);
   return (
     <div className="space-y-6">
       <h1 ref={heading} tabIndex={-1}>
         Plan
       </h1>
       <div role="status" className="font-bold text-ok empty:hidden">
-        {deleted ? 'Plan deleted.' : null}
+        {notice > 0 ? <span key={notice}>Plan deleted.</span> : null}
       </div>
-      <PlanSwitcher />
+      <div onChange={clearNotice}>
+        <PlanSwitcher />
+      </div>
       <PlanGate
         empty={
           <p className="text-muted">
@@ -76,7 +86,8 @@ export function PlanPage() {
               key={plan.id}
               planId={plan.id}
               name={plan.name}
-              onDeleted={() => setDeleted(true)}
+              remove={remove}
+              onAction={clearNotice}
             />
           </>
         )}
@@ -110,13 +121,14 @@ function TaskList({ planId, name }: { planId: string; name: string }) {
 function ManagePlans({
   planId,
   name,
-  onDeleted,
+  remove,
+  onAction,
 }: {
   planId: string;
   name: string;
-  onDeleted: () => void;
+  remove: ReturnType<typeof useDeletePlan>;
+  onAction: () => void;
 }) {
-  const remove = useDeletePlan();
   const [confirming, setConfirming] = useState(false);
   return (
     <section aria-labelledby="manage-heading" className="space-y-4 border-t border-border pt-6">
@@ -125,10 +137,10 @@ function ManagePlans({
         <Button variant="danger" onClick={() => setConfirming(true)}>
           Delete this plan
         </Button>
-        {remove.error ? (
+        {remove.error && remove.variables === planId ? (
           <ErrorText>
             {isConnectionProblem(remove.error)
-              ? describeError(remove.error, '')
+              ? 'Can’t reach the server. The plan may or may not have been deleted. Check your plan list or try again.'
               : 'The plan could not be deleted. Nothing was changed. Try again in a moment.'}
           </ErrorText>
         ) : null}
@@ -137,7 +149,7 @@ function ManagePlans({
         <summary className="flex min-h-11 cursor-pointer items-center px-3 font-bold">
           Import another plan
         </summary>
-        <div className="px-3 pb-3 pt-2">
+        <div className="px-3 pb-3 pt-2" onClick={onAction}>
           <ImportPlan />
         </div>
       </details>
@@ -148,12 +160,10 @@ function ManagePlans({
           cancelLabel="Keep this plan"
           busy={remove.isPending}
           onCancel={() => setConfirming(false)}
-          onConfirm={() =>
-            remove.mutate(planId, {
-              onSuccess: onDeleted,
-              onSettled: () => setConfirming(false),
-            })
-          }
+          onConfirm={() => {
+            onAction();
+            remove.mutate(planId, { onSettled: () => setConfirming(false) });
+          }}
         >
           <p>
             Your progress and the calendar events Upversion created for this plan are removed. This

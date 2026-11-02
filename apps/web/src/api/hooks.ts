@@ -187,7 +187,7 @@ export function useImportPlan() {
  * it). Once the plan list is fresh the open plan falls back to the first one left, or to the
  * empty state; the deleted plan's cached data is dropped.
  */
-export function useDeletePlan() {
+export function useDeletePlan(onDeleted?: (planId: string) => void) {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
@@ -198,6 +198,9 @@ export function useDeletePlan() {
       queryClient.setQueryData<{ plans: { id: string }[] }>(plansKey, (old) =>
         old ? { ...old, plans: old.plans.filter((p) => p.id !== planId) } : old,
       );
+      // A hook-level callback, so it still runs when the component that started the delete has
+      // already left the screen (the plan it showed is gone).
+      onDeleted?.(planId);
       await queryClient.invalidateQueries({ queryKey: plansKey });
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== 'plans' && query.queryKey[1] === planId,
