@@ -12,6 +12,7 @@ import type { Database, UserContext } from '../../db/database';
 import { HttpError } from '../../errors';
 import type { PlanDetail } from '../plans/schemas';
 import * as plansRepo from '../plans/repository';
+import { loadCalendarInputs, withDayOffs, type CalendarInputs } from '../calendar/inputs';
 import * as repo from './repository';
 import type { Snapshot } from './repository';
 
@@ -38,6 +39,8 @@ export interface DayContext {
   /** The first date the app considers part of the plan (see `firstPlanDay`). */
   firstDay: string;
   snapshots: Snapshot[];
+  /** The user's synced calendar (busy time, blocking all-day events, locked blocks); empty when none. */
+  calendar: CalendarInputs;
 }
 
 const unprocessable = (message: string) => new HttpError(422, 'unprocessable', message);
@@ -107,6 +110,7 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
       pattern,
       today: localDateOf(now(), pattern.timezone),
       firstDay: firstPlanDay(plan, pattern.timezone),
+      calendar: await loadCalendarInputs(ctx, userId, planId, pattern.timezone),
     };
   }
 
@@ -117,11 +121,14 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
     date: string,
     snapshots: Snapshot[],
     history: History,
+    calendar: CalendarInputs,
   ): Block[] {
     const result = schedule({
       tasks: tasksAtStartOf(plan.tasks, history, date),
       pattern,
-      overrides: plan.overrides,
+      overrides: withDayOffs(plan.overrides, calendar.dayOffs),
+      busy: calendar.busy,
+      lockedBlocks: calendar.lockedBlocks,
       today: date,
       frozenBlocks: snapshots.flatMap((s) => s.blocks),
     });
@@ -164,7 +171,7 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
 
     const history = await loadHistory(ctx, userId, c.plan.id, c.pattern.timezone, todo[0]!);
     for (const date of todo) {
-      const blocks = plannedFor(c.plan, c.pattern, date, snapshots, history);
+      const blocks = plannedFor(c.plan, c.pattern, date, snapshots, history, c.calendar);
       if (await repo.insertSnapshot(ctx, userId, c.plan.id, date, blocks, 'auto_rollover')) {
         await plansRepo.insertEvent(ctx, userId, c.plan.id, 'day.rolled_over', {
           date,
@@ -239,6 +246,7 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
           pattern: plan.weekPattern,
           today: localDateOf(now(), tz),
           firstDay: firstPlanDay(plan, tz),
+          calendar: await loadCalendarInputs(ctx, userId, planId, tz),
         });
       });
     },
@@ -271,7 +279,7 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
           source = existing.source;
         } else {
           const history = await loadHistory(ctx, userId, planId, c.pattern.timezone, date);
-          const blocks = plannedFor(c.plan, c.pattern, date, snapshots, history);
+          const blocks = plannedFor(c.plan, c.pattern, date, snapshots, history, c.calendar);
           await repo.insertSnapshot(ctx, userId, planId, date, blocks, 'day_end');
         }
         if (await repo.endSession(ctx, userId, planId, date)) {
