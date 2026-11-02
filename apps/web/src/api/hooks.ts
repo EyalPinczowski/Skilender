@@ -182,6 +182,26 @@ export function useImportPlan() {
   });
 }
 
+/**
+ * Deletes a plan with its progress (the API also removes the calendar events the app created for
+ * it). Once the plan list is fresh the open plan falls back to the first one left, or to the
+ * empty state; the deleted plan's cached data is dropped.
+ */
+export function useDeletePlan() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: (planId: string) => api.deletePlan(planId).then(() => planId),
+    onSuccess: async (planId) => {
+      await queryClient.invalidateQueries({ queryKey: plansKey });
+      queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] !== 'plans' && query.queryKey[1] === planId,
+      });
+    },
+  });
+}
+
 export function useAddLog(planId: string) {
   const api = useApi();
   const invalidate = useInvalidatePlanData();

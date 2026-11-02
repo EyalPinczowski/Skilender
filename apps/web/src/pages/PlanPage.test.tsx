@@ -3,7 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe';
 import { apiError, fakeAuth, installApi, json, renderApp, SESSION } from '../test/helpers';
-import { PLAN_ID, planRoutes, TASKS, taskView } from '../test/plan-fixtures';
+import {
+  PLAN_ID,
+  planDetail,
+  planRoutes,
+  planSummary,
+  TASKS,
+  taskView,
+} from '../test/plan-fixtures';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -181,5 +188,89 @@ describe('Task detail', () => {
     expect(api.count(`POST ${BASE}/tasks/setup/reopen`)).toBe(0);
     await userEvent.setup().click(button);
     await vi.waitFor(() => expect(api.count(`POST ${BASE}/tasks/setup/reopen`)).toBe(1));
+  });
+});
+
+describe('Manage plans', () => {
+  const NEW_ID = '33333333-3333-4333-8333-333333333333';
+
+  function openWithDelete() {
+    let deleted = false;
+    const api = installApi(
+      planRoutes({
+        'GET /api/v1/plans': () => json({ plans: deleted ? [] : [planSummary()] }),
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    return api;
+  }
+
+  it('deletes the plan only after confirmation, then shows the empty state', async () => {
+    const api = openWithDelete();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent(/progress and the calendar events/i);
+    expect(dialog).toHaveTextContent(/cannot be undone/i);
+    expect(api.count(`DELETE ${BASE}`)).toBe(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByText(/No plan yet/)).toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}`)).toBe(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('cancelling the confirmation deletes nothing', async () => {
+    const api = openWithDelete();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(screen.getByRole('button', { name: 'Keep this plan' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}`)).toBe(0);
+    expect(screen.getByRole('heading', { name: 'Demo plan' })).toBeInTheDocument();
+  });
+
+  it('shows an error and keeps the plan when the delete fails', async () => {
+    open('/plan', { [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Demo plan' })).toBeInTheDocument();
+  });
+
+  it('imports another plan from the disclosure and selects it', async () => {
+    let imported = false;
+    const bodies: Record<string, unknown>[] = [];
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({
+            plans: imported
+              ? [planSummary(), planSummary({ id: NEW_ID, name: 'Second plan' })]
+              : [planSummary()],
+          }),
+        'POST /api/v1/plans/import': async (request) => {
+          bodies.push((await request.json()) as Record<string, unknown>);
+          imported = true;
+          return json(planDetail({ id: NEW_ID, name: 'Second plan' }), 201);
+        },
+        [`GET /api/v1/plans/${NEW_ID}/tasks`]: () => json({ tasks: [] }),
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    const summary = await screen.findByText('Import another plan');
+    expect(screen.getByRole('textbox', { name: /paste the plan json/i })).not.toBeVisible();
+    await user.click(summary);
+    await user.click(screen.getByRole('textbox', { name: /paste the plan json/i }));
+    await user.paste(JSON.stringify({ formatVersion: 1, name: 'Second plan', tasks: [] }));
+    await user.click(screen.getByRole('button', { name: 'Import plan' }));
+    expect(await screen.findByRole('heading', { name: 'Second plan' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Plan' })).toHaveValue(NEW_ID);
+    expect(bodies).toHaveLength(1);
   });
 });

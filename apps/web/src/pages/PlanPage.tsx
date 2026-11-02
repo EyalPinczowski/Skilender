@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { Task } from '../api/client';
-import { useTasks } from '../api/hooks';
+import { useDeletePlan, useTasks } from '../api/hooks';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
-import { linkClass } from '../components/ui';
+import { Button, ErrorText, linkClass } from '../components/ui';
+import { describeError } from '../lib/messages';
 import { formatHours } from '../lib/format';
 import { anchorText, dependencyText } from '../lib/task-text';
 import { TASK_TYPE_META } from '../lib/task-types';
+import { ImportPlan } from '../plan/ImportPlan';
 import { PlanGate, PlanSwitcher } from '../plan/PlanGate';
 
 function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => string }) {
@@ -54,7 +58,12 @@ export function PlanPage() {
           </p>
         }
       >
-        {(plan) => <TaskList planId={plan.id} name={plan.name} />}
+        {(plan) => (
+          <>
+            <TaskList planId={plan.id} name={plan.name} />
+            <ManagePlans planId={plan.id} name={plan.name} />
+          </>
+        )}
       </PlanGate>
     </div>
   );
@@ -79,5 +88,48 @@ function TaskList({ planId, name }: { planId: string; name: string }) {
         );
       }}
     </QueryView>
+  );
+}
+
+function ManagePlans({ planId, name }: { planId: string; name: string }) {
+  const remove = useDeletePlan();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <section aria-labelledby="manage-heading" className="space-y-4 border-t border-border pt-6">
+      <h2 id="manage-heading">Manage plans</h2>
+      <div className="space-y-2">
+        <Button variant="danger" onClick={() => setConfirming(true)}>
+          Delete this plan
+        </Button>
+        {remove.error ? (
+          <ErrorText>
+            {describeError(remove.error, 'The plan could not be deleted. Nothing was changed.')}
+          </ErrorText>
+        ) : null}
+      </div>
+      <details className="rounded-sm border border-border">
+        <summary className="flex min-h-11 cursor-pointer items-center px-3 font-bold">
+          Import another plan
+        </summary>
+        <div className="px-3 pb-3 pt-2">
+          <ImportPlan />
+        </div>
+      </details>
+      {confirming ? (
+        <ConfirmDialog
+          title={`Delete “${name}”?`}
+          confirmLabel="Delete plan"
+          cancelLabel="Keep this plan"
+          busy={remove.isPending}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => remove.mutate(planId, { onSettled: () => setConfirming(false) })}
+        >
+          <p>
+            Your progress and the calendar events Upversion created for this plan are removed. This
+            cannot be undone.
+          </p>
+        </ConfirmDialog>
+      ) : null}
+    </section>
   );
 }
