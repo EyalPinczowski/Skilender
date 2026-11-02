@@ -34,7 +34,11 @@ const self = (responseStatus: 'accepted' | 'declined' | 'tentative' | 'needsActi
 describe('constants', () => {
   it('names the secondary calendar after the product', () => {
     expect(APP_CALENDAR_NAME).toBe(APP_NAME);
-    expect(APP_EVENT_SOURCE).toBe('upversion');
+  });
+
+  it('keeps the stored event source fixed and independent of the product name', () => {
+    // Written on real calendar events: changing it would orphan them. Never change this value.
+    expect(APP_EVENT_SOURCE).toBe('studyplanner-app');
   });
 });
 

@@ -324,7 +324,7 @@ The principle: **the app manages only the events it created itself. All other ev
 **The app's own events (read and write):**
 - A dedicated secondary calendar named "Upversion". All study blocks are created there only.
 - Create, move, change and delete these events on every reschedule, with no duplicates (each block maps to exactly one event by event id).
-- Every event is tagged with `extendedProperties.private` (`source=upversion`, `task_id=...`).
+- Every event is tagged with `extendedProperties.private` (`source=<APP_EVENT_SOURCE value>`, `task_id=...`).
 - If the user moves a study block directly in Google Calendar – on sync the new position is locked as my decision, and everything else is rescheduled around it.
 
 **All other events (view-only):**

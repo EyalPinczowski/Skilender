@@ -181,11 +181,11 @@ describe.skipIf(!dbAvailable)('migrate (real Postgres, non-superuser admin)', ()
     const dir = await copyOfMigrations();
     // Put a stub catalog table (with old and new names) in front of the real data fix.
     await rename(
-      join(dir, '0011_rename_practice_provider.sql'),
       join(dir, '0012_rename_practice_provider.sql'),
+      join(dir, '0013_rename_practice_provider.sql'),
     );
     await writeFile(
-      join(dir, '0011_catalog_stub.sql'),
+      join(dir, '0012_catalog_stub.sql'),
       `set local role {{owner}};
 create table {{schema}}.catalog_items (id text primary key, provider text);
 insert into {{schema}}.catalog_items values
