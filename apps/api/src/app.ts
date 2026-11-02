@@ -220,7 +220,12 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
       v1.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
       v1.register(healthRoutes, { config, probe: createDatabaseProbe(db) });
       v1.register(accountRoutes, { verifier, db, authAdmin });
-      v1.register(planRoutes, { verifier, db, now: deps.now });
+      v1.register(planRoutes, {
+        verifier,
+        db,
+        now: deps.now,
+        chat: { gateway: aiGateway, usage: aiUsage, userCaps: config.ai.userCaps },
+      });
       v1.register(taskRoutes, { verifier, db, now: deps.now });
       v1.register(aiRoutes, {
         verifier,

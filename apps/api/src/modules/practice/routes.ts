@@ -17,11 +17,14 @@ import {
   putContextBody,
   putContextResult,
   sessionDetail,
+  sendMessageBody,
+  sendMessageResult,
   sessionParams,
   taskParams,
   trendsQuery,
   trendsView,
 } from './schemas';
+import { HttpError } from '../../errors';
 import type { PracticeService } from './service';
 
 const errors = {
@@ -32,7 +35,34 @@ const errors = {
   409: errorResponseSchema,
   422: errorResponseSchema,
   429: errorResponseSchema,
+  503: errorResponseSchema,
 };
+
+/**
+ * A per-user sliding window for the routes that call a model. In memory, so it is per API
+ * instance (the free plan runs one). It sits on top of the daily cap and the global rate limit.
+ */
+export function createUserLimiter(max: number, windowMs: number, clock: () => number = Date.now) {
+  const hits = new Map<string, number[]>();
+  return (user: string): void => {
+    const at = clock();
+    const recent = (hits.get(user) ?? []).filter((t) => t > at - windowMs);
+    if (recent.length >= max) {
+      hits.set(user, recent);
+      throw new HttpError(429, 'rate_limited', 'Too many requests. Please slow down.');
+    }
+    recent.push(at);
+    hits.set(user, recent);
+    if (hits.size > 10_000) {
+      for (const [k, v] of hits) if (v.every((t) => t <= at - windowMs)) hits.delete(k);
+    }
+  };
+}
+
+/** Chat turns per user per minute. */
+export const MESSAGES_PER_MINUTE = 20;
+/** AI feedback requests per user per minute. */
+export const AI_FEEDBACK_PER_MINUTE = 5;
 
 export interface PracticeRoutesOptions {
   service: PracticeService;
@@ -50,6 +80,8 @@ export const practiceRoutes: FastifyPluginAsyncZod<PracticeRoutesOptions> = asyn
 ) => {
   const security = [{ bearerAuth: [] }];
   const tags = ['practice'];
+  const messageLimit = createUserLimiter(MESSAGES_PER_MINUTE, 60_000);
+  const feedbackLimit = createUserLimiter(AI_FEEDBACK_PER_MINUTE, 60_000);
 
   app.get(
     '/plans/:planId/practice/context',
@@ -109,7 +141,7 @@ export const practiceRoutes: FastifyPluginAsyncZod<PracticeRoutesOptions> = asyn
         tags,
         summary: 'Start a practice session (idempotent on the client-generated id)',
         description:
-          'Channels `external` (copy the prompt to another assistant, paste the feedback back) and `self` (rubric). 201 when created; 200 with the stored session for a retry of the same id, task and channel; 409 when the id was used for other data or the task already has an active session (the message names it). 422 when the task is not a practice. The stored prompt never contains the job description. Writes a `practice.started` event.',
+          'Channels `external` (copy the prompt to another assistant, paste the feedback back), `self` (rubric) and `in_app` (chat with a model here; the answer carries the fixed opener as the first message, and is 503 `ai_unavailable` with `fallbacks` when no model is available). 201 when created; 200 with the stored session for a retry of the same id, task and channel; 409 when the id was used for other data or the task already has an active session (the message names it). 422 when the task is not a practice. The stored prompt never contains the job description. Writes a `practice.started` event.',
         security,
         params: taskParams,
         body: createSessionBody,
@@ -140,6 +172,33 @@ export const practiceRoutes: FastifyPluginAsyncZod<PracticeRoutesOptions> = asyn
     },
     async (request) =>
       service.getSession(userId(request), request.params.planId, request.params.sessionId),
+  );
+
+  app.post(
+    '/plans/:planId/practice/sessions/:sessionId/messages',
+    {
+      schema: {
+        tags,
+        summary: 'Send one chat turn in an in-app session and get the model’s reply',
+        description:
+          'The id is chosen by the client: sending the same id again returns the stored pair with no second model call (200, `replayed: true`). Personal details are removed from the text before it is stored or sent (`userMessage.redacted`). The whole earlier conversation is sent each turn, so a provider switch (`switched`) continues from the same point. 429 `ai_user_cap` or `rate_limited`; 503 `ai_unavailable` (your message is kept; send the same id to retry; `fallbacks` lists what to do instead); 409 `turn_in_progress` while another turn is being answered; 422 `pii_blocked`.',
+        security,
+        params: sessionParams,
+        body: sendMessageBody,
+        response: { 200: sendMessageResult, 201: sendMessageResult, ...errors },
+      },
+    },
+    async (request, reply) => {
+      const user = userId(request);
+      messageLimit(user);
+      const result = await service.sendMessage(
+        user,
+        request.params.planId,
+        request.params.sessionId,
+        request.body,
+      );
+      return reply.status(result.replayed ? 200 : 201).send(result);
+    },
   );
 
   app.post(
@@ -176,7 +235,7 @@ export const practiceRoutes: FastifyPluginAsyncZod<PracticeRoutesOptions> = asyn
         tags,
         summary: 'Finish a session with a self-check, an entered score or no feedback',
         description:
-          '`markDone` is required: the task is marked done only when it is true, through the tasks service, and is otherwise left as it is (logging hours still moves a pending task to in progress, as everywhere). `rubric.checkedSteps` ticks steps of the task (or four generic steps when it has none) and is scored as 10 x ticked / total; `enteredScore` is a score you got elsewhere, normalised to 0 to 10; send at most one of them. Without either, no feedback is saved. 201 when finished now; 200 for a retry with the same feedback and options; 409 otherwise, for an abandoned session, or to mark a skipped task done.',
+          '`markDone` is required: the task is marked done only when it is true, through the tasks service, and is otherwise left as it is (logging hours still moves a pending task to in progress, as everywhere). `rubric.checkedSteps` ticks steps of the task (or four generic steps when it has none) and is scored as 10 x ticked / total; `enteredScore` is a score you got elsewhere, normalised to 0 to 10; send at most one of them. Without either, no feedback is saved. In-app sessions can send `aiFeedback: true` instead: the model writes the feedback (valid JSON is saved as `model_json`, JSON repaired locally as `model_repaired`, anything else gets one retry and is then kept as plain text, `free_text`); it never marks the task done, `markDone` does. 503 `ai_unavailable` and 429 `ai_user_cap` carry `fallbacks`, and the session stays open. 201 when finished now; 200 for a retry with the same feedback and options; 409 otherwise, for an abandoned session, or to mark a skipped task done.',
         security,
         params: sessionParams,
         body: finishBody,
@@ -184,6 +243,7 @@ export const practiceRoutes: FastifyPluginAsyncZod<PracticeRoutesOptions> = asyn
       },
     },
     async (request, reply) => {
+      if (request.body.aiFeedback) feedbackLimit(userId(request));
       const result = await service.finish(
         userId(request),
         request.params.planId,

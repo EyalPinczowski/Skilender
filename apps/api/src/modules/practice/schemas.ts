@@ -67,8 +67,8 @@ export const promptView = z.object({
 // Sessions
 // ---------------------------------------------------------------------------
 
-/** `in_app` joins in the chat package; this package has no model. */
-export const CHANNELS = ['external', 'self'] as const;
+/** `in_app` is the chat with a model; it needs an AI provider (503 otherwise). */
+export const CHANNELS = ['in_app', 'external', 'self'] as const;
 
 export const createSessionBody = noNulCharacters(
   z.strictObject({
@@ -154,6 +154,8 @@ export const finishBody = noNulCharacters(
       rubric: z
         .strictObject({ checkedSteps: z.array(z.number().int().min(0).max(999)).max(1000) })
         .optional(),
+      /** In-app sessions only: ask the model for the feedback (one call, one retry at most). */
+      aiFeedback: z.boolean().default(false),
       /** A score you got elsewhere (for example a timed test): `score` out of `max`. */
       enteredScore: z
         .strictObject({
@@ -164,9 +166,46 @@ export const finishBody = noNulCharacters(
     })
     .refine((b) => !(b.rubric && b.enteredScore), {
       message: 'Send either a rubric or an entered score, not both.',
+    })
+    .refine((b) => !(b.aiFeedback && (b.rubric || b.enteredScore)), {
+      message: 'Ask for AI feedback or send a rubric or score, not both.',
     }),
 );
 export type FinishBody = z.infer<typeof finishBody>;
+
+export const MAX_CHAT_MESSAGE_LENGTH = 4000;
+
+export const sendMessageBody = noNulCharacters(
+  z.strictObject({
+    /** Chosen by the client: sending the same id again returns the stored answer. */
+    id: z.uuid(),
+    content: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
+  }),
+);
+export type SendMessageBody = z.infer<typeof sendMessageBody>;
+
+export const sendMessageResult = z.object({
+  userMessage: messageView,
+  reply: z.object({
+    id: z.uuid(),
+    content: z.string(),
+    providerId: z.string().nullable(),
+    model: z.string().nullable(),
+  }),
+  /** Set when another provider answered because the first was out of quota or failing. */
+  switched: z
+    .object({
+      from: z.string(),
+      fromLabel: z.string(),
+      to: z.string(),
+      toLabel: z.string(),
+      reason: z.enum(['quota', 'error', 'timeout']),
+    })
+    .nullable(),
+  usage: z.object({ used: z.number().int(), cap: z.number().int() }),
+  /** True when this was a retry of a message that already had its answer. */
+  replayed: z.boolean(),
+});
 
 export const pasteFeedbackBody = noNulCharacters(
   z.strictObject({
