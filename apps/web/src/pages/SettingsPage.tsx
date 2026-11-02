@@ -9,6 +9,7 @@ import { DELETE_PHRASE, EXPORT_FILENAME } from '../lib/account';
 import { downloadJson } from '../lib/download';
 import { LEGAL_PAGES } from '../lib/legal';
 import { AiUsageMeter } from './settings/AiUsageMeter';
+import { CalendarSettings } from './settings/CalendarSettings';
 import { PracticeSettings } from './settings/PracticeSettings';
 import { TimeSettings } from './settings/TimeSettings';
 import { useTheme, type ThemePreference } from '../lib/theme';
@@ -265,6 +266,7 @@ export function SettingsPage({ appEnv = 'operational' }: { appEnv?: AppEnv }) {
       <TimeSettings />
       <PracticeSettings />
       <AiUsageMeter />
+      <CalendarSettings />
       <AppearanceSection />
       <DataSection />
       <SignOutSection />

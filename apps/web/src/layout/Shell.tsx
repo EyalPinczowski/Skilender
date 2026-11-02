@@ -1,6 +1,7 @@
 import { APP_NAME } from '@upversion/shared';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { CalendarWatcher } from '../components/CalendarWatcher';
 import { EnvironmentBadge } from '../components/EnvironmentBadge';
 import { PlanIcon, SettingsIcon, TodayIcon, WeekIcon } from '../components/icons';
 import { Logo } from '../components/Logo';
@@ -93,6 +94,7 @@ export function AppShell({ appEnv }: { appEnv: AppEnv }) {
           className="min-w-0 grow px-4 pb-28 pt-6 md:px-8 md:pb-8"
         >
           <div className="max-w-3xl">
+            <CalendarWatcher />
             <Outlet />
           </div>
         </main>
