@@ -36,6 +36,23 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      # AI providers (optional; names only, values go in the Render dashboard). See docs/setup/ai-providers.md.
+      - key: AI_PROVIDERS
+        sync: false
+      - key: AI_BUDGET_CLOUDFLARE_AI_DAILY
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_FREE_PLAN_CONFIRMED
+        sync: false
+      - key: AI_BUDGET_GROQ_DAILY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_NO_CARD_CONFIRMED
+        sync: false
 
   - type: web
     name: skillstack-api-rnd
@@ -70,4 +87,21 @@ services:
       # No SUPABASE_SERVICE_ROLE_KEY here on purpose: R&D shares Supabase Auth with the live app, so
       # only skillstack-api may hold the key. The R&D API refuses to start if the key is set.
       - key: DATABASE_URL
+        sync: false
+      # AI providers (optional; names only, values go in the Render dashboard). See docs/setup/ai-providers.md.
+      - key: AI_PROVIDERS
+        sync: false
+      - key: AI_BUDGET_CLOUDFLARE_AI_DAILY
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_FREE_PLAN_CONFIRMED
+        sync: false
+      - key: AI_BUDGET_GROQ_DAILY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_NO_CARD_CONFIRMED
         sync: false

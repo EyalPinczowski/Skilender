@@ -116,8 +116,11 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
 
   // AI: no provider is configured by default, and then everything reports `configured: false`.
   const aiRegistry = createAIRegistry(config.ai);
+  const notConfigured: string[] = [];
   for (const provider of deps.ai?.providers ??
-    createConfiguredProviders(config.ai, config.appEnv)) {
+    createConfiguredProviders(config.ai, config.appEnv, process.env, (id) =>
+      notConfigured.push(id),
+    )) {
     aiRegistry.register(provider);
   }
   const aiUsage = deps.ai?.usage ?? (db ? createAIUsageStore(db, deps.now) : unavailableAIUsage);
@@ -150,6 +153,9 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
     // Fastify version fails closed on a bare number and would ignore the hop count.
     trustProxy: (_address: string, hop: number) => hop < config.trustProxy,
   }).withTypeProvider<ZodTypeProvider>();
+
+  for (const id of notConfigured)
+    app.log.warn({ providerId: id }, `${id} listed but not configured`);
 
   const aiGateway = createAIGateway({
     registry: aiRegistry,
