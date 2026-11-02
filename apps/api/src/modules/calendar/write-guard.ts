@@ -137,6 +137,7 @@ export function createWriteGuard(provider: CalendarProvider, appCalendarId: stri
         return patchChecked(mintTarget(calendarId, draft.id, existing.etag), {
           summary: draft.summary,
           description: draft.description,
+          colorId: draft.colorId,
           start: draft.start,
           end: draft.end,
           status: 'confirmed',

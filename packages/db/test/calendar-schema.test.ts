@@ -213,7 +213,11 @@ for (const schema of ENVS) {
         );
         await q(`update ${s}.calendar_connections set sync_timezone = 'Asia/Jerusalem'`);
         await q(`update ${s}.calendar_event_links set last_summary = 'Course'`);
+        await q(`update ${s}.calendar_event_links set last_color = '7'`);
       });
+      await expect(
+        as(USER_A, (q) => q(`update ${s}.calendar_event_links set last_color = '12'`)),
+      ).rejects.toThrow();
       await expect(
         as(USER_A, (q) => q(`update ${s}.calendar_sources set sync_token = repeat('x', 2001)`)),
       ).rejects.toThrow();

@@ -1,6 +1,7 @@
 import {
   addDays,
   classifyEvents,
+  colorIdForTask,
   compareDates,
   localDateOf,
   parseTime,
@@ -102,6 +103,7 @@ export interface DesiredBlock {
   start: Date;
   end: Date;
   summary: string;
+  colorId: string;
 }
 
 /**
@@ -111,7 +113,7 @@ export interface DesiredBlock {
  */
 export function desiredBlocks(input: {
   blocks: Block[];
-  tasks: Map<string, { title: string; open: boolean }>;
+  tasks: Map<string, { title: string; open: boolean; orderIndex: number }>;
   locked: LockedRow[];
   today: string;
   horizon: string;
@@ -160,6 +162,7 @@ export function desiredBlocks(input: {
       start,
       end,
       summary: clean(tasks.get(b.taskId)!.title, TITLE_MAX),
+      colorId: colorIdForTask(tasks.get(b.taskId)!.orderIndex),
     });
   }
   return out;
@@ -498,7 +501,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     userId: string,
     planId: string,
     locked: LockedRow[],
-    tasks: Map<string, { title: string; open: boolean }>,
+    tasks: Map<string, { title: string; open: boolean; orderIndex: number }>,
     blocks: Block[],
     timeZone: string,
   ): Promise<Set<string>> {
@@ -593,7 +596,8 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         } else if (
           link.last_start.getTime() !== d.start.getTime() ||
           link.last_end.getTime() !== d.end.getTime() ||
-          link.last_summary !== d.summary
+          link.last_summary !== d.summary ||
+          link.last_color !== d.colorId
         ) {
           const patched = await patchBlock(env, link, d, timeZone);
           if (patched) ops.push({ op: 'upsert', link: patched });
@@ -643,6 +647,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         event = await env.guard.insertAppEvent(env.appCalendarId, d.taskId, {
           id,
           summary: d.summary,
+          colorId: d.colorId,
           start: timeOf(d.start, timeZone),
           end: timeOf(d.end, timeZone),
         });
@@ -661,14 +666,17 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         }
         throw error;
       }
-      // A retried insert returns the event that is already there; it may sit at another time.
+      // A retried insert returns the event that is already there; it may sit at another time or
+      // have another (or no) colour.
       if (
         instantOf(event.start) !== d.start.getTime() ||
-        instantOf(event.end) !== d.end.getTime()
+        instantOf(event.end) !== d.end.getTime() ||
+        event.colorId !== d.colorId
       ) {
         try {
           event = await env.guard.patchAppEvent(env.appCalendarId, id, {
             summary: d.summary,
+            colorId: d.colorId,
             start: timeOf(d.start, timeZone),
             end: timeOf(d.end, timeZone),
           });
@@ -687,6 +695,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         last_end: d.end,
         etag: event.etag ?? null,
         last_summary: d.summary,
+        last_color: d.colorId,
       };
     }
     return null;
@@ -702,6 +711,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     try {
       const event = await env.guard.patchAppEvent(env.appCalendarId, link.event_id, {
         summary: d.summary,
+        colorId: d.colorId,
         start: timeOf(d.start, timeZone),
         end: timeOf(d.end, timeZone),
       });
@@ -711,6 +721,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         last_end: d.end,
         etag: event.etag ?? null,
         last_summary: d.summary,
+        last_color: d.colorId,
       };
     } catch (error) {
       if (error instanceof CalendarWriteRefused) {

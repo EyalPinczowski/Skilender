@@ -154,6 +154,7 @@ function eventBody(
   if (e.id !== undefined) body.id = e.id;
   if (e.summary !== undefined) body.summary = e.summary;
   if (e.description !== undefined) body.description = e.description;
+  if (e.colorId !== undefined) body.colorId = e.colorId;
   if (e.start !== undefined) body.start = e.start;
   if (e.end !== undefined) body.end = e.end;
   if (e.privateTags !== undefined) body.extendedProperties = { private: e.privateTags };
