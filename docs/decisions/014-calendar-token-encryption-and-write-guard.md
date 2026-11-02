@@ -14,6 +14,7 @@ Calendar sync stores a long-lived Google refresh token and writes to a user's re
 - **Disconnect and account delete remove events only.** The app deletes the events it created and the calendar data and token it stores. It never deletes the secondary calendar itself or anything else in the user's Google account.
 - **User-deleted blocks mean unavailable time.** If the user deletes a study block in Google Calendar, the app treats that slot as time the user does not want to study, and reschedules around it instead of recreating the event. (Relies on Google keeping `extendedProperties` and the etag on a deleted event: **needs check**, see `docs/google-calendar-setup.md`.)
 - **Busy source.** The primary calendar is the default busy source; other calendars are opt-in.
+- **No calendar data in AI prompts.** Event titles and times must be excluded from every AI prompt (project rule: no personal details are sent to AI models). A test must enforce this when AI context building touches the calendar.
 - **Separate Google Cloud project.** Calendar uses its own Google Cloud project and OAuth client, apart from the sign-in client, so the sensitive scopes and any future verification do not affect sign-in.
 
 ## Consequences

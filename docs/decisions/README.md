@@ -16,7 +16,7 @@ One short record per significant choice: the context, the options considered, th
 | [010](010-current-user-id.md) | Row-level security reads the user from `current_user_id()`, not `auth.uid()` | Accepted |
 | [011](011-account-provisioning-in-the-database.md) | Accounts are created and deleted by database functions, not by app-role writes | Accepted |
 | [012](012-aiprovider-seam.md) | The AIProvider seam, and a template-only day briefing in v0.2 | Accepted |
-| [013](013-free-ai-providers-after-github-models.md) | Free AI providers after GitHub Models | Accepted |
+| [013](013-free-ai-providers-after-github-models.md) | Free AI providers after GitHub Models | Accepted for the code; spec 3.3 and 12.3 change proposed, awaiting owner approval |
 | [014](014-calendar-token-encryption-and-write-guard.md) | Calendar token encryption and write guard | Accepted |
 
 Facts about third-party free plans change often. Anything in these records that has not been confirmed on the provider's own documentation is marked **needs check**.
