@@ -1,0 +1,141 @@
+import { APP_EVENT_SOURCE, type CalendarEvent } from '@skillstack/shared';
+import type {
+  AppEventDraft,
+  CalendarProvider,
+  GuardedInsertTarget,
+  GuardedTarget,
+} from './provider';
+
+/**
+ * The calendar write guard (spec 3.8). This is the ONLY code that may write events:
+ *  - the provider's write methods take a branded target that only this file can create, so
+ *    bypassing the guard does not compile;
+ *  - an ESLint rule forbids calling them from any other file.
+ * A write goes ahead only when the event is in the app's own calendar AND is tagged as the app's
+ * (`source=skillstack` plus a `task_id`). The event is fetched fresh from the provider for every
+ * patch or delete, never trusted from a caller or a cache.
+ */
+
+export type WriteRefusal =
+  | 'not_app_calendar'
+  | 'event_not_found'
+  | 'not_tagged_as_app_event'
+  | 'missing_task_id'
+  | 'invalid_task_id';
+
+export class CalendarWriteRefused extends Error {
+  constructor(public readonly reason: WriteRefusal) {
+    super(`Calendar write refused (${reason})`);
+    this.name = 'CalendarWriteRefused';
+  }
+}
+
+const SOURCE_KEY = 'source';
+const TASK_KEY = 'task_id';
+
+const isNonEmpty = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== '';
+
+/** Returns the event's task id, or throws unless the event carries the app's tags. */
+function ownTaskId(event: CalendarEvent): string {
+  const tags = event.extendedProperties?.private;
+  if (tags?.[SOURCE_KEY] !== APP_EVENT_SOURCE) {
+    throw new CalendarWriteRefused('not_tagged_as_app_event');
+  }
+  const taskId = tags[TASK_KEY];
+  if (!isNonEmpty(taskId)) throw new CalendarWriteRefused('missing_task_id');
+  return taskId;
+}
+
+export interface WriteGuard {
+  /** Creates an event in the app calendar with the app's tags forced on. Returns the created event. */
+  insertAppEvent(calendarId: string, taskId: string, draft: AppEventDraft): Promise<CalendarEvent>;
+  /** Changes an app-created event. Its tags cannot be changed. */
+  patchAppEvent(
+    calendarId: string,
+    eventId: string,
+    patch: Partial<AppEventDraft>,
+  ): Promise<CalendarEvent>;
+  /** Deletes an app-created event. Returns false (and writes nothing) when it is already gone. */
+  deleteAppEvent(calendarId: string, eventId: string): Promise<boolean>;
+  /**
+   * For disconnect and account deletion: deletes every event in the app calendar that is tagged as
+   * ours. Never deletes the calendar itself and never touches untagged events. Returns how many.
+   */
+  deleteAllAppEvents(calendarId: string): Promise<number>;
+}
+
+/**
+ * @param provider the calendar backend
+ * @param appCalendarId the stored id of the app's own calendar (never the user's primary one)
+ */
+export function createWriteGuard(provider: CalendarProvider, appCalendarId: string): WriteGuard {
+  if (!isNonEmpty(appCalendarId)) throw new CalendarWriteRefused('not_app_calendar');
+
+  const assertAppCalendar = (calendarId: string) => {
+    if (calendarId !== appCalendarId) throw new CalendarWriteRefused('not_app_calendar');
+  };
+
+  /** Re-fetches the event and approves it, or throws. Null means it is gone. */
+  async function approve(
+    calendarId: string,
+    eventId: string,
+  ): Promise<{ target: GuardedTarget; taskId: string } | null> {
+    assertAppCalendar(calendarId);
+    const event = await provider.getEvent(calendarId, eventId);
+    if (!event || event.status === 'cancelled') return null;
+    const taskId = ownTaskId(event);
+    return { target: { calendarId, eventId } as GuardedTarget, taskId };
+  }
+
+  async function remove(calendarId: string, eventId: string): Promise<boolean> {
+    const approved = await approve(calendarId, eventId);
+    if (!approved) return false;
+    await provider.deleteEvent(approved.target);
+    return true;
+  }
+
+  return {
+    async insertAppEvent(calendarId, taskId, draft) {
+      assertAppCalendar(calendarId);
+      if (!isNonEmpty(taskId)) throw new CalendarWriteRefused('invalid_task_id');
+      const target = { calendarId } as GuardedInsertTarget;
+      // Set last, so nothing a caller passes can override the tags.
+      return provider.insertEvent(target, {
+        ...draft,
+        privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: taskId },
+      });
+    },
+
+    async patchAppEvent(calendarId, eventId, patch) {
+      const approved = await approve(calendarId, eventId);
+      if (!approved) throw new CalendarWriteRefused('event_not_found');
+      return provider.patchEvent(approved.target, {
+        ...patch,
+        privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: approved.taskId },
+      });
+    },
+
+    deleteAppEvent: remove,
+
+    async deleteAllAppEvents(calendarId) {
+      assertAppCalendar(calendarId);
+      let deleted = 0;
+      let pageToken: string | undefined;
+      do {
+        const page = await provider.listEvents(calendarId, null, null, {
+          pageToken,
+          privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE },
+        });
+        for (const event of page.events) {
+          // The tag filter is asked of the provider but never relied on: remove() re-checks, and
+          // an event that is not fully ours is skipped rather than aborting the cleanup.
+          const tags = event.extendedProperties?.private;
+          if (tags?.[SOURCE_KEY] !== APP_EVENT_SOURCE || !isNonEmpty(tags[TASK_KEY])) continue;
+          if (await remove(calendarId, event.id)) deleted += 1;
+        }
+        pageToken = page.nextPageToken ?? undefined;
+      } while (pageToken);
+      return deleted;
+    },
+  };
+}

@@ -23,7 +23,7 @@ describe('loadConfig defaults', () => {
         pushNotifications: false,
         aiOverview: false,
       },
-      calendar: { enabled: false, tokenKeys: [] },
+      calendar: { enabled: false, tokenKeys: [], google: null },
       ai: {
         allowPaid: false,
         paidMonthlyCapUsd: null,
