@@ -404,7 +404,16 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     await new Promise((r) => google.server.close(r));
   });
 
+  // A saved reschedule starts a sync in the background, after its response. A test must not
+  // leave one running: it would hold the per-user lock (409) or stamp last_synced_at on the next
+  // test's fresh connection (a cached answer with no busy rows) when the runner is slow.
+  const settleBackground = async () => {
+    await new Promise((r) => setImmediate(r)); // the onResponse hook runs just after inject()
+    await app.calendarSyncIdle();
+  };
+
   beforeEach(async () => {
+    await settleBackground();
     clock = new Date(START_CLOCK);
     logs.length = 0;
     statements.length = 0;
@@ -462,7 +471,8 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await settleBackground();
     // Whatever happened, no token and no event title may have reached the logs.
     const all = logs.join('\n');
     for (const secret of [
@@ -1005,6 +1015,28 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(onMonday).toEqual([]);
     });
 
+    it('waits for a background sync after a saved reschedule until it has finished', async () => {
+      const held = google.holdInserts();
+      const save = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/day-overrides/${MON}`,
+        headers: await asUser(A),
+        payload: { isStudyDay: true, hours: 2 },
+      });
+      expect(save.statusCode).toBe(200);
+      await held.reached; // the background run is mid-way, stopped at its first insert
+      let settled = false;
+      const idle = app.calendarSyncIdle().then(() => {
+        settled = true;
+      });
+      await new Promise((r) => setTimeout(r, 25));
+      expect(settled).toBe(false);
+      held.release();
+      await idle;
+      expect(google.live(APP_CAL).length).toBe((await links()).length);
+      expect(google.live(APP_CAL).length).toBeGreaterThan(0);
+    });
+
     it('syncs in the background after a saved reschedule, which commits first', async () => {
       await sync();
       const before = google.live(APP_CAL).length;
@@ -1151,7 +1183,7 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
   describe('errors', () => {
     it('flags the connection when Google rejects the credentials and leaves all data alone', async () => {
       google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
-      await sync();
+      expect((await sync()).statusCode).toBe(200);
       const busyBefore = await busy();
       const linksBefore = await links();
       expect(busyBefore.length).toBeGreaterThan(0);
