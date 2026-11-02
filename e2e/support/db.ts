@@ -33,6 +33,26 @@ function withLogin(base: string, user: string, password: string): string {
   return url.toString();
 }
 
+/**
+ * The API's clock is fixed (E2E_NOW, Monday 2026-11-02) but `plans.created_at` comes from the
+ * database's real clock, and a plan's first day is never before the day it was created in. So
+ * once the real date passed 2026-11-01 (Jerusalem) the demo plan's Sunday was "before the plan
+ * began", and a real date after 2026-11-02 would put the plan's first day in the future. This
+ * throwaway database therefore stamps every new plan as created on Sunday, the demo plan's start.
+ */
+async function pinPlanCreationDay(superuserUrl: string): Promise<void> {
+  await withClient(superuserUrl, async (client) => {
+    await client.query(
+      `create function ${SCHEMA}.e2e_pin_plan_created_at() returns trigger language plpgsql as
+       $$ begin new.created_at := timestamptz '2026-11-01 08:00:00+00'; return new; end $$`,
+    );
+    await client.query(
+      `create trigger e2e_pin_plan_created_at before insert on ${SCHEMA}.plans
+       for each row execute function ${SCHEMA}.e2e_pin_plan_created_at()`,
+    );
+  });
+}
+
 /** Returns the DATABASE_URL of the API (the app_rnd login with a fresh random password). */
 export async function prepareDatabase(adminUrl: string, superuserUrl: string): Promise<string> {
   assertLoopback('TEST_DATABASE_URL', adminUrl);
@@ -53,6 +73,7 @@ export async function prepareDatabase(adminUrl: string, superuserUrl: string): P
   });
 
   await migrate({ schema: SCHEMA, connectionString: adminUrl });
+  await pinPlanCreationDay(superuserUrl);
   // Generated now, held in memory and in the API's environment only. Never written to disk.
   const appPassword = randomBytes(18).toString('hex');
   await setPasswords({

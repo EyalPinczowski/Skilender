@@ -53,5 +53,5 @@ The tokens are verified by the real API code (signature, issuer, audience, expir
 
 1. `global-setup.ts` resets and migrates `rnd`, generates keys, starts the JWKS server, builds and starts the API, builds the e2e web app and starts `vite preview`, then waits until both answer.
 2. Each test gets its own person (`fixtures.ts`): a new UUID and email, put on the allowlist as superuser, with a signed token. Tests therefore never share data and can be repeated without resetting.
-3. The "now" of the API is Monday 2026-11-02, 10:00 in Jerusalem. The demo plan starts on Sunday 2026-11-01, so there are two consecutive study days for the review flow, and every run sees the same dates.
+3. The "now" of the API is Monday 2026-11-02, 10:00 in Jerusalem. The demo plan starts on Sunday 2026-11-01, so there are two consecutive study days for the review flow, and every run sees the same dates. `plans.created_at` comes from the database's real clock, so the throwaway database stamps every new plan as created on that Sunday (a trigger made in `support/db.ts`); without it the runs would depend on the real date.
 4. The teardown stops the processes and deletes the temporary folder.
