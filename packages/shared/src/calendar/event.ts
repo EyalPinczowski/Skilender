@@ -31,7 +31,8 @@ export const CalendarEventSchema = z.object({
       }),
     )
     .optional(),
-  eventType: z.enum(['default', 'outOfOffice', 'focusTime']).optional(),
+  /** Google adds types over time (default, outOfOffice, focusTime, workingLocation, birthday, ...). */
+  eventType: z.string().optional(),
   extendedProperties: z.object({ private: z.record(z.string(), z.string()).optional() }).optional(),
 });
 

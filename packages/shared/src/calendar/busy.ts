@@ -21,6 +21,7 @@ export type BusyReason =
   | 'cancelled'
   | 'own_study_block'
   | 'free'
+  | 'working_location'
   | 'declined'
   | 'not_responded'
   | 'not_a_participant'
@@ -88,7 +89,16 @@ export function splitByDay(startMs: number, endMs: number, timeZone: string): Da
     const to = Math.min(endMs, dayEnd);
     if (to <= from) continue;
     const startMinute = wallMinutes(from, date, timeZone);
-    const endMinute = to === dayEnd ? 1440 : wallMinutes(to, date, timeZone);
+    // Wall clock normally; in the repeated hour when clocks go back the wall end can be
+    // at or before the start, so fall back to start + elapsed minutes.
+    const wallEnd = wallMinutes(to, date, timeZone);
+    const elapsed = Math.round((to - from) / MINUTE_MS);
+    const endMinute =
+      to === dayEnd
+        ? 1440
+        : wallEnd > startMinute
+          ? wallEnd
+          : Math.min(1440, startMinute + elapsed);
     if (endMinute > startMinute) out.push({ date, startMinute, endMinute });
   }
   return out;
@@ -110,11 +120,13 @@ function allDayDates(e: CalendarEvent): LocalDate[] {
 
 /**
  * Classifies one event. Rules, in order:
- * 1. ignored: cancelled; created by the app (`source` tag); transparency `transparent` (Free);
- *    the user's own response is `declined` or `needsAction`; the user is neither organizer nor
+ * 1. ignored: cancelled; created by the app (`source` tag); working-location events; the
+ *    user's own response is `declined` or `needsAction`; the user is neither organizer nor
  *    an attendee of an event that has attendees; unusable times.
  * 2. all_day (date-only): not counted, unless its id is in `blockingEventIds`
- *    (then `blocksDay: true`).
+ *    (then `blocksDay: true`). This comes before the Free check, because Google marks
+ *    all-day events as Free by default and the user's explicit mark must win.
+ * 2b. ignored: transparency `transparent` (Free) on a timed event.
  * 3. tentative: the user's response is `tentative`. Shown, never counted.
  * 4. busy: the user is organizer, or there are no attendees, or the user accepted.
  *    Out-of-office and focus-time events are busy by default.
@@ -124,7 +136,7 @@ export function classifyEvent(event: CalendarEvent, ctx: BusyContext): BusyClass
   if (event.extendedProperties?.private?.source === APP_EVENT_SOURCE) {
     return ignored(event, 'own_study_block');
   }
-  if (event.transparency === 'transparent') return ignored(event, 'free');
+  if (event.eventType === 'workingLocation') return ignored(event, 'working_location');
 
   const attendees = event.attendees ?? [];
   const mine = attendees.find((a) => a.self === true);
@@ -150,6 +162,8 @@ export function classifyEvent(event: CalendarEvent, ctx: BusyContext): BusyClass
       ...(blocks ? { blocksDay: true as const } : {}),
     };
   }
+
+  if (event.transparency === 'transparent') return ignored(event, 'free');
 
   const startMs = event.start.dateTime ? Date.parse(event.start.dateTime) : NaN;
   const endMs = event.end.dateTime ? Date.parse(event.end.dateTime) : NaN;

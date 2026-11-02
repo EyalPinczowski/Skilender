@@ -61,6 +61,8 @@ describe('classifyEvent', () => {
       'not_a_participant',
     ],
     ['out of office', { eventType: 'outOfOffice' }, 'busy', 'out_of_office'],
+    ['working location', { eventType: 'workingLocation' }, 'ignored', 'working_location'],
+    ['unknown future event type', { eventType: 'fromGmail' }, 'busy', 'no_attendees'],
     ['focus time', { eventType: 'focusTime' }, 'busy', 'focus_time'],
     [
       'declined out of office',
@@ -143,11 +145,20 @@ describe('classifyEvent', () => {
       Date.parse('2026-10-25T21:00:00Z'),
       TZ,
     );
-    for (const p of parts) {
-      expect(p.startMinute).toBeGreaterThanOrEqual(0);
-      expect(p.endMinute).toBeLessThanOrEqual(1440);
-    }
-    expect(parts.map((p) => p.date)).toEqual(['2026-10-24', '2026-10-25']);
+    expect(parts).toEqual([
+      { date: '2026-10-24', startMinute: 1380, endMinute: 1440 },
+      { date: '2026-10-25', startMinute: 0, endMinute: 1380 },
+    ]);
+  });
+
+  it('keeps an event inside the repeated hour when clocks go back', () => {
+    // 01:30 (+03:00) to 01:30 (+02:00) on 2026-10-25 is one real hour.
+    const parts = splitByDay(
+      Date.parse('2026-10-24T22:30:00Z'),
+      Date.parse('2026-10-24T23:30:00Z'),
+      TZ,
+    );
+    expect(parts).toEqual([{ date: '2026-10-25', startMinute: 90, endMinute: 150 }]);
   });
 });
 
@@ -169,6 +180,15 @@ describe('all-day events', () => {
     expect(r.kind).toBe('all_day');
     expect(r.blocksDay).toBe(true);
     expect(blockedDays([r])).toEqual(['2026-11-10', '2026-11-11', '2026-11-12']);
+  });
+
+  it('block the days even when Google marks them Free (the default for all-day)', () => {
+    const r = classifyEvent(allDay({ transparency: 'transparent' }), {
+      ...ctx,
+      blockingEventIds: new Set(['v1']),
+    });
+    expect(r.kind).toBe('all_day');
+    expect(r.blocksDay).toBe(true);
   });
 
   it('stay ignored when declined or cancelled, even if marked', () => {
