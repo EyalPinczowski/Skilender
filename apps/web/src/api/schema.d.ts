@@ -4930,6 +4930,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         /**
@@ -5065,6 +5081,22 @@ export interface paths {
                 };
                 /** @description Default Response */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5247,6 +5279,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -5268,7 +5316,7 @@ export interface paths {
         put?: never;
         /**
          * Start a practice session (idempotent on the client-generated id)
-         * @description Channels `external` (copy the prompt to another assistant, paste the feedback back) and `self` (rubric). 201 when created; 200 with the stored session for a retry of the same id, task and channel; 409 when the id was used for other data or the task already has an active session (the message names it). 422 when the task is not a practice. The stored prompt never contains the job description. Writes a `practice.started` event.
+         * @description Channels `external` (copy the prompt to another assistant, paste the feedback back), `self` (rubric) and `in_app` (chat with a model here; the answer carries the fixed opener as the first message, and is 503 `ai_unavailable` with `fallbacks` when no model is available). 201 when created; 200 with the stored session for a retry of the same id, task and channel; 409 when the id was used for other data or the task already has an active session (the message names it). 422 when the task is not a practice. The stored prompt never contains the job description. Writes a `practice.started` event.
          */
         post: {
             parameters: {
@@ -5286,7 +5334,7 @@ export interface paths {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        channel: "external" | "self";
+                        channel: "in_app" | "external" | "self";
                     };
                 };
             };
@@ -5501,6 +5549,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -5701,10 +5765,281 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/practice/sessions/{sessionId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send one chat turn in an in-app session and get the model’s reply
+         * @description The id is chosen by the client: sending the same id again returns the stored pair with no second model call (200, `replayed: true`). Personal details are removed from the text before it is stored or sent (`userMessage.redacted`). The whole earlier conversation is sent each turn, so a provider switch (`switched`) continues from the same point. 429 `ai_user_cap` or `rate_limited`; 503 `ai_unavailable` (your message is kept; send the same id to retry; `fallbacks` lists what to do instead); 409 `turn_in_progress` while another turn is being answered; 422 `pii_blocked`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    planId: string;
+                    sessionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        content: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            userMessage: {
+                                /** Format: uuid */
+                                id: string;
+                                seq: number;
+                                /** @enum {string} */
+                                role: "user" | "assistant" | "note";
+                                content: string;
+                                providerId: string | null;
+                                model: string | null;
+                                redacted: boolean;
+                                /** Format: date-time */
+                                createdAt: string;
+                            };
+                            reply: {
+                                /** Format: uuid */
+                                id: string;
+                                content: string;
+                                providerId: string | null;
+                                model: string | null;
+                            };
+                            switched: {
+                                from: string;
+                                fromLabel: string;
+                                to: string;
+                                toLabel: string;
+                                /** @enum {string} */
+                                reason: "quota" | "error" | "timeout";
+                            } | null;
+                            usage: {
+                                used: number;
+                                cap: number;
+                            };
+                            replayed: boolean;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            userMessage: {
+                                /** Format: uuid */
+                                id: string;
+                                seq: number;
+                                /** @enum {string} */
+                                role: "user" | "assistant" | "note";
+                                content: string;
+                                providerId: string | null;
+                                model: string | null;
+                                redacted: boolean;
+                                /** Format: date-time */
+                                createdAt: string;
+                            };
+                            reply: {
+                                /** Format: uuid */
+                                id: string;
+                                content: string;
+                                providerId: string | null;
+                                model: string | null;
+                            };
+                            switched: {
+                                from: string;
+                                fromLabel: string;
+                                to: string;
+                                toLabel: string;
+                                /** @enum {string} */
+                                reason: "quota" | "error" | "timeout";
+                            } | null;
+                            usage: {
+                                used: number;
+                                cap: number;
+                            };
+                            replayed: boolean;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5968,6 +6303,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -5987,7 +6338,7 @@ export interface paths {
         put?: never;
         /**
          * Finish a session with a self-check, an entered score or no feedback
-         * @description `markDone` is required: the task is marked done only when it is true, through the tasks service, and is otherwise left as it is (logging hours still moves a pending task to in progress, as everywhere). `rubric.checkedSteps` ticks steps of the task (or four generic steps when it has none) and is scored as 10 x ticked / total; `enteredScore` is a score you got elsewhere, normalised to 0 to 10; send at most one of them. Without either, no feedback is saved. 201 when finished now; 200 for a retry with the same feedback and options; 409 otherwise, for an abandoned session, or to mark a skipped task done.
+         * @description `markDone` is required: the task is marked done only when it is true, through the tasks service, and is otherwise left as it is (logging hours still moves a pending task to in progress, as everywhere). `rubric.checkedSteps` ticks steps of the task (or four generic steps when it has none) and is scored as 10 x ticked / total; `enteredScore` is a score you got elsewhere, normalised to 0 to 10; send at most one of them. Without either, no feedback is saved. In-app sessions can send `aiFeedback: true` instead: the model writes the feedback (valid JSON is saved as `model_json`, JSON repaired locally as `model_repaired`, anything else gets one retry and is then kept as plain text, `free_text`); it never marks the task done, `markDone` does. 503 `ai_unavailable` and 429 `ai_user_cap` carry `fallbacks`, and the session stays open. 201 when finished now; 200 for a retry with the same feedback and options; 409 otherwise, for an abandoned session, or to mark a skipped task done.
          */
         post: {
             parameters: {
@@ -6008,6 +6359,8 @@ export interface paths {
                         rubric?: {
                             checkedSteps: number[];
                         };
+                        /** @default false */
+                        aiFeedback?: boolean;
                         enteredScore?: {
                             score: number;
                             max: number;
@@ -6236,6 +6589,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -6403,6 +6772,22 @@ export interface paths {
                 };
                 /** @description Default Response */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6588,6 +6973,22 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Default Response */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -6743,6 +7144,22 @@ export interface paths {
                 };
                 /** @description Default Response */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
