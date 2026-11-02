@@ -46,26 +46,35 @@ export const test = base.extend<Fixtures>({
   pageProblems: [
     async ({ page }, use) => {
       const problems: string[] = [];
-      // The API answers 404 for "no review saved yet for this date" (docs/api-reviews.md) and the
-      // browser logs every failed request as a console error. Only that one case is allowed, and
-      // only as many times as the API really answered it.
-      let allowed404 = 0;
+      // The browser logs every failed request as a console error. Only the answers the API gives
+      // on purpose are allowed, and only as many times as the API really gave them:
+      //  - 404 for "no review saved yet for this date" (docs/api-reviews.md);
+      //  - 503 ai_unavailable on the practice chat or an AI finish when no AI provider can answer
+      //    (docs/api-practice.md): the screen then shows the "AI unavailable" fallbacks.
+      const allowedFailures = (status: number, method: string, path: string): boolean =>
+        (status === 404 &&
+          method === 'GET' &&
+          /^\/api\/v1\/plans\/[^/]+\/days\/[\d-]+\/review$/.test(path)) ||
+        (status === 503 &&
+          method === 'POST' &&
+          /^\/api\/v1\/plans\/[^/]+\/practice\/sessions\/[^/]+\/(messages|finish)$/.test(path));
+      const allowed = new Map<string, number>();
       page.on('response', (response) => {
         const url = new URL(response.url());
-        if (
-          response.status() === 404 &&
-          response.request().method() === 'GET' &&
-          /^\/api\/v1\/plans\/[^/]+\/days\/[\d-]+\/review$/.test(url.pathname)
-        ) {
-          allowed404 += 1;
+        const status = response.status();
+        if (allowedFailures(status, response.request().method(), url.pathname)) {
+          allowed.set(String(status), (allowed.get(String(status)) ?? 0) + 1);
         }
       });
       page.on('console', (message) => {
         if (message.type() !== 'error') return;
         const text = message.text();
-        if (text.startsWith('Failed to load resource') && text.includes('404') && allowed404 > 0) {
-          allowed404 -= 1;
-          return;
+        if (text.startsWith('Failed to load resource')) {
+          const status = [...allowed.keys()].find((code) => text.includes(code));
+          if (status && allowed.get(status)! > 0) {
+            allowed.set(status, allowed.get(status)! - 1);
+            return;
+          }
         }
         problems.push(`console error: ${text}`);
       });
