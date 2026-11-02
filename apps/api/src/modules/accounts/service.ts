@@ -161,7 +161,7 @@ export function createAccountService(
       }),
 
     /**
-     * Deletes the Skillstack rows, then the Supabase Auth user, in ONE transaction: if the Auth
+     * Deletes the Upversion rows, then the Supabase Auth user, in ONE transaction: if the Auth
      * deletion fails the rows come back (rollback) and the whole request can simply be retried.
      * The reverse needs no special case: if the Auth user is deleted but the commit then fails,
      * the retry finds no Auth user (404 counts as success) and deletes the rows.

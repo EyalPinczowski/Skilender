@@ -4,7 +4,7 @@ import {
   type Block,
   type BusyInterval,
   type DayOverride,
-} from '@skillstack/shared';
+} from '@upversion/shared';
 import type { UserContext } from '../../db/database';
 
 /** The engine's last schedulable minute (23:59); `HH:MM` times stop there. */

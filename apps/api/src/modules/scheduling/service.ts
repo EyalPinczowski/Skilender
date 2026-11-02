@@ -10,7 +10,7 @@ import {
   type ScheduleResult,
   type Task,
   type WeekPattern,
-} from '@skillstack/shared';
+} from '@upversion/shared';
 import type { Database } from '../../db/database';
 import { HttpError } from '../../errors';
 import { NO_CALENDAR, withDayOffs } from '../calendar/inputs';
@@ -92,7 +92,7 @@ export interface OpenTasksView {
 
 /**
  * The read side of scheduling: loads a plan, brings its stored past days up to date and hands
- * both to the pure engine in @skillstack/shared. No scheduling rule lives here. The only write
+ * both to the pure engine in @upversion/shared. No scheduling rule lives here. The only write
  * is the automatic freezing of days that have passed (see the days service).
  */
 export function createSchedulingService(db: Database, days: DaysService) {

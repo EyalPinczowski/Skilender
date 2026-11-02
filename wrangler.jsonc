@@ -2,7 +2,7 @@
   // Cloudflare option (docs/setup/deployments.md, "Option B"). Vercel ignores this file.
   // Static assets only: no Worker code. Unmatched paths serve index.html (SPA fallback).
   // "name" must equal the Worker name in the Cloudflare dashboard.
-  "name": "skillstack-web",
+  "name": "upversion-web",
   "compatibility_date": "2026-10-31",
   "assets": {
     "directory": "./apps/web/dist",

@@ -1,4 +1,4 @@
-import { CalendarEventSchema, type CalendarEvent } from '@skillstack/shared';
+import { CalendarEventSchema, type CalendarEvent } from '@upversion/shared';
 import {
   CalendarAuthError,
   CalendarConflictError,

@@ -1,4 +1,4 @@
-import { LessonSchema, LocalDateSchema, TaskSchema } from '@skillstack/shared';
+import { LessonSchema, LocalDateSchema, TaskSchema } from '@upversion/shared';
 import { z } from 'zod';
 import { noNulCharacters } from '../../validation';
 

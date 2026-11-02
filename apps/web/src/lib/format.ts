@@ -1,4 +1,4 @@
-import { diffDays, parseLocalDate } from '@skillstack/shared';
+import { diffDays, parseLocalDate } from '@upversion/shared';
 
 /** Formats a local date (YYYY-MM-DD) without any time-zone shift: "Tuesday, Nov 10". */
 export function formatDate(date: string, style: 'long' | 'short' = 'long'): string {

@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "generated": "2026-11-01",
     "currency_default": "USD",
-    "attribution": "Some skills and roles include information from O*NET OnLine by the U.S. Department of Labor, Employment and Training Administration (USDOL/ETA), used under the CC BY 4.0 license (https://creativecommons.org/licenses/by/4.0/); O*NET is a trademark of USDOL/ETA, Skillstack has modified the information and USDOL/ETA has not approved or endorsed it. Some mappings use the ESCO classification of the European Commission (adapted by Skillstack, marked as modified; ESCO version needs check). See README.md, Attribution.",
+    "attribution": "Some skills and roles include information from O*NET OnLine by the U.S. Department of Labor, Employment and Training Administration (USDOL/ETA), used under the CC BY 4.0 license (https://creativecommons.org/licenses/by/4.0/); O*NET is a trademark of USDOL/ETA, Upversion has modified the information and USDOL/ETA has not approved or endorsed it. Some mappings use the ESCO classification of the European Commission (adapted by Upversion, marked as modified; ESCO version needs check). See README.md, Attribution.",
     "verification_note": "url_verified/price_verified = confirmed from a source found during research (latest link check and batch 3 research: 2026-11-01). False = plausible but must be checked before showing as verified. Prices change; re-check before purchase."
   },
   "skills": [

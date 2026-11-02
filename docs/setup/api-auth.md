@@ -52,8 +52,8 @@ What the app does, and what to configure for it (all dashboard menu names **need
 - **Google.** The app calls `signInWithOAuth` with `redirectTo` set to the site origin. That origin (each Vercel URL, and `http://localhost:5173` for local work) must be listed under Authentication, URL Configuration, Redirect URLs (needs check). The Supabase-side callback URL for the Google Cloud OAuth client is shown in the Google provider settings (see ADR 006).
 - **Sign out of all devices** calls `signOut({ scope: 'global' })`. Needs check: Supabase's documentation should be read for what this does to access tokens that other devices already hold. They may stay valid until they expire, and this API does not keep a list of revoked tokens.
 - **Turnstile.** `AuthService.sendCode(email, { captchaToken })` already accepts the token and passes it to Supabase; the widget itself is not wired yet (marked `TURNSTILE SEAM` in `SignInPage.tsx`).
-- **After sign-in** the app calls `GET /api/v1/me`. A `403` shows only "This account cannot use Skillstack." with a sign-out button, so the screen cannot be used to probe the allowlist. A `401` ends the local session.
-- **Delete my account** removes the Skillstack data and, on the live app only, the Supabase Auth user (email, sign-in record) in one step; see "Deleting an account". On R&D it removes only R&D data. The web app never holds the service key.
+- **After sign-in** the app calls `GET /api/v1/me`. A `403` shows only "This account cannot use Upversion." with a sign-out button, so the screen cannot be used to probe the allowlist. A `401` ends the local session.
+- **Delete my account** removes the Upversion data and, on the live app only, the Supabase Auth user (email, sign-in record) in one step; see "Deleting an account". On R&D it removes only R&D data. The web app never holds the service key.
 - **Typed client.** The web app's API types are generated from this API's OpenAPI document: `pnpm api:types` after changing a route or schema, commit `apps/web/src/api/schema.d.ts`. CI fails when it is out of date (`pnpm api:types:check`).
 
 ## The first admin
@@ -61,7 +61,7 @@ What the app does, and what to configure for it (all dashboard menu names **need
 There is no way to become admin in the app. After the database is migrated:
 
 ```bash
-DATABASE_URL=<admin connection> pnpm --filter @skillstack/db migrate promote-admin --schema rnd --email you@example.com
+DATABASE_URL=<admin connection> pnpm --filter @upversion/db migrate promote-admin --schema rnd --email you@example.com
 ```
 
 This adds the email to the allowlist and, if the account already exists, sets its role to `admin`. If you have not signed in yet, sign in once (the API creates the account), then run the command again. It refuses to run without `--schema`.
@@ -76,10 +76,10 @@ This adds the email to the allowlist and, if the account already exists, sets it
 
 Deleting the Supabase Auth user needs the project's service-role (secret) key, which only the **operational** API on Render holds.
 
-**R&D and Operational share ONE Supabase Auth project** (one set of users, one sign-in record per email). Deleting an Auth user there would also destroy the sign-in for the person's Operational data. So only `skillstack-api` (`APP_ENV=operational`) may hold the key and call the Supabase admin API. `skillstack-api-rnd` (`APP_ENV=rnd`) holds no key and never calls the admin API.
+**R&D and Operational share ONE Supabase Auth project** (one set of users, one sign-in record per email). Deleting an Auth user there would also destroy the sign-in for the person's Operational data. So only `upversion-api` (`APP_ENV=operational`) may hold the key and call the Supabase admin API. `upversion-api-rnd` (`APP_ENV=rnd`) holds no key and never calls the admin API.
 
 1. In the Supabase dashboard open the project's API keys page (Settings, API Keys; **needs check** for the exact menu names, Supabase has been renaming this area). Supabase's documentation says secret keys bypass Row Level Security and must never be in a browser, a shipped app or source control. Two kinds exist: the legacy `service_role` JWT and the newer `sb_secret_...` key (**needs check** which your project shows; the API accepts either).
-2. Put it in Render as `SUPABASE_SERVICE_ROLE_KEY` for the **operational** API service only (`skillstack-api`), and the project URL as `SUPABASE_URL`. Do not add it to `skillstack-api-rnd`. Never in Vercel, never in a `VITE_` variable, never in git, chat or logs. If it ever leaks, rotate it in the dashboard and update Render.
+2. Put it in Render as `SUPABASE_SERVICE_ROLE_KEY` for the **operational** API service only (`upversion-api`), and the project URL as `SUPABASE_URL`. Do not add it to `upversion-api-rnd`. Never in Vercel, never in a `VITE_` variable, never in git, chat or logs. If it ever leaks, rotate it in the dashboard and update Render.
 3. In production the operational API **refuses to start** without both (like the other sign-in variables), so a deploy cannot silently lose the ability to delete Auth users. In development and tests they are optional; without them, "Delete my account" answers `502 auth_deletion_failed` and deletes nothing (fail closed, so the Auth user can never be left behind unnoticed). The R&D API does the opposite: with `APP_ENV=rnd` it **refuses to start if `SUPABASE_SERVICE_ROLE_KEY` is set**, so a misconfigured R&D deploy fails loudly and the key cannot end up in the wrong service.
 4. The API sends `DELETE {SUPABASE_URL}/auth/v1/admin/users/{id}` with the key in the `apikey` header, plus `Authorization: Bearer <key>` when the key is a JWT (the legacy key). The id is always the verified token's `sub`. It waits at most 8 seconds. It is a hard delete (no `should_soft_delete`; Supabase's `deleteUser` documents a soft-delete option that defaults to `false`).
 

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { APP_CALENDAR_NAME, APP_EVENT_SOURCE } from '@skillstack/shared';
+import { APP_CALENDAR_NAME, APP_EVENT_SOURCE } from '@upversion/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CalendarAuthError,

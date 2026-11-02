@@ -1,4 +1,4 @@
-import type { CalendarEvent, CalendarEventTimeSchema } from '@skillstack/shared';
+import type { CalendarEvent, CalendarEventTimeSchema } from '@upversion/shared';
 import type { z } from 'zod';
 import type { GuardedInsertTarget, GuardedTarget } from './guarded';
 

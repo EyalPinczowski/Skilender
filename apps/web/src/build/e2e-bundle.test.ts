@@ -11,7 +11,7 @@ import { afterAll, describe, expect, it } from 'vitest';
  * the normal build has none of the test-only code, the VITE_E2E=1 build does (so the check can
  * really fail), and the e2e flag cannot be combined with the operational environment.
  */
-const MARKERS = ['skillstack.e2e.access-token', '__E2E__', 'E2E_TOKEN_KEY'];
+const MARKERS = ['upversion.e2e.access-token', '__E2E__', 'E2E_TOKEN_KEY'];
 const FAKE_ENV = {
   VITE_APP_ENV: 'rnd',
   VITE_API_URL: 'http://127.0.0.1:4310',
@@ -30,7 +30,7 @@ async function filesUnder(dir: string): Promise<string[]> {
 }
 
 async function buildWith(extra: Record<string, string>) {
-  const outDir = await mkdtemp(join(tmpdir(), 'skillstack-web-build-'));
+  const outDir = await mkdtemp(join(tmpdir(), 'upversion-web-build-'));
   outDirs.push(outDir);
   const saved = { ...process.env };
   delete process.env.VITE_E2E;
@@ -74,7 +74,7 @@ describe('the test-only e2e sign-in', () => {
 
   it('is in the VITE_E2E=1 bundle, so the checks above can fail', async () => {
     const { text } = await buildWith({ VITE_E2E: '1' });
-    expect(text).toContain('skillstack.e2e.access-token');
+    expect(text).toContain('upversion.e2e.access-token');
   }, 180_000);
 
   it('refuses to build with VITE_E2E=1 for the operational environment', async () => {

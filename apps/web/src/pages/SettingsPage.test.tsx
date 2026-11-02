@@ -120,14 +120,14 @@ describe('settings page', () => {
 
       await user.click(screen.getByRole('radio', { name: 'Dark' }));
       expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-      expect(window.localStorage.getItem('skillstack.theme')).toBe('dark');
+      expect(window.localStorage.getItem('upversion.theme')).toBe('dark');
 
       await user.click(screen.getByRole('radio', { name: 'Light' }));
       expect(document.documentElement).toHaveAttribute('data-theme', 'light');
 
       await user.click(screen.getByRole('radio', { name: 'Follow my device' }));
       expect(document.documentElement).not.toHaveAttribute('data-theme');
-      expect(window.localStorage.getItem('skillstack.theme')).toBeNull();
+      expect(window.localStorage.getItem('upversion.theme')).toBeNull();
     });
   });
 
@@ -140,7 +140,7 @@ describe('settings page', () => {
       expect(api.count('GET /api/v1/me/export')).toBe(1);
       expect(clickSpy).toHaveBeenCalledOnce();
       const link = clickSpy.mock.contexts[0] as HTMLAnchorElement;
-      expect(link.download).toBe('skillstack-export.json');
+      expect(link.download).toBe('upversion-export.json');
       const blob = createObjectURL.mock.calls[0]![0];
       expect(blob.type).toBe('application/json');
       expect(JSON.parse(await blob.text())).toEqual(exported);
