@@ -331,6 +331,20 @@ describe('Manage plans', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
   });
 
+  it('does not bring an old delete error back when returning to that plan', async () => {
+    twoPlans({ [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    await screen.findByRole('alert');
+    const picker = screen.getByRole('combobox', { name: 'Plan' });
+    await user.selectOptions(picker, OTHER_ID);
+    await screen.findByRole('heading', { name: 'Other plan' });
+    await user.selectOptions(picker, PLAN_ID);
+    await screen.findByRole('heading', { name: 'Demo plan' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('says a lost connection may or may not have deleted the plan', async () => {
     open('/plan', { [`DELETE ${BASE}`]: () => Promise.reject(new TypeError('Failed to fetch')) });
     const user = userEvent.setup();

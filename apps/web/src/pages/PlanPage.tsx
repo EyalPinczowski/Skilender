@@ -11,6 +11,7 @@ import { formatHours } from '../lib/format';
 import { anchorText, dependencyText } from '../lib/task-text';
 import { TASK_TYPE_META } from '../lib/task-types';
 import { ImportPlan } from '../plan/ImportPlan';
+import { useActivePlan } from '../plan/context';
 import { PlanGate, PlanSwitcher } from '../plan/PlanGate';
 
 function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => string }) {
@@ -43,31 +44,32 @@ function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => strin
 
 /** Every task of the plan, in plan order. */
 export function PlanPage() {
-  // A counter, so a second delete announces and focuses again. It is cleared by the next action.
-  const count = useRef(0);
-  const [notice, setNotice] = useState(0);
+  // Confirming a delete resets the notice and the hook callback sets it after the delete, so each
+  // delete announces and focuses again.
+  const [deleted, setDeleted] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   // The deleted plan's button is gone: focus moves to the page heading, which stays.
   useEffect(() => {
-    if (notice > 0) heading.current?.focus();
-  }, [notice]);
+    if (deleted) heading.current?.focus();
+  }, [deleted]);
   // The mutation lives here, not in the part that disappears with the deleted plan.
-  const remove = useDeletePlan(() => {
-    count.current += 1;
-    setNotice(count.current);
-  });
-  const clearNotice = () => setNotice(0);
+  const remove = useDeletePlan(() => setDeleted(true));
+  // An old delete error must not come back when the person returns to that plan.
+  const { plan: active } = useActivePlan();
+  const { reset } = remove;
+  const activeId = active?.id;
+  useEffect(() => {
+    reset();
+  }, [activeId, reset]);
   return (
     <div className="space-y-6">
       <h1 ref={heading} tabIndex={-1}>
         Plan
       </h1>
       <div role="status" className="font-bold text-ok empty:hidden">
-        {notice > 0 ? <span key={notice}>Plan deleted.</span> : null}
+        {deleted ? 'Plan deleted.' : null}
       </div>
-      <div onChange={clearNotice}>
-        <PlanSwitcher />
-      </div>
+      <PlanSwitcher />
       <PlanGate
         empty={
           <p className="text-muted">
@@ -87,7 +89,7 @@ export function PlanPage() {
               planId={plan.id}
               name={plan.name}
               remove={remove}
-              onAction={clearNotice}
+              onDeleteStart={() => setDeleted(false)}
             />
           </>
         )}
@@ -122,12 +124,12 @@ function ManagePlans({
   planId,
   name,
   remove,
-  onAction,
+  onDeleteStart,
 }: {
   planId: string;
   name: string;
   remove: ReturnType<typeof useDeletePlan>;
-  onAction: () => void;
+  onDeleteStart: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -149,7 +151,7 @@ function ManagePlans({
         <summary className="flex min-h-11 cursor-pointer items-center px-3 font-bold">
           Import another plan
         </summary>
-        <div className="px-3 pb-3 pt-2" onClick={onAction}>
+        <div className="px-3 pb-3 pt-2">
           <ImportPlan />
         </div>
       </details>
@@ -161,7 +163,7 @@ function ManagePlans({
           busy={remove.isPending}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
-            onAction();
+            onDeleteStart();
             remove.mutate(planId, { onSettled: () => setConfirming(false) });
           }}
         >
