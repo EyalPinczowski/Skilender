@@ -443,7 +443,7 @@ The code is split into two separate parts in one monorepo:
 - Google Calendar API: `calendar.app.created` + `calendar.readonly` only (3.8). Free.
 - Free-tier AI models only (GitHub Models / Groq / Gemini), via an abstraction layer in the backend with fallback (3.3). No Claude API.
 - Free hosting, two environments (section 6): frontend on Vercel Hobby (production for `main`, a preview deployment for `rnd`). Backend – propose a free option (e.g. Render Free, or Vercel Functions as a separate project) with its pros and cons, including cold-start times on services that sleep.
-- **Address:** the free Vercel address (`skillstack-<something>.vercel.app` for Operational, a preview URL for R&D, a separate one for the demo). No custom domain in v1.0. Two consequences to plan for:
+- **Address:** the free Vercel address (`upversion-<something>.vercel.app` for Operational, a preview URL for R&D, a separate one for the demo). No custom domain in v1.0. Two consequences to plan for:
   - **Sign-in emails** are sent with Supabase Auth's built-in mailer. Its sending limit is very low, which fits an invite-only beta; a custom email provider usually requires owning a domain, so it's deferred.
   - **Google verification** (needed before calendar sync is opened to the public, 3.8) requires a domain I own. Until then, calendar sync stays limited to me and invited testers. Both items go in `docs/FUTURE.md`.
 - PWA: manifest and service worker in the frontend.
@@ -808,7 +808,7 @@ Each seam below costs little in v1.0 and makes a deferred item a contained addit
 
 - Where to host: Vercel + Supabase on free addresses (decided: no custom domain in v1.0), or something else you'd recommend for the backend?
 - The admin email to promote, and the initial user capacity for the beta (default 25)?
-- Repo name (suggested: `skillstack`, or `skillstack-app` if taken), and should it be public from the start or private until v1.0?
+- Repo name (suggested: `upversion`, or `upversion-app` if taken), and should it be public from the start or private until v1.0?
 - Do I already have keys for GitHub Models / Groq / Gemini, or do I need a walkthrough to create them?
 - Do I have a Google Cloud project, or do I need a step-by-step guide to set up OAuth for Calendar?
 - Do the estimates in section 7 look reasonable, or should we calibrate them after the first week based on actual hours?

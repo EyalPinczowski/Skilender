@@ -22,13 +22,13 @@ describe('buildCsp', () => {
   it('allows only self, the API origin and the Supabase origin to be connected to', () => {
     const csp = directives(
       buildCsp({
-        apiUrl: 'https://skillstack-api.onrender.com/',
+        apiUrl: 'https://upversion-api.onrender.com/',
         supabaseUrl: 'https://abcdefgh.supabase.co/auth/v1',
       }),
     );
     expect(csp.get('connect-src')).toEqual([
       "'self'",
-      'https://skillstack-api.onrender.com',
+      'https://upversion-api.onrender.com',
       'https://abcdefgh.supabase.co',
     ]);
   });

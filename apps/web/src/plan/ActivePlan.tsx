@@ -3,7 +3,7 @@ import { Outlet } from 'react-router';
 import { usePlans } from '../api/hooks';
 import { ActivePlanContext } from './context';
 
-const STORAGE_KEY = 'skillstack.plan';
+const STORAGE_KEY = 'upversion.plan';
 
 // Browser storage is only a per-device convenience; it can be blocked or empty.
 function readStored(): string | null {

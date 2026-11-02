@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router';
 import { App } from './App';
 import { createBrowserAuthService, type AuthService } from './auth/auth-service';
 import { parseEnv } from './env';
+import { migrateLegacyStorage } from './lib/legacy-storage';
 import { createQueryClient } from './lib/query-client';
 import { applyTheme, readTheme } from './lib/theme';
 
@@ -28,6 +29,8 @@ export function mount(
   /** Replaces the Supabase sign-in. Only the end-to-end build passes it (see main.tsx). */
   authOverride?: AuthService,
 ) {
+  // First, before anything reads storage: carries pre-rename settings over to the new keys.
+  migrateLegacyStorage();
   let env;
   try {
     env = parseEnv(rawEnv);

@@ -33,7 +33,7 @@ const GET_SESSION = `GET ${BASE}/practice/sessions/${SESSION_ID}`;
 const FINISH = `POST ${BASE}/practice/sessions/${SESSION_ID}/finish`;
 const PASTE = `POST ${BASE}/practice/sessions/${SESSION_ID}/feedback`;
 const ABANDON = `POST ${BASE}/practice/sessions/${SESSION_ID}/abandon`;
-const STORE_KEY = `skillstack.practice.${BASE.split('/').at(-1)}.${TASK_ID}`;
+const STORE_KEY = `upversion.practice.${BASE.split('/').at(-1)}.${TASK_ID}`;
 
 beforeEach(() => {
   window.localStorage.clear();

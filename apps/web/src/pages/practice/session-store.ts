@@ -2,7 +2,7 @@
  * The id of the running practice session is remembered so a reload picks it up again. It is only
  * an id: no prompt, job description or feedback is ever stored in the browser.
  */
-const PREFIX = 'skillstack.practice.';
+const PREFIX = 'upversion.practice.';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const isSessionId = (value: unknown): value is string =>

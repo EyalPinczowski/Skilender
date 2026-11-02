@@ -15,11 +15,20 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.clear();
+  document.documentElement.removeAttribute('data-theme');
   root.remove();
   vi.unstubAllGlobals();
 });
 
 describe('mount', () => {
+  it('moves pre-rename storage keys over before the app reads them', () => {
+    window.localStorage.setItem('skillstack.theme', 'dark');
+    mount(root, { VITE_API_URL: 'localhost:3000', VITE_APP_ENV: 'staging' });
+    expect(window.localStorage.getItem('upversion.theme')).toBe('dark');
+    expect(window.localStorage.getItem('skillstack.theme')).toBeNull();
+  });
+
   it('shows a readable message instead of a blank page when the environment is invalid', () => {
     mount(root, { VITE_API_URL: 'localhost:3000', VITE_APP_ENV: 'staging' });
     const alert = screen.getByRole('alert');

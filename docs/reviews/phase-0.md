@@ -175,7 +175,7 @@ Collected from the code and the guides. None were verified in this review.
   - [ ] automatically delete head branches;
   - [ ] rebase merging off;
   - [ ] default workflow permissions "Read repository contents".
-- [ ] Repository variable `API_HEALTH_URL` = `https://<skillstack-api>.onrender.com/api/v1/health`.
+- [ ] Repository variable `API_HEALTH_URL` = `https://<upversion-api>.onrender.com/api/v1/health`.
 
 **GitHub Environments**
 
@@ -206,7 +206,7 @@ Collected from the code and the guides. None were verified in this review.
 **Render**
 
 - [ ] New Blueprint from `render.yaml`. Stop if a card is requested.
-- [ ] Two Free services: `skillstack-api` on `main` and `skillstack-api-rnd` on `rnd`.
+- [ ] Two Free services: `upversion-api` on `main` and `upversion-api-rnd` on `rnd`.
 - [ ] Set `CORS_ORIGINS` to the exact Vercel origin(s).
 - [ ] Set `TRUST_PROXY=0`.
 - [ ] Confirm Node 22 and pnpm 10 in the first build log.
@@ -222,7 +222,7 @@ Collected from the code and the guides. None were verified in this review.
 
 **Private repo and backups**
 
-- [ ] Create a private repo (e.g. `skillstack-private`). It is also where your real plan and the original spec live.
+- [ ] Create a private repo (e.g. `upversion-private`). It is also where your real plan and the original spec live.
 - [ ] Generate the age key on your computer (`age-keygen`).
 - [ ] Keep the private key **offline**, in your password manager plus a second independent copy. Never put it in GitHub.
 - [ ] Add the secrets `AGE_RECIPIENT` (the public key) and `BACKUP_DATABASE_URL` (the `backup_prod` login).

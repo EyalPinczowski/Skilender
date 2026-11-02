@@ -23,7 +23,7 @@ describe('theme', () => {
   });
 
   it('ignores an unknown stored value', () => {
-    window.localStorage.setItem('skillstack.theme', 'neon');
+    window.localStorage.setItem('upversion.theme', 'neon');
     expect(readTheme()).toBe('system');
   });
 

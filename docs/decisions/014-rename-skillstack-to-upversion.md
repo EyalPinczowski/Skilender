@@ -13,21 +13,25 @@ Several existing learning and skills products already use the name "Skillstack":
 ## Decision
 Option 2. "Upversion" replaces "Skillstack" in the UI, the PWA manifest, the docs, the legal drafts, the code (`APP_NAME`, npm scope `@upversion/*`), the catalog build scripts and generated files, and the calendar the app creates and writes to (spec 3.8, ADR 002: the calendar is named "Upversion", the iCalendar `PRODID` is `-//Upversion//Schedule export//EN`, the UID host is `@upversion`, and the task header is `X-UPVERSION-TASK-ID`). The tagline changes in the same commit, from "build your skills, one block at a time" to "A study plan that improves with you".
 
-## Intentionally kept
-These still say "skillstack" because renaming them would break live infrastructure or silently reset stored state:
-- Postgres internals in `packages/db`: the advisory-lock key `skillstack:migrate:<schema>` (`migrate.ts`) and the `skillstack.app_password` / `skillstack.backup_password` settings (`passwords.ts`, migrations, `test/setup.sql`). Applied migration files are untouched.
-- Hosting names and addresses: Render services `skillstack-api` and `skillstack-api-rnd` (`render.yaml`), the Cloudflare Worker names `skillstack-web` and `skillstack-web-rnd` (`wrangler.jsonc`, `docs/setup/deployments.md`), and any live hostnames.
-- GitHub repository URLs (`github.com/EyalPinczowski/skillstack`) and the repo-name examples that point at it (`<owner>/skillstack` in `docs/setup/backup.md`, the repo-name question in the spec).
-- Browser storage keys: `skillstack.theme`, `skillstack.plan`, `skillstack.practice.*` and the E2E-only `skillstack.e2e.access-token`. Changing them would reset users' settings and saved practice sessions.
-- Names of the owner's private resources used as examples in the backup guide and the Phase 0 review (`skillstack-private`, `skillstack-backup.key`, `skillstack-public`).
+## Second pass: everything renamed
+The first commit kept some identifiers to avoid breaking live infrastructure. The owner then decided to rename everything, so a second commit (`refactor: rename remaining skillstack identifiers to upversion`) changed all of them:
+- Postgres internals in `packages/db`: the advisory-lock key is now `upversion:migrate:<schema>` and the transaction-local settings are `upversion.app_password` / `upversion.backup_password` (`passwords.ts`). Both sides of each are set and read in the same statement, and no SQL file or applied migration reads them, so no migration was touched.
+- Hosting names: Render services `upversion-api` and `upversion-api-rnd` (`render.yaml`), Cloudflare Workers `upversion-web` and `upversion-web-rnd` (`wrangler.jsonc`, `docs/setup/deployments.md`).
+- Repository URLs and repo-name examples (`github.com/EyalPinczowski/upversion`, `<owner>/upversion`, the spec's repo-name question).
+- Names of the owner's private resources used as examples (`upversion-private`, `upversion-backup.key`, `upversion-public`). They are only examples.
+- Browser storage keys: `upversion.theme`, `upversion.plan`, `upversion.practice.*` and the E2E-only `upversion.e2e.access-token`. So that nobody loses settings or saved practice sessions, `apps/web/src/lib/legacy-storage.ts` runs once at app start (first thing in `mount`). For every `skillstack.*` localStorage key it copies the value to the `upversion.*` key if that is absent, then removes the old key. It is idempotent and tolerates storage that throws. The E2E token key needs no migration.
+
+The only remaining "skillstack" text is deliberate: this ADR, the "(formerly Skillstack)" notes, the ADR index row, and the legacy-storage migration with its tests, which must name the old keys.
+
+### Cutover
+The live Render services and Cloudflare Workers still carry the old names until the owner renames them. Follow "Renaming the live services (Skillstack to Upversion cutover)" in [`docs/setup/deployments.md`](../setup/deployments.md), and rename the Cloudflare Worker before the change reaches `rnd` builds, because the name in `wrangler.jsonc` must match the dashboard.
 
 ## Consequences
-- Old and new names coexist in infrastructure until the owner renames those resources. Nothing breaks in the meantime.
+- Until the owner does the cutover, the repository and the live services disagree on names; a Cloudflare build fails if the Worker is not renamed first.
 - Historical documents say "Upversion (formerly Skillstack)" on first mention.
 - The export download file is now `upversion-export.json`.
 
 ## Follow-ups for the owner
-- Rename the GitHub repository, then update the repo URLs (issue template config, docs) and the remote on local clones.
-- Optionally rename the Render services and the Cloudflare Worker/Vercel project. This changes live addresses, so update the API base URL and CORS settings in the same step.
+- Do the cutover steps in `docs/setup/deployments.md`.
 - Run a formal trademark search (USPTO, EUIPO, Israel): **needs check**.
 - Domains: upversion.com and upversion.co are registered by others. An "upVersion Consulting LLC" (product design consulting) uses upversion.co. Buying a domain costs money and needs owner approval under the $0 rule; v1.0 uses the free hosting address.
