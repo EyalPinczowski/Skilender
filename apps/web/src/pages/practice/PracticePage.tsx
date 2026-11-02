@@ -2,7 +2,9 @@ import { MAX_LOG_HOURS } from '@skillstack/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Task } from '../../api/client';
-import { isApiError } from '../../api/errors';
+import { isAiUnavailable, isApiError } from '../../api/errors';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAiUsage } from '../../api/ai-hooks';
 import { useTasks } from '../../api/hooks';
 import {
   useAbandonSession,
@@ -23,6 +25,8 @@ import { describeError, newId } from '../../lib/messages';
 import { PlanGate } from '../../plan/PlanGate';
 import { isSessionId, readStoredSession, writeStoredSession } from './session-store';
 import { formatMinutes } from '../briefing/day-utils';
+import { aiDownReason, type AiDown } from './ai-state';
+import { AiUnavailableNotice, ChatPanel, RATE_LIMITED_TEXT } from './ChatPanel';
 import { FinishDialog, type FinishChoice, type FinishDecision } from './FinishDialog';
 import { FinishedSummary } from './FinishedSummary';
 import { JobDescriptionField } from './JobDescriptionField';
@@ -36,7 +40,13 @@ function Panel({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-border bg-surface p-4">{children}</div>;
 }
 
-const CHANNELS: { value: Exclude<PracticeChannel, 'in_app'>; label: string; hint: string }[] = [
+const IN_APP_CHANNEL = {
+  value: 'in_app',
+  label: 'Chat with the in-app assistant',
+  hint: 'Practise here in a chat. Uses a daily allowance of AI calls; AI answers can be wrong.',
+} as const;
+
+const CHANNELS: { value: PracticeChannel; label: string; hint: string }[] = [
   {
     value: 'external',
     label: 'Use Claude or another assistant',
@@ -61,7 +71,11 @@ function StartPanel({
   onStarted: (sessionId: string) => void;
 }) {
   const start = useStartSession(planId, task.id);
-  const [channel, setChannel] = useState<Exclude<PracticeChannel, 'in_app'>>('external');
+  const queryClient = useQueryClient();
+  const usage = useAiUsage();
+  const options = usage.data?.configured ? [IN_APP_CHANNEL, ...CHANNELS] : CHANNELS;
+  const [chosen, setChannel] = useState<PracticeChannel>('external');
+  const channel = options.some((o) => o.value === chosen) ? chosen : 'external';
   // One id per attempt: repeating a start that got no answer is safe and creates one session.
   const attempt = useRef<{ id: string; channel: PracticeChannel } | null>(null);
 
@@ -75,6 +89,12 @@ function StartPanel({
         onStarted(detail.session.id);
       },
       onError: (error) => {
+        if (isAiUnavailable(error)) {
+          // Back to a way that needs no AI, and look at the allowance again.
+          setChannel('external');
+          attempt.current = null;
+          void queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+        }
         // The task already has a running session: the API names it, so carry on with that one.
         // Without a usable id the error stays on screen: the button is never a dead end.
         if (
@@ -100,7 +120,7 @@ function StartPanel({
           </p>
           <fieldset className="space-y-1">
             <legend className="font-bold">How do you want to practise?</legend>
-            {CHANNELS.map((option) => (
+            {options.map((option) => (
               <label key={option.value} className="flex min-h-11 items-start gap-3 py-1">
                 <input
                   type="radio"
@@ -119,7 +139,12 @@ function StartPanel({
           <Button variant="primary" disabled={start.isPending} onClick={begin}>
             {start.isPending ? 'Starting…' : 'Start practice'}
           </Button>
-          {start.isError ? (
+          {start.isError && isAiUnavailable(start.error) ? (
+            <AiUnavailableNotice
+              reason={aiDownReason(start.error) ?? 'unavailable'}
+              where="start"
+            />
+          ) : start.isError ? (
             <ErrorText>
               {describeError(start.error, 'The practice could not be started.')}
             </ErrorText>
@@ -162,7 +187,11 @@ function ActiveSession({
 }) {
   const { session } = detail;
   const external = session.channel === 'external';
-  const prompt = usePracticePrompt(planId, task.id, external);
+  const inApp = session.channel === 'in_app';
+  const [aiDown, setAiDown] = useState<AiDown | null>(null);
+  // Without the AI the copy-prompt and paste flow is offered on any channel, beside the self-check.
+  const showPrompt = external || aiDown !== null;
+  const prompt = usePracticePrompt(planId, task.id, showPrompt);
   const finish = useFinishSession(planId, session.id);
   const paste = usePasteFeedback(planId, session.id);
   const abandon = useAbandonSession(planId, session.id);
@@ -181,13 +210,24 @@ function ActiveSession({
   function submit(decision: FinishDecision) {
     if (!choice) return;
     const common = { markDone: decision.markDone, logHours: decision.logHours };
-    const options = { onSuccess: onFinished };
+    const options = {
+      onSuccess: onFinished,
+      onError: (error: unknown) => {
+        // The AI could not write the feedback: close the dialog and offer the other ways to finish.
+        const reason = choice.kind === 'ai' ? aiDownReason(error) : null;
+        if (reason) {
+          setChoice(null);
+          setAiDown(reason);
+        }
+      },
+    };
     if (choice.kind === 'paste') {
       paste.mutate({ text: choice.text, ...common }, options);
     } else {
       finish.mutate(
         {
           ...common,
+          ...(choice.kind === 'ai' ? { aiFeedback: true } : {}),
           ...(choice.kind === 'rubric' ? { rubric: { checkedSteps: choice.checkedSteps } } : {}),
           ...(choice.kind === 'score'
             ? { enteredScore: { score: choice.score, max: choice.max } }
@@ -220,16 +260,21 @@ function ActiveSession({
         </Panel>
       ) : null}
 
-      {session.channel === 'in_app' ? (
+      {inApp ? (
         <Panel>
-          <p role="note" className="font-bold">
-            This session was started in an in-app chat, which is not available here yet. You can
-            finish it with a self-check below, or stop it.
-          </p>
+          <ChatPanel
+            planId={planId}
+            session={session}
+            messages={detail.messages}
+            aiDown={aiDown}
+            onAiDown={setAiDown}
+            onRetryAi={() => setAiDown(null)}
+            onAskFeedback={() => open({ kind: 'ai' })}
+          />
         </Panel>
       ) : null}
 
-      {external ? (
+      {showPrompt ? (
         <>
           <Panel>
             <QueryView query={prompt} label="Preparing the prompt…">
@@ -271,7 +316,13 @@ function ActiveSession({
           choice={choice}
           defaultHours={defaultHours}
           busy={busy}
-          error={failure ? describeError(failure, 'The practice could not be finished.') : null}
+          error={
+            failure
+              ? isApiError(failure) && failure.code === 'rate_limited'
+                ? RATE_LIMITED_TEXT
+                : describeError(failure, 'The practice could not be finished.')
+              : null
+          }
           onSubmit={submit}
           onCancel={() => setChoice(null)}
         />

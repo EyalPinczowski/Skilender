@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { PracticeFeedback } from '../../api/practice-hooks';
+import { AI_CAN_BE_WRONG } from './ai-state';
 import { CheckIcon } from '../../components/icons';
 import { linkClass } from '../../components/ui';
 import { formatHours } from '../../lib/format';
@@ -65,6 +66,9 @@ export function FinishedSummary({
           ) : (
             <p className="font-bold">No score: this feedback had no number.</p>
           )}
+          {feedback.source === 'model_json' || feedback.source === 'model_repaired' ? (
+            <p className="text-muted">{AI_CAN_BE_WRONG}</p>
+          ) : null}
           {plainText || extras?.parsed === false ? (
             <p className="text-muted">
               No feedback block was found, so the text is saved as plain text.

@@ -9,7 +9,8 @@ export type FinishChoice =
   | { kind: 'none' }
   | { kind: 'rubric'; checkedSteps: number[]; total: number }
   | { kind: 'score'; score: number; max: number }
-  | { kind: 'paste'; text: string };
+  | { kind: 'paste'; text: string }
+  | { kind: 'ai' };
 
 export interface FinishDecision {
   /** The explicit "Mark task done" choice. False unless the person ticked it. */
