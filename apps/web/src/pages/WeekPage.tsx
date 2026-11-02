@@ -19,6 +19,7 @@ import { describeError } from '../lib/messages';
 import { TASK_TYPE_META } from '../lib/task-types';
 import { computeTrend, trendLabel, type TrendStatus } from '../lib/trend';
 import { PlanGate, PlanSwitcher } from '../plan/PlanGate';
+import { LastPracticeScores } from './practice-trends/LastPracticeScores';
 import { TaskActions } from './today/TaskActions';
 import { WeekChart } from './week/WeekChart';
 
@@ -147,6 +148,8 @@ function WeekView({
       </p>
 
       <TrendSection plan={plan} schedule={schedule} />
+
+      <LastPracticeScores planId={plan.id} />
 
       <section aria-labelledby="week-progress-heading" className="space-y-3">
         <h2 id="week-progress-heading">Week progress</h2>

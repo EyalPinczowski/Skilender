@@ -15,6 +15,7 @@ import { ActivePlanProvider } from './plan/ActivePlan';
 import { PlanLayout } from './plan/PlanSummaryBar';
 import { PlanPage } from './pages/PlanPage';
 import { PracticePage } from './pages/practice/PracticePage';
+import { PracticeTrendsPage } from './pages/practice-trends/PracticeTrendsPage';
 import { ReviewPage } from './pages/review/ReviewPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SignInPage } from './pages/SignInPage';
@@ -68,6 +69,7 @@ export function App({
                     <Route path="plan/:taskId" element={<TaskDetailPage />} />
                   </Route>
                   <Route path="briefing/:date" element={<BriefingPage />} />
+                  <Route path="practice-history" element={<PracticeTrendsPage />} />
                   <Route path="practice/:taskId" element={<PracticePage />} />
                   <Route path="review/:date" element={<ReviewPage />} />
                   <Route path="settings" element={<SettingsPage appEnv={env.appEnv} />} />
