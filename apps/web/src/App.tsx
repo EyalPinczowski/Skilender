@@ -9,6 +9,7 @@ import { RequireAccount } from './auth/RequireAccount';
 import { DemoBanner } from './components/EnvironmentBadge';
 import type { Env } from './env';
 import { AppShell, PublicShell } from './layout/Shell';
+import { CalendarCallbackPage } from './pages/CalendarCallbackPage';
 import { BriefingPage } from './pages/briefing/BriefingPage';
 import { LegalPage } from './pages/LegalPage';
 import { ActivePlanProvider } from './plan/ActivePlan';
@@ -72,6 +73,7 @@ export function App({
                   <Route path="practice-history" element={<PracticeTrendsPage />} />
                   <Route path="practice/:taskId" element={<PracticePage />} />
                   <Route path="review/:date" element={<ReviewPage />} />
+                  <Route path="calendar/callback" element={<CalendarCallbackPage />} />
                   <Route path="settings" element={<SettingsPage appEnv={env.appEnv} />} />
                 </Route>
               </Route>

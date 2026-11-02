@@ -52,6 +52,10 @@ describe('Cloudflare hosting files', () => {
     expect(catchAll?.get('Content-Security-Policy')).toBe("frame-ancestors 'none'");
   });
 
+  it('sends no referrer, so the calendar sign-in code in the address never leaves the app', () => {
+    expect(catchAll?.get('Referrer-Policy')).toBe('no-referrer');
+  });
+
   it('has no other header than vercel.json plus the CSP frame-ancestors', () => {
     const expected = new Set([...readVercelHeaders().map((h) => h.key), 'Content-Security-Policy']);
     expect(new Set(catchAll?.keys())).toEqual(expected);
