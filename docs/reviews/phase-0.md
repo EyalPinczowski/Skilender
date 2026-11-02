@@ -29,7 +29,7 @@ Phase 0 is **not complete yet** in the spec's sense: branch protection, both dep
 | Catalog                                      | `data/catalog/catalog.json`, `README.md`                                 | counted verification flags against the README's claims; drift check passes                                                                                            |
 | Cost ($0)                                    | workflows, Render, Vercel, Supabase guides                               | free-tier usage of each scheduled job and service                                                                                                                      |
 
-Commands run (all pass): `pnpm install --frozen-lockfile && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`, then `CI=1 pnpm --filter @skilender/db test` against the throwaway cluster (51 tests, none skipped), and `packages/db/scripts/test-backup.sh`.
+Commands run (all pass): `pnpm install --frozen-lockfile && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`, then `CI=1 pnpm --filter @upversion/db test` against the throwaway cluster (51 tests, none skipped), and `packages/db/scripts/test-backup.sh`.
 
 I did not re-check any external free-tier facts on the providers' sites in this review. Facts the guides mark as verified on 2026-10-30 are listed as stated there.
 
@@ -91,7 +91,7 @@ The bootstrap runs on every `migrate`, so an environment that was already create
 
 ## Spec / data disagreements (not guessed; owner to decide)
 
-1. **R&D calendar in Phase 0.** Section 11 lists "the R&D calendar" in Phase 0, but Google Calendar is v0.6 (and needs the OAuth setup from ADR 006). Nothing in the repo creates or configures it. Move it to v0.6, or create the empty "Skilender (R&D)" calendar by hand now?
+1. **R&D calendar in Phase 0.** Section 11 lists "the R&D calendar" in Phase 0, but Google Calendar is v0.6 (and needs the OAuth setup from ADR 006). Nothing in the repo creates or configures it. Move it to v0.6, or create the empty "Upversion (R&D)" calendar by hand now?
 2. **Where the backup action lives.** Section 5 asks for a scheduled GitHub Action with a private artifact. The implementation puts it in a separate private repo (`docs/setup/backup.md`), because artifacts of this public repo would be downloadable by anyone. This is consistent with the spec's intent, but it is a different location from what section 11 implies ("the daily backup action").
 3. **Restore target.** Section 9 says "the restore script recreates the data on `rnd`", and section 5 says "tested once on `rnd`". `restore.sh` refuses to restore into an existing schema and is documented for a scratch database only. Which one is intended?
 4. **Phase order.** Section 11 says "Nothing else starts before this works", but `packages/shared` already has the scheduling engine and the `.ics`/HTML/CSV exports (v0.1 work, merged in #6). This isn't wrong in itself, but it is ahead of the phase gate.
@@ -175,7 +175,7 @@ Collected from the code and the guides. None were verified in this review.
   - [ ] automatically delete head branches;
   - [ ] rebase merging off;
   - [ ] default workflow permissions "Read repository contents".
-- [ ] Repository variable `API_HEALTH_URL` = `https://<skilender-api>.onrender.com/api/v1/health`.
+- [ ] Repository variable `API_HEALTH_URL` = `https://<upversion-api>.onrender.com/api/v1/health`.
 
 **GitHub Environments**
 
@@ -206,7 +206,7 @@ Collected from the code and the guides. None were verified in this review.
 **Render**
 
 - [ ] New Blueprint from `render.yaml`. Stop if a card is requested.
-- [ ] Two Free services: `skilender-api` on `main` and `skilender-api-rnd` on `rnd`.
+- [ ] Two Free services: `upversion-api` on `main` and `upversion-api-rnd` on `rnd`.
 - [ ] Set `CORS_ORIGINS` to the exact Vercel origin(s).
 - [ ] Set `TRUST_PROXY=0`.
 - [ ] Confirm Node 22 and pnpm 10 in the first build log.
@@ -222,7 +222,7 @@ Collected from the code and the guides. None were verified in this review.
 
 **Private repo and backups**
 
-- [ ] Create a private repo (e.g. `skilender-private`). It is also where your real plan and the original spec live.
+- [ ] Create a private repo (e.g. `upversion-private`). It is also where your real plan and the original spec live.
 - [ ] Generate the age key on your computer (`age-keygen`).
 - [ ] Keep the private key **offline**, in your password manager plus a second independent copy. Never put it in GitHub.
 - [ ] Add the secrets `AGE_RECIPIENT` (the public key) and `BACKUP_DATABASE_URL` (the `backup_prod` login).

@@ -5,7 +5,7 @@ import {
   ProposedChangeSchema,
   SuggestionSchema,
   TaskOutcomeSchema,
-} from '@skilender/shared';
+} from '@upversion/shared';
 import { z } from 'zod';
 import { noNulCharacters } from '../../validation';
 

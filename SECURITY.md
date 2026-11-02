@@ -1,6 +1,6 @@
 # Security policy
 
-Skilender is an early-stage project handling user accounts and study data.
+Upversion is an early-stage project handling user accounts and study data.
 
 ## Reporting a vulnerability
 

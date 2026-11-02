@@ -1,4 +1,4 @@
-import { WEEKDAY_NAMES } from '@skilender/shared';
+import { WEEKDAY_NAMES } from '@upversion/shared';
 import type { DayOverride, PreviewRequest, WeekPattern } from '../../api/client';
 import type { TimeSettingsChange } from '../../api/hooks';
 

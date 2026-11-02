@@ -1,4 +1,4 @@
-import { APP_NAME } from '@skilender/shared';
+import { APP_NAME } from '@upversion/shared';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { EnvironmentBadge } from '../components/EnvironmentBadge';

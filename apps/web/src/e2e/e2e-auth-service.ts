@@ -7,7 +7,7 @@ import { AuthFailure, type AuthService, type AuthSession } from '../auth/auth-se
  * means. This file is only reachable through `if (__E2E__)` in main.tsx, so a normal build drops
  * it; apps/web/src/build/e2e-bundle.test.ts proves that on a real production build.
  */
-export const E2E_TOKEN_KEY = 'skilender.e2e.access-token';
+export const E2E_TOKEN_KEY = 'upversion.e2e.access-token';
 
 /** Reads the claims of a JWT without checking its signature: only to show who is signed in. */
 function sessionOf(token: string | null): AuthSession | null {

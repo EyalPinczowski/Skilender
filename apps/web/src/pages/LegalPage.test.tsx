@@ -9,9 +9,9 @@ afterEach(() => {
 
 describe('legal pages', () => {
   it.each([
-    ['/terms', 'Skilender – Terms of Use'],
-    ['/privacy', 'Skilender – Privacy Policy'],
-    ['/disclaimer', 'Skilender – Disclaimer'],
+    ['/terms', 'Upversion – Terms of Use'],
+    ['/privacy', 'Upversion – Privacy Policy'],
+    ['/disclaimer', 'Upversion – Disclaimer'],
   ])('shows %s to a signed-out visitor, rendered from docs/legal', async (path, heading) => {
     installApi({});
     renderApp({ auth: fakeAuth(null), path });
@@ -41,7 +41,7 @@ describe('legal pages', () => {
     expect(nav.getByRole('link', { name: 'Terms of Use' })).toHaveAttribute('href', '/terms');
     expect(nav.getByRole('link', { name: 'Disclaimer' })).toHaveAttribute('href', '/disclaimer');
     expect(nav.queryByRole('link', { name: 'Privacy Policy' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to Skilender' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Back to Upversion' })).toHaveAttribute('href', '/');
   });
 
   it('renders the privacy table as a real table', async () => {

@@ -47,7 +47,7 @@ async function roles(names: string[]): Promise<Map<string, RoleRow>> {
 
 const tempDirs: string[] = [];
 async function copyOfMigrations(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'skilender-migrations-'));
+  const dir = await mkdtemp(join(tmpdir(), 'upversion-migrations-'));
   tempDirs.push(dir);
   await cp(MIGRATIONS, dir, { recursive: true });
   return dir;
@@ -196,8 +196,8 @@ insert into {{schema}}.catalog_items values
     await withClient(TEST_SUPERUSER_URL!, async (client) => {
       const { rows } = await client.query('select id, provider from rnd.catalog_items order by id');
       expect(rows).toEqual([
-        { id: 'a', provider: 'Skilender practice' },
-        { id: 'b', provider: 'Skilender practice' },
+        { id: 'a', provider: 'Upversion practice' },
+        { id: 'b', provider: 'Upversion practice' },
         { id: 'c', provider: 'Microsoft' },
       ]);
     });
@@ -290,7 +290,7 @@ insert into {{schema}}.catalog_items values
 
 describe('migration files', () => {
   it('refuses two files with the same version number before it connects', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'skilender-migrations-'));
+    const dir = await mkdtemp(join(tmpdir(), 'upversion-migrations-'));
     tempDirs.push(dir);
     await writeFile(join(dir, '0001_first.sql'), 'select 1;\n');
     await writeFile(join(dir, '0001_second.sql'), 'select 2;\n');

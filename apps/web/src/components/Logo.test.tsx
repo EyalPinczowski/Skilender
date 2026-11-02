@@ -5,7 +5,7 @@ import { Logo } from './Logo';
 describe('Logo', () => {
   it('has an accessible name and draws three blocks', () => {
     render(<Logo />);
-    const logo = screen.getByRole('img', { name: 'Skilender' });
+    const logo = screen.getByRole('img', { name: 'Upversion' });
     expect(logo.querySelectorAll('rect')).toHaveLength(3);
   });
 

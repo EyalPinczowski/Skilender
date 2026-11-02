@@ -1,4 +1,4 @@
-import { BriefingSchema, LocalDateSchema } from '@skilender/shared';
+import { BriefingSchema, LocalDateSchema } from '@upversion/shared';
 import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';

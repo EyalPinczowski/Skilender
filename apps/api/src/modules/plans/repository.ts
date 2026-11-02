@@ -1,4 +1,4 @@
-import type { DayOverride, PlanFile, Task, WeekPattern } from '@skilender/shared';
+import type { DayOverride, PlanFile, Task, WeekPattern } from '@upversion/shared';
 import type { UserContext } from '../../db/database';
 import type { PlanDetail, PlanSummary } from './schemas';
 

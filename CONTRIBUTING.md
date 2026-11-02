@@ -1,6 +1,6 @@
 # Contributing
 
-Skilender is developed in the open. The history is part of the project, so please keep it tidy.
+Upversion is developed in the open. The history is part of the project, so please keep it tidy.
 
 ## Branches
 

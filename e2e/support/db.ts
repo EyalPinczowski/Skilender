@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { environmentNames, migrate, setPasswords } from '@skilender/db';
+import { environmentNames, migrate, setPasswords } from '@upversion/db';
 import pg from 'pg';
 
 /**

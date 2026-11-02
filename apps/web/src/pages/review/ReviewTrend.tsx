@@ -1,4 +1,4 @@
-import { addDays, diffDays } from '@skilender/shared';
+import { addDays, diffDays } from '@upversion/shared';
 import { useId } from 'react';
 import { useReviewHistory, type ReviewPoint } from '../../api/review-hooks';
 import { QueryView } from '../../components/QueryView';

@@ -37,7 +37,7 @@ describe('App shell', () => {
   it('shows the app name and tagline on the sign-in page', async () => {
     renderApp({ auth: fakeAuth(null), path: '/signin' });
     expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument();
-    expect(screen.getAllByText('Skilender').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Upversion').length).toBeGreaterThan(0);
   });
 
   it('wires the environment into the badge and banner', async () => {

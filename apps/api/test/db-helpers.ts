@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { migrate, setPasswords } from '@skilender/db';
+import { migrate, setPasswords } from '@upversion/db';
 import pg from 'pg';
 import { CURRENT_LEGAL_VERSIONS, LEGAL_DOCUMENTS } from '../src/modules/accounts/legal';
 

@@ -1,4 +1,4 @@
-import { GENERIC_RUBRIC_STEPS } from '@skilender/shared';
+import { GENERIC_RUBRIC_STEPS } from '@upversion/shared';
 import type { FinishChoice } from './FinishDialog';
 
 /** Screen-reader announcements happen at these two moments only (spec 3.D). */

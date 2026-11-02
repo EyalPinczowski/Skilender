@@ -1,4 +1,4 @@
-import { compareDates, LocalDateSchema } from '@skilender/shared';
+import { compareDates, LocalDateSchema } from '@upversion/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type { LogResult, PlanSummary, Schedule, Task } from '../../api/client';

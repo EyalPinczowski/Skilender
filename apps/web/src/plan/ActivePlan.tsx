@@ -3,6 +3,8 @@ import { Outlet } from 'react-router';
 import { usePlans } from '../api/hooks';
 import { ActivePlanContext } from './context';
 
+// Intentional leftover: this key keeps the old product name (Skillstack) so existing devices keep
+// their selected plan. Do not rename without a migration.
 const STORAGE_KEY = 'skillstack.plan';
 
 // Browser storage is only a per-device convenience; it can be blocked or empty.

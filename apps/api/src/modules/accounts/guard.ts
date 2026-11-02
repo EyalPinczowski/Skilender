@@ -13,7 +13,7 @@ declare module 'fastify' {
 
 const unauthorized = () => new HttpError(401, 'unauthorized', 'Authentication is required.');
 /** One message for every refusal (not on the list, cap reached, disabled): nothing to probe. */
-const forbidden = () => new HttpError(403, 'forbidden', 'This account cannot use Skilender.');
+const forbidden = () => new HttpError(403, 'forbidden', 'This account cannot use Upversion.');
 
 const termsNotAccepted = () =>
   new HttpError(

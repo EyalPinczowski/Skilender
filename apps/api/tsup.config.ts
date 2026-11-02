@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup';
 
-// @skilender/shared ships TypeScript source, so it is bundled; everything else
+// @upversion/shared ships TypeScript source, so it is bundled; everything else
 // stays in node_modules and Render runs `node dist/server.js` after `pnpm install`.
 export default defineConfig({
   entry: ['src/server.ts'],
@@ -10,5 +10,5 @@ export default defineConfig({
   outDir: 'dist',
   clean: true,
   sourcemap: true,
-  noExternal: ['@skilender/shared'],
+  noExternal: ['@upversion/shared'],
 });

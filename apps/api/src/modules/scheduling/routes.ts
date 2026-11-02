@@ -3,7 +3,7 @@ import {
   DayOverrideSchema,
   LocalDateSchema,
   WeekPatternSchema,
-} from '@skilender/shared';
+} from '@upversion/shared';
 import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';

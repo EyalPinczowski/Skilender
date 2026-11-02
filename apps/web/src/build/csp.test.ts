@@ -22,13 +22,13 @@ describe('buildCsp', () => {
   it('allows only self, the API origin and the Supabase origin to be connected to', () => {
     const csp = directives(
       buildCsp({
-        apiUrl: 'https://skilender-api.onrender.com/',
+        apiUrl: 'https://upversion-api.onrender.com/',
         supabaseUrl: 'https://abcdefgh.supabase.co/auth/v1',
       }),
     );
     expect(csp.get('connect-src')).toEqual([
       "'self'",
-      'https://skilender-api.onrender.com',
+      'https://upversion-api.onrender.com',
       'https://abcdefgh.supabase.co',
     ]);
   });
@@ -69,7 +69,7 @@ describe('production build output', () => {
   });
 
   it('puts the CSP meta tag, built from the environment, before any script in index.html', async () => {
-    outDir = await mkdtemp(join(tmpdir(), 'skilender-csp-'));
+    outDir = await mkdtemp(join(tmpdir(), 'upversion-csp-'));
     const saved = { ...process.env };
     process.env.VITE_API_URL = 'https://api-under-test.example.com';
     process.env.VITE_SUPABASE_URL = 'https://projectref.supabase.co';

@@ -25,12 +25,26 @@ describe('theme', () => {
   it('moves a theme saved under the old product name to the new key once', () => {
     window.localStorage.setItem('skillstack.theme', 'dark');
     expect(readTheme()).toBe('dark');
-    expect(window.localStorage.getItem('skilender.theme')).toBe('dark');
+    expect(window.localStorage.getItem('upversion.theme')).toBe('dark');
+    expect(window.localStorage.getItem('skillstack.theme')).toBeNull();
+  });
+
+  it('moves a theme saved under the Skilender name to the new key once', () => {
+    window.localStorage.setItem('skilender.theme', 'light');
+    expect(readTheme()).toBe('light');
+    expect(window.localStorage.getItem('upversion.theme')).toBe('light');
+    expect(window.localStorage.getItem('skilender.theme')).toBeNull();
+  });
+
+  it('prefers the Skilender key over the Skillstack one when both exist', () => {
+    window.localStorage.setItem('skilender.theme', 'light');
+    window.localStorage.setItem('skillstack.theme', 'dark');
+    expect(readTheme()).toBe('light');
     expect(window.localStorage.getItem('skillstack.theme')).toBeNull();
   });
 
   it('prefers the new key over the old one and drops an invalid old value', () => {
-    window.localStorage.setItem('skilender.theme', 'light');
+    window.localStorage.setItem('upversion.theme', 'light');
     window.localStorage.setItem('skillstack.theme', 'dark');
     expect(readTheme()).toBe('light');
     window.localStorage.clear();
@@ -46,7 +60,7 @@ describe('theme', () => {
   });
 
   it('ignores an unknown stored value', () => {
-    window.localStorage.setItem('skilender.theme', 'neon');
+    window.localStorage.setItem('upversion.theme', 'neon');
     expect(readTheme()).toBe('system');
   });
 

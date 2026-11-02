@@ -2,7 +2,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { APP_NAME } from '@skilender/shared';
+import { APP_NAME } from '@upversion/shared';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   jsonSchemaTransform,

@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
-const STORAGE_KEY = 'skilender.theme';
-/** Key used before the product was renamed; read once, then moved to STORAGE_KEY. */
-const LEGACY_STORAGE_KEY = 'skillstack.theme';
+const STORAGE_KEY = 'upversion.theme';
+/** Keys used under earlier product names (Skillstack, Skilender); read once, then moved to STORAGE_KEY. */
+const LEGACY_STORAGE_KEYS = ['skilender.theme', 'skillstack.theme'];
 
 export const isThemePreference = (value: unknown): value is ThemePreference =>
   value === 'system' || value === 'light' || value === 'dark';
@@ -14,13 +14,14 @@ export function readTheme(): ThemePreference {
   try {
     let value = window.localStorage.getItem(STORAGE_KEY);
     if (value === null) {
-      const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacy !== null) {
-        if (isThemePreference(legacy)) {
+      for (const key of LEGACY_STORAGE_KEYS) {
+        const legacy = window.localStorage.getItem(key);
+        if (legacy === null) continue;
+        if (value === null && isThemePreference(legacy)) {
           value = legacy;
           window.localStorage.setItem(STORAGE_KEY, legacy);
         }
-        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+        window.localStorage.removeItem(key);
       }
     }
     return isThemePreference(value) ? value : 'system';
@@ -41,7 +42,7 @@ export function applyTheme(preference: ThemePreference): void {
 
 export function saveTheme(preference: ThemePreference): void {
   try {
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    for (const key of LEGACY_STORAGE_KEYS) window.localStorage.removeItem(key);
     if (preference === 'system') window.localStorage.removeItem(STORAGE_KEY);
     else window.localStorage.setItem(STORAGE_KEY, preference);
   } catch {

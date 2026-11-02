@@ -1,4 +1,4 @@
-import { WEEKDAY_NAMES } from '@skilender/shared';
+import { WEEKDAY_NAMES } from '@upversion/shared';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { DayOverride, PlanDetail, WeekPattern } from '../../api/client';
 import { usePlan, usePreviewSchedule, useSaveTimeSettings } from '../../api/hooks';

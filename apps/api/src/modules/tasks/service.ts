@@ -1,4 +1,4 @@
-import { localDateOf, TaskSchema } from '@skilender/shared';
+import { localDateOf, TaskSchema } from '@upversion/shared';
 import type { Database, UserContext } from '../../db/database';
 import { HttpError } from '../../errors';
 import * as plansRepo from '../plans/repository';

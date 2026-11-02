@@ -21,7 +21,7 @@ Every screen of every flow is also checked with axe-core (WCAG 2.x A and AA), an
 
 ## Run it locally
 
-Needs Node 22, pnpm, `openssl`, PostgreSQL 16 binaries and a Chromium that matches Playwright's pinned version (CI downloads it; locally use the preinstalled one or run `pnpm --filter @skilender/e2e exec playwright install chromium` once).
+Needs Node 22, pnpm, `openssl`, PostgreSQL 16 binaries and a Chromium that matches Playwright's pinned version (CI downloads it; locally use the preinstalled one or run `pnpm --filter @upversion/e2e exec playwright install chromium` once).
 
 ```bash
 # 1. Your own throwaway cluster (pick a free port and a directory of your own).
@@ -31,8 +31,8 @@ eval "$(bash packages/db/scripts/test-postgres.sh env)"   # sets TEST_DATABASE_U
 
 # 2. Run (builds the API and the e2e web build itself; about 10 s of set-up).
 pnpm install --frozen-lockfile
-pnpm --filter @skilender/e2e e2e            # all flows
-pnpm --filter @skilender/e2e e2e -- flow-2  # one file
+pnpm --filter @upversion/e2e e2e            # all flows
+pnpm --filter @upversion/e2e e2e -- flow-2  # one file
 
 # 3. Clean up (the same TEST_PG_DIR and TEST_PG_PORT must be set, or `stop` hits the default cluster).
 bash packages/db/scripts/test-postgres.sh stop

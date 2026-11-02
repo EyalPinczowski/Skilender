@@ -6,7 +6,7 @@ import type {
   ProposedChange,
   SuggestionEvidence,
   TaskOutcome,
-} from '@skilender/shared';
+} from '@upversion/shared';
 import type { UserContext } from '../../db/database';
 
 export interface StoredReview extends DayReview {

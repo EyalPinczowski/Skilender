@@ -36,7 +36,7 @@ describe('iCalendar export', () => {
 
   it('escapes text and tags each event with its task id', () => {
     expect(ics).toContain('SUMMARY:Exam\\, part 1\\; final');
-    expect(ics).toContain('X-SKILENDER-TASK-ID:exam');
+    expect(ics).toContain('X-UPVERSION-TASK-ID:exam');
     expect(escapeIcsText('a\nb')).toBe('a\\nb');
   });
 

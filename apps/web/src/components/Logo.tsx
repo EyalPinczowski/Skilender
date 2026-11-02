@@ -5,7 +5,7 @@ interface LogoProps {
 }
 
 /** Three blocks stepping up. Colour comes from `currentColor`, which defaults to the accent token. */
-export function Logo({ className = 'size-8 text-accent', title = 'Skilender' }: LogoProps) {
+export function Logo({ className = 'size-8 text-accent', title = 'Upversion' }: LogoProps) {
   return (
     <svg
       viewBox="0 0 64 64"

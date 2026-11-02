@@ -1,4 +1,4 @@
-import { MAX_LOG_HOURS } from '@skilender/shared';
+import { MAX_LOG_HOURS } from '@upversion/shared';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, ErrorText } from '../../components/ui';

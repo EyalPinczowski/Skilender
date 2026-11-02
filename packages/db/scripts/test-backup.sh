@@ -33,7 +33,7 @@ PSQL=("$PG_BIN/psql" -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -p "$PORT")
 
 "$HERE/test-postgres.sh" start
 
-admin_url="postgres://migrator@127.0.0.1:$PORT/skilender_test"
+admin_url="postgres://migrator@127.0.0.1:$PORT/upversion_test"
 backup_password="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 app_password="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 
@@ -56,7 +56,7 @@ expect_fail() {
     exit 1
   fi
 }
-backup_url="postgres://backup_rnd:$backup_password@127.0.0.1:$PORT/skilender_test"
+backup_url="postgres://backup_rnd:$backup_password@127.0.0.1:$PORT/upversion_test"
 expect_fail env BACKUP_DATABASE_URL="$backup_url" AGE_RECIPIENT="$recipient" "$HERE/backup.sh"
 expect_fail env BACKUP_DATABASE_URL="$backup_url" AGE_RECIPIENT="$recipient" "$HERE/backup.sh" --schema public
 expect_fail env BACKUP_DATABASE_URL="$backup_url" AGE_RECIPIENT="AGE-SECRET-KEY-1ABC" "$HERE/backup.sh" --schema rnd
@@ -85,7 +85,7 @@ AGE_IDENTITY_FILE="$work/key.txt" RESTORE_DATABASE_URL="$scratch_url" \
   "$HERE/restore.sh" --schema rnd --file "$file" --i-know-this-is-a-scratch-database
 
 echo "== compare schema_migrations row counts" >&2
-orig="$("${PSQL[@]}" -U postgres -d skilender_test -At -c "select count(*) from rnd.schema_migrations")"
+orig="$("${PSQL[@]}" -U postgres -d upversion_test -At -c "select count(*) from rnd.schema_migrations")"
 copy="$("${PSQL[@]}" -U postgres -d scratch -At -c "select count(*) from rnd.schema_migrations")"
 echo "original=$orig restored=$copy" >&2
 if [ "$orig" != "$copy" ] || [ "$orig" -lt 1 ]; then

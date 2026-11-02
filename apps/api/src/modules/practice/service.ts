@@ -19,7 +19,7 @@ import {
   trendsByKind,
   type BuiltPracticePrompt,
   type PracticePromptInput,
-} from '@skilender/shared';
+} from '@upversion/shared';
 import { ZodError } from 'zod';
 import { reserveUserCap, utcDay, type AIUsageStore } from '../../ai/budget';
 import {

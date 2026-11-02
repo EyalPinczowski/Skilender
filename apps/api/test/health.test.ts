@@ -1,4 +1,4 @@
-import { APP_NAME } from '@skilender/shared';
+import { APP_NAME } from '@upversion/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import { buildApp } from '../src/app';
