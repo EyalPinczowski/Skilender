@@ -11,7 +11,17 @@ import { loadConfig } from '../src/config';
 import { rejectAllVerifier } from '../src/modules/accounts/token-verifier';
 
 export async function buildOpenApiDocument(): Promise<string> {
-  const app = buildApp(loadConfig({ LOG_LEVEL: 'silent' }), {
+  // Flag-gated routes are included so the web app's types cover them. These are placeholders, not
+  // credentials: the app never starts a request with them.
+  const config = loadConfig({
+    LOG_LEVEL: 'silent',
+    FEATURE_CALENDAR: 'true',
+    CALENDAR_TOKEN_KEYS: `v1:${Buffer.alloc(32).toString('base64')}`,
+    GOOGLE_CLIENT_ID: 'openapi-dump-placeholder',
+    GOOGLE_CLIENT_SECRET: 'openapi-dump-placeholder',
+    GOOGLE_REDIRECT_URI: 'https://example.invalid/calendar/callback',
+  });
+  const app = buildApp(config, {
     verifier: rejectAllVerifier,
     db: null,
   });

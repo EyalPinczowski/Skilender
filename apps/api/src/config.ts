@@ -121,6 +121,9 @@ const envSchema = z.object({
   // Google OAuth client. Required when FEATURE_CALENDAR=true. The secret is server-only: never logged.
   GOOGLE_CLIENT_ID: z.string().min(1).max(512).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).max(512).optional(),
+  // Where Google sends the user back after consent: the web app's /calendar/callback page. Must match
+  // an authorised redirect URI of the OAuth client exactly. Required when FEATURE_CALENDAR=true.
+  GOOGLE_REDIRECT_URI: z.url().max(1000).optional(),
   // Overridable so e2e can point at a local stub. Defaults are Google's (needs check against docs).
   GOOGLE_CALENDAR_API_BASE: z.url().default('https://www.googleapis.com/calendar/v3'),
   GOOGLE_OAUTH_BASE: z.url().default('https://oauth2.googleapis.com'),
@@ -148,6 +151,8 @@ export interface AIConfig extends AISettings {
 export interface GoogleCalendarConfig {
   clientId: string;
   clientSecret: string;
+  /** The web app page Google redirects to after consent (an authorised redirect URI of the client). */
+  redirectUri: string;
   /** No trailing slash, e.g. https://www.googleapis.com/calendar/v3 */
   apiBase: string;
   /** No trailing slash; the token endpoint is `${oauthBase}/token`. */
@@ -260,15 +265,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
 function loadGoogle(e: z.infer<typeof envSchema>): GoogleCalendarConfig | null {
   if (e.FEATURE_CALENDAR) {
-    const missing = (['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const).filter((n) => !e[n]);
+    const missing = (
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'] as const
+    ).filter((n) => !e[n]);
     if (missing.length > 0) {
       throw new ConfigError(missing.map((n) => `${n}: required when FEATURE_CALENDAR=true`));
     }
   }
-  if (!e.GOOGLE_CLIENT_ID || !e.GOOGLE_CLIENT_SECRET) return null;
+  if (!e.GOOGLE_CLIENT_ID || !e.GOOGLE_CLIENT_SECRET || !e.GOOGLE_REDIRECT_URI) return null;
   return {
     clientId: e.GOOGLE_CLIENT_ID,
     clientSecret: e.GOOGLE_CLIENT_SECRET,
+    redirectUri: e.GOOGLE_REDIRECT_URI,
     apiBase: e.GOOGLE_CALENDAR_API_BASE.replace(/\/+$/, ''),
     oauthBase: e.GOOGLE_OAUTH_BASE.replace(/\/+$/, ''),
   };

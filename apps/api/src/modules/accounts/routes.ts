@@ -23,6 +23,11 @@ export interface AccountRoutesOptions {
   db: Database | null;
   /** Removes the Supabase Auth user on account deletion. */
   authAdmin: AuthAdmin;
+  /**
+   * Runs before any account data is deleted (calendar: remove the app's events, revoke the token).
+   * It must not throw for problems outside our database; the deletion goes ahead regardless.
+   */
+  beforeAccountDeletion?: (userId: string) => Promise<void>;
 }
 
 const authErrors = {
@@ -33,9 +38,11 @@ const authErrors = {
 
 export const accountRoutes: FastifyPluginAsyncZod<AccountRoutesOptions> = async (
   app,
-  { verifier, db, authAdmin },
+  { verifier, db, authAdmin, beforeAccountDeletion },
 ) => {
-  const service = db ? createAccountService(db, authAdmin) : null;
+  const service = db
+    ? createAccountService(db, authAdmin, { beforeDelete: beforeAccountDeletion })
+    : null;
 
   installAccountGuard(app, verifier, service);
 

@@ -36,12 +36,13 @@ Google's console screens and limits change. Anything marked **needs check** has 
 
 Set these in Render for each environment (R&D and production), as secrets:
 
-| Variable | Value |
-|---|---|
-| `GOOGLE_CLIENT_ID` | from the OAuth client |
-| `GOOGLE_CLIENT_SECRET` | from the OAuth client |
-| `CALENDAR_TOKEN_KEYS` | `v1:<base64>`, where the value comes from `openssl rand -base64 32` |
-| `FEATURE_CALENDAR` | `true` |
+| Variable               | Value                                                               |
+| ---------------------- | ------------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`     | from the OAuth client                                               |
+| `GOOGLE_CLIENT_SECRET` | from the OAuth client                                               |
+| `GOOGLE_REDIRECT_URI`  | `<web origin>/calendar/callback`, exactly as listed in step 3       |
+| `CALENDAR_TOKEN_KEYS`  | `v1:<base64>`, where the value comes from `openssl rand -base64 32` |
+| `FEATURE_CALENDAR`     | `true`                                                              |
 
 Use a different key for each environment. To rotate, generate a new key, put it first with the next id (`v2:<new>,v1:<old>`), and keep the old one until no stored token needs it. Back up the keys somewhere private: losing them means every user must reconnect.
 

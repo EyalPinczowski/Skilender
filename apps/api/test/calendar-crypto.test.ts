@@ -140,14 +140,24 @@ describe('calendar config and startup', () => {
     expect(() => loadConfig({ FEATURE_CALENDAR: 'true', CALENDAR_TOKEN_KEYS: keys })).toThrow(
       /GOOGLE_CLIENT_ID/,
     );
+    expect(() =>
+      loadConfig({
+        FEATURE_CALENDAR: 'true',
+        CALENDAR_TOKEN_KEYS: keys,
+        GOOGLE_CLIENT_ID: 'cid',
+        GOOGLE_CLIENT_SECRET: 'csecret',
+      }),
+    ).toThrow(/GOOGLE_REDIRECT_URI/);
     const c = loadConfig({
       GOOGLE_CLIENT_ID: 'cid',
       GOOGLE_CLIENT_SECRET: 'csecret',
+      GOOGLE_REDIRECT_URI: 'https://app.example.test/calendar/callback',
       GOOGLE_CALENDAR_API_BASE: 'http://127.0.0.1:9/calendar/v3/',
     });
     expect(c.calendar.google).toEqual({
       clientId: 'cid',
       clientSecret: 'csecret',
+      redirectUri: 'https://app.example.test/calendar/callback',
       apiBase: 'http://127.0.0.1:9/calendar/v3',
       oauthBase: 'https://oauth2.googleapis.com',
     });
@@ -171,6 +181,7 @@ describe('calendar config and startup', () => {
       CALENDAR_TOKEN_KEYS: `v2:${k2},v1:${k1}`,
       GOOGLE_CLIENT_ID: 'cid',
       GOOGLE_CLIENT_SECRET: 'csecret',
+      GOOGLE_REDIRECT_URI: 'https://app.example.test/calendar/callback',
     });
     expect(c.calendar.enabled).toBe(true);
     expect(c.calendar.tokenKeys.map((k) => k.id)).toEqual(['v2', 'v1']);

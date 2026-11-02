@@ -75,9 +75,11 @@ async function errorReason(res: Response): Promise<string | null> {
 async function toError(res: Response, tokenEndpoint = false): Promise<Error> {
   const reason = await errorReason(res);
   const status = res.status;
-  // Only the token endpoint can say the grant is gone. A Calendar API 401 (even after a forced
-  // refresh) is a request error, not a reason to make the user reconnect.
-  if (tokenEndpoint && (reason === 'invalid_grant' || reason === 'invalid_client')) {
+  // Only the token endpoint can say the grant is gone, and only `invalid_grant` does. A Calendar
+  // API 401 (even after a forced refresh) and `invalid_client` (OUR client id or secret is wrong:
+  // a server configuration problem, not the user's consent) are request errors, not a reason to
+  // make the user reconnect.
+  if (tokenEndpoint && reason === 'invalid_grant') {
     return new CalendarAuthError(reason);
   }
   if (!tokenEndpoint && status === 412) return new CalendarPreconditionFailedError();
@@ -347,7 +349,7 @@ export interface RefreshedToken {
 
 /**
  * Exchanges a refresh token for a new access token. `invalid_grant` (revoked, expired or
- * password-changed) and `invalid_client` become CalendarAuthError; 429/5xx become retryable.
+ * password-changed) becomes CalendarAuthError (`invalid_client` is a request error); 429/5xx become retryable.
  */
 export async function refreshAccessToken(options: RefreshOptions): Promise<RefreshedToken> {
   const res = await send(
