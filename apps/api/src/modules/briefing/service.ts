@@ -1,4 +1,5 @@
-import { buildBriefing, type Briefing } from '@skillstack/shared';
+import { buildBriefing, localDateOf, type Briefing } from '@skillstack/shared';
+import { HttpError } from '../../errors';
 import type { PracticeService } from '../practice/service';
 import type { SchedulingService } from '../scheduling/service';
 
@@ -10,10 +11,19 @@ import type { SchedulingService } from '../scheduling/service';
  *
  * Practice entries get the dynamic prompt from the practice service (the one the prompt route
  * builds, with the last same-kind next focus) and the id of an active session. The task's own
- * template stays on any failure. The job description is part of that prompt exactly as in the
+ * template stays on any failure and on days other than today. The job description is part of that prompt exactly as in the
  * prompt route (it is for the user to copy); it is not stored or logged here.
  */
-export function createBriefingService(scheduling: SchedulingService, practice?: PracticeService) {
+export interface BriefingLog {
+  warn(obj: Record<string, unknown>, msg: string): void;
+}
+
+export function createBriefingService(
+  scheduling: SchedulingService,
+  practice?: PracticeService,
+  now: () => Date = () => new Date(),
+  log?: BriefingLog,
+) {
   return {
     async get(userId: string, planId: string, date: string): Promise<Briefing> {
       const day = await scheduling.dayPlan(userId, planId, date);
@@ -28,7 +38,8 @@ export function createBriefingService(scheduling: SchedulingService, practice?: 
         finishDate: day.finishDate,
         skillIds: day.skillIds,
       });
-      if (!practice) return briefing;
+      // Only today is enriched: a past day keeps its stored template and shows no session.
+      if (!practice || day.date !== localDateOf(now(), day.pattern.timezone)) return briefing;
       const tasks = [];
       for (const t of briefing.tasks) {
         if (t.type !== 'practice') {
@@ -42,8 +53,22 @@ export function createBriefingService(scheduling: SchedulingService, practice?: 
             promptTemplate: entry.prompt,
             ...(entry.practiceSessionId ? { practiceSessionId: entry.practiceSessionId } : {}),
           });
-        } catch {
-          tasks.push(t); // the template stays
+        } catch (error) {
+          // Expected (task or plan gone, personal details blocked): silent. Anything else is
+          // logged by class and code only, never its message. The briefing never fails here.
+          if (!(
+            error instanceof HttpError &&
+            (error.statusCode === 404 || error.statusCode === 422)
+          )) {
+            log?.warn(
+              {
+                errorClass: error instanceof Error ? error.constructor.name : typeof error,
+                code: error instanceof HttpError ? error.code : undefined,
+              },
+              'briefing practice prompt failed; using the template',
+            );
+          }
+          tasks.push(t);
         }
       }
       return { ...briefing, tasks };

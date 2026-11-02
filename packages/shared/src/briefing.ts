@@ -61,7 +61,7 @@ export const BriefingTaskSchema = z.object({
   /** The task's own prompt template (practices); null when it has none. */
   promptTemplate: z.string().nullable(),
   /** The active practice session for this task, when there is one (set by the API). */
-  practiceSessionId: z.string().optional(),
+  practiceSessionId: z.uuid().optional(),
   /** What success looks like, for practices; null for every other type. */
   successCriteria: z.string().nullable(),
   /** Planned on an earlier day and not done yet. */
