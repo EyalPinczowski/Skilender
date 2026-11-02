@@ -1,6 +1,6 @@
 # How I built this
 
-A short, honest account of the working method behind Skillstack. It only describes what is visible in this repository. Nothing here is a benchmark: there are no measured speed-ups or cost figures, because none were recorded.
+A short, honest account of the working method behind Upversion (formerly Skillstack). It only describes what is visible in this repository. Nothing here is a benchmark: there are no measured speed-ups or cost figures, because none were recorded.
 
 ## Spec first
 

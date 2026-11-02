@@ -25,22 +25,22 @@ Facts below were read from the official docs on 2026-10-30. Anything not stated 
 - Whether Render honours the `NODE_VERSION` env var and `.nvmrc`; `render.yaml` sets `NODE_VERSION=22`. Confirm in the first build log that Node 22 is used.
 - Whether `corepack enable` selects pnpm 10 from `packageManager` on Render. Confirm in the first build log.
 - The `TRUST_PROXY` hop count on Render (see `.env.example`). Keep `0` until verified.
-- Whether the Skillstack beta counts as "non-commercial personal use" for Vercel Hobby (no ads, no payments, invite-only: it appears to fit, but Vercel decides; contact Vercel support if unsure).
+- Whether the Upversion beta counts as "non-commercial personal use" for Vercel Hobby (no ads, no payments, invite-only: it appears to fit, but Vercel decides; contact Vercel support if unsure).
 - GitHub Actions minutes for the wake-up workflow if the repo is private: the cron `*/14 5-18 * * *` starts 70 runs a day (5 an hour for 14 UTC hours), including the runs the local-time guard skips, and each run is billed per started minute, so about 2,100 minutes a month. That is more than the included minutes of GitHub Free for private repos (2,000 a month, needs check). Keep this repo public, or narrow the cron, before relying on it. Public repos: check GitHub's current billing page.
 - Study hours: the spec does not define them. `wakeup.yml` uses 08:00-20:00 Asia/Jerusalem, chosen by the owner.
 
 ## 1. Frontend on Vercel Hobby
 
 1. Sign in at vercel.com with GitHub. Use a personal account (Hobby), not an organization. Stop if a card is requested.
-2. Add New > Project > import the Skillstack repository.
-3. Leave the root directory as the repository root. `vercel.json` already sets the install command, build command (`pnpm --filter @skillstack/web build`), output directory (`apps/web/dist`), the SPA rewrite and security headers.
+2. Add New > Project > import the Upversion repository.
+3. Leave the root directory as the repository root. `vercel.json` already sets the install command, build command (`pnpm --filter @upversion/web build`), output directory (`apps/web/dist`), the SPA rewrite and security headers.
 4. Set environment variables (Settings > Environment Variables), names only here:
    - `VITE_APP_ENV`: `operational` for Production, `rnd` for Preview. A separate demo project uses `demo`.
    - `VITE_API_URL`: the Render API base URL without trailing slash (Production: `skillstack-api`; Preview: `skillstack-api-rnd`).
    - `VITE_SUPABASE_URL`: the Supabase project URL, `https://<project-ref>.supabase.co`. One project serves both environments (ADR 003), so Production and Preview use the same value.
    - `VITE_SUPABASE_ANON_KEY`: the project's anon / publishable key (Supabase dashboard, Project Settings, API; exact menu name needs check). It is public by design because it ships in the browser bundle, but it still goes only into the Vercel settings and your own untracked `.env.local`, never into the repository. Vercel exposes only variables that start with `VITE_` to the build; tick Production and Preview (needs check: the exact checkboxes).
    - **Content-Security-Policy.** The web build writes a CSP `<meta>` tag into `index.html` (`apps/web/src/build/csp.ts`). Its `connect-src` is `'self'` plus the origins of `VITE_API_URL` and `VITE_SUPABASE_URL`, read at build time, so there is nothing else to configure: set both variables for each Vercel environment and rebuild when one changes. Everything else is `'self'` (no inline script or style). A browser ignores `frame-ancestors` in a meta tag, so `vercel.json` sends `Content-Security-Policy: frame-ancestors 'none'` as a header (the two policies add up). If a deployment cannot reach the API or Supabase and the browser console names `connect-src`, the variable was wrong or missing at build time. The policy is applied by `vite build` only, not by `vite dev`.
-   - The build fails to start in the browser with a readable message ("Skillstack could not start") if either Supabase variable is missing or the URL is not http(s).
+   - The build fails to start in the browser with a readable message ("Upversion could not start") if either Supabase variable is missing or the URL is not http(s).
 5. Production Branch is `main`. Deployments from the `rnd` branch are Preview deployments; assign them a stable alias if possible (needs check which stable preview URL Hobby offers for a branch).
 6. Deploy. Copy the resulting `*.vercel.app` URLs for the next section.
 
@@ -122,12 +122,12 @@ Use this if you prefer to host the frontend on Cloudflare. The API (Render) and 
 ## Steps (click by click)
 
 1. **Sign up.** Go to https://dash.cloudflare.com/sign-up. Enter your email and a password, or choose sign-in with GitHub if offered. Verify the email. Choose the **Free** plan if asked. If a screen asks for a card, stop.
-2. **Create the project.** In the dashboard left menu choose **Workers & Pages**, then **Create application**, then **GitHub** (the path described at https://developers.cloudflare.com/workers/ci-cd/builds/). Authorise the Cloudflare GitHub app for the Skillstack repository only, not all repositories. Pick the repository.
+2. **Create the project.** In the dashboard left menu choose **Workers & Pages**, then **Create application**, then **GitHub** (the path described at https://developers.cloudflare.com/workers/ci-cd/builds/). Authorise the Cloudflare GitHub app for the Upversion repository only, not all repositories. Pick the repository.
 3. **Project name.** Set the name to `skillstack-web`. It must match `name` in `wrangler.jsonc`, otherwise the build fails.
 4. **Production branch.** `main`.
 5. **Build settings** (Settings > Build):
    - Root directory: leave empty (repository root).
-   - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skillstack/web build`
+   - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @upversion/web build`
    - Deploy command: leave the default `npx wrangler deploy` (it reads `wrangler.jsonc`).
    - Node version: add the build variable `NODE_VERSION` = `22` (the repo requires Node 22 or newer; the image default 24 also satisfies that, so this is optional).
 6. **Build variables** (Settings > Build > Variables and secrets). Public values only. Never add a service key, `SUPABASE_SERVICE_ROLE_KEY` or a database password here.

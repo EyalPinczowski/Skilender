@@ -21,7 +21,7 @@ export function ForbiddenScreen() {
 
   return (
     <div className="space-y-4">
-      <h1>This account cannot use Skillstack.</h1>
+      <h1>This account cannot use Upversion.</h1>
       <Button variant="primary" onClick={() => void onSignOut()}>
         Sign out
       </Button>

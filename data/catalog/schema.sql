@@ -1,4 +1,4 @@
--- Skillstack – catalog + RAG schema (PostgreSQL / Supabase, free plan)
+-- Upversion – catalog + RAG schema (PostgreSQL / Supabase, free plan)
 -- Run once per schema: SET search_path TO rnd;  (then repeat with prod)
 -- Requires the pgvector extension (available on Supabase free plan).
 

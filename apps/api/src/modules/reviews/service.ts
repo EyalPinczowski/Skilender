@@ -11,7 +11,7 @@ import {
   type DayReview,
   type Suggestion,
   type TaskOutcome,
-} from '@skillstack/shared';
+} from '@upversion/shared';
 import type { Database, UserContext } from '../../db/database';
 import { HttpError } from '../../errors';
 import * as daysRepo from '../days/repository';

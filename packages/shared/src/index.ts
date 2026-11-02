@@ -1,5 +1,5 @@
-export const APP_NAME = 'Skillstack';
-export const APP_TAGLINE = 'build your skills, one block at a time';
+export const APP_NAME = 'Upversion';
+export const APP_TAGLINE = 'A study plan that improves with you';
 
 export * from './dates';
 export * from './zone';

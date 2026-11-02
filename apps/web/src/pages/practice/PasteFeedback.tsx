@@ -1,4 +1,4 @@
-import { MAX_PASTED_FEEDBACK_LENGTH } from '@skillstack/shared';
+import { MAX_PASTED_FEEDBACK_LENGTH } from '@upversion/shared';
 import { useState, type FormEvent } from 'react';
 import { Button, TextAreaField } from '../../components/ui';
 import type { FinishChoice } from './FinishDialog';

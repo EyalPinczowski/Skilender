@@ -1,4 +1,4 @@
-import type { DayOverride, WeekPattern } from '@skillstack/shared';
+import type { DayOverride, WeekPattern } from '@upversion/shared';
 import type { Database } from '../../db/database';
 import { HttpError } from '../../errors';
 import { summarize, type ValidImport } from './import';

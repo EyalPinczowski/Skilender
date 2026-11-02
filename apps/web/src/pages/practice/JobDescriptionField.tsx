@@ -1,4 +1,4 @@
-import { MAX_JOB_DESCRIPTION_LENGTH } from '@skillstack/shared';
+import { MAX_JOB_DESCRIPTION_LENGTH } from '@upversion/shared';
 import { useState, type FormEvent } from 'react';
 import { useJobDescription, useSaveJobDescription } from '../../api/practice-hooks';
 import { QueryView } from '../../components/QueryView';

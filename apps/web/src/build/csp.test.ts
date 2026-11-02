@@ -69,7 +69,7 @@ describe('production build output', () => {
   });
 
   it('puts the CSP meta tag, built from the environment, before any script in index.html', async () => {
-    outDir = await mkdtemp(join(tmpdir(), 'skillstack-csp-'));
+    outDir = await mkdtemp(join(tmpdir(), 'upversion-csp-'));
     const saved = { ...process.env };
     process.env.VITE_API_URL = 'https://api-under-test.example.com';
     process.env.VITE_SUPABASE_URL = 'https://projectref.supabase.co';

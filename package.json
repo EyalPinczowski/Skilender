@@ -1,9 +1,9 @@
 {
-  "name": "skillstack",
+  "name": "upversion",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Skillstack – build your skills, one block at a time.",
+  "description": "Upversion – a study plan that improves with you.",
   "license": "MIT",
   "packageManager": "pnpm@10.28.0",
   "engines": {

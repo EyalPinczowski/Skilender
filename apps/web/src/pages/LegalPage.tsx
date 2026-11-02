@@ -8,7 +8,7 @@ export function LegalPage({ slug }: { slug: LegalSlug }) {
 
   useEffect(() => {
     const previous = document.title;
-    document.title = `${page.title} · Skillstack`;
+    document.title = `${page.title} · Upversion`;
     return () => {
       document.title = previous;
     };
@@ -18,7 +18,7 @@ export function LegalPage({ slug }: { slug: LegalSlug }) {
     <article className="space-y-4">
       <p>
         <Link className={linkClass} to="/">
-          Back to Skillstack
+          Back to Upversion
         </Link>
       </p>
       {/* Our own bundled text; see lib/legal.ts. */}

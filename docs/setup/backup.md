@@ -15,7 +15,7 @@ This follows SPEC section 5: a **daily** job in the private repo uploads the enc
 
 ### 1. Create the private repo
 
-Create a **private** GitHub repo, for example `skillstack-private`, with no template files. Do not put anything else secret in it that you would not want next to the backups. Real data and real keys never go in the public Skillstack repo.
+Create a **private** GitHub repo, for example `skillstack-private`, with no template files. Do not put anything else secret in it that you would not want next to the backups. Real data and real keys never go in the public Upversion repo.
 
 ### 2. Generate the age key pair (on your computer)
 

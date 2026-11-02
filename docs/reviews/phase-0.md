@@ -1,4 +1,4 @@
-# Phase 0 review gate
+# Phase 0 review gate (Upversion, formerly Skillstack)
 
 Review of `rnd` at `318b13f` (Phase 0, environments) against `docs/SPEC.md` (sections 5, 6, 9 "Environments" and 11 "Phase 0") and the rules in `CLAUDE.md`. Reviewed on 2026-10-30 on branch `feature/infra-phase-0-review`.
 
@@ -29,7 +29,7 @@ Phase 0 is **not complete yet** in the spec's sense: branch protection, both dep
 | Catalog                                      | `data/catalog/catalog.json`, `README.md`                                 | counted verification flags against the README's claims; drift check passes                                                                                            |
 | Cost ($0)                                    | workflows, Render, Vercel, Supabase guides                               | free-tier usage of each scheduled job and service                                                                                                                      |
 
-Commands run (all pass): `pnpm install --frozen-lockfile && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`, then `CI=1 pnpm --filter @skillstack/db test` against the throwaway cluster (51 tests, none skipped), and `packages/db/scripts/test-backup.sh`.
+Commands run (all pass): `pnpm install --frozen-lockfile && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`, then `CI=1 pnpm --filter @upversion/db test` against the throwaway cluster (51 tests, none skipped), and `packages/db/scripts/test-backup.sh`.
 
 I did not re-check any external free-tier facts on the providers' sites in this review. Facts the guides mark as verified on 2026-10-30 are listed as stated there.
 
@@ -91,7 +91,7 @@ The bootstrap runs on every `migrate`, so an environment that was already create
 
 ## Spec / data disagreements (not guessed; owner to decide)
 
-1. **R&D calendar in Phase 0.** Section 11 lists "the R&D calendar" in Phase 0, but Google Calendar is v0.6 (and needs the OAuth setup from ADR 006). Nothing in the repo creates or configures it. Move it to v0.6, or create the empty "Skillstack (R&D)" calendar by hand now?
+1. **R&D calendar in Phase 0.** Section 11 lists "the R&D calendar" in Phase 0, but Google Calendar is v0.6 (and needs the OAuth setup from ADR 006). Nothing in the repo creates or configures it. Move it to v0.6, or create the empty "Upversion (R&D)" calendar by hand now?
 2. **Where the backup action lives.** Section 5 asks for a scheduled GitHub Action with a private artifact. The implementation puts it in a separate private repo (`docs/setup/backup.md`), because artifacts of this public repo would be downloadable by anyone. This is consistent with the spec's intent, but it is a different location from what section 11 implies ("the daily backup action").
 3. **Restore target.** Section 9 says "the restore script recreates the data on `rnd`", and section 5 says "tested once on `rnd`". `restore.sh` refuses to restore into an existing schema and is documented for a scratch database only. Which one is intended?
 4. **Phase order.** Section 11 says "Nothing else starts before this works", but `packages/shared` already has the scheduling engine and the `.ics`/HTML/CSV exports (v0.1 work, merged in #6). This isn't wrong in itself, but it is ahead of the phase gate.

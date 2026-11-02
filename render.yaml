@@ -1,4 +1,4 @@
-# Render Blueprint: free web services for the Skillstack API.
+# Render Blueprint: free web services for the Upversion API.
 # Env var NAMES only; secrets use `sync: false` and are entered in the Render dashboard.
 # See docs/setup/deployments.md.
 services:
@@ -8,7 +8,7 @@ services:
     plan: free
     branch: main
     autoDeployTrigger: commit
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skillstack/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @upversion/api build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
@@ -60,7 +60,7 @@ services:
     plan: free
     branch: rnd
     autoDeployTrigger: commit
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skillstack/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @upversion/api build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/v1/health
     envVars:

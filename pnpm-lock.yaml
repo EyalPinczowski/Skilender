@@ -62,7 +62,7 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^6.1.2
         version: 6.1.2
-      '@skillstack/shared':
+      '@upversion/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       fastify:
@@ -81,12 +81,12 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
-      '@skillstack/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
+      '@upversion/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
@@ -96,15 +96,15 @@ importers:
       '@fontsource/atkinson-hyperlegible':
         specifier: ^5.3.0
         version: 5.3.0
-      '@skillstack/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
+      '@upversion/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       marked:
         specifier: ^18.1.2
         version: 18.1.2
@@ -166,7 +166,7 @@ importers:
 
   e2e:
     dependencies:
-      '@skillstack/db':
+      '@upversion/db':
         specifier: workspace:*
         version: link:../packages/db
       pg:

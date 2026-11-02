@@ -1,4 +1,4 @@
-import { diffDays } from '@skillstack/shared';
+import { diffDays } from '@upversion/shared';
 import { useId } from 'react';
 import type { KindTrendData } from '../../api/practice-hooks';
 import { formatDate } from '../../lib/format';

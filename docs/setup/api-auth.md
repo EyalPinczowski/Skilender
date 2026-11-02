@@ -52,8 +52,8 @@ What the app does, and what to configure for it (all dashboard menu names **need
 - **Google.** The app calls `signInWithOAuth` with `redirectTo` set to the site origin. That origin (each Vercel URL, and `http://localhost:5173` for local work) must be listed under Authentication, URL Configuration, Redirect URLs (needs check). The Supabase-side callback URL for the Google Cloud OAuth client is shown in the Google provider settings (see ADR 006).
 - **Sign out of all devices** calls `signOut({ scope: 'global' })`. Needs check: Supabase's documentation should be read for what this does to access tokens that other devices already hold. They may stay valid until they expire, and this API does not keep a list of revoked tokens.
 - **Turnstile.** `AuthService.sendCode(email, { captchaToken })` already accepts the token and passes it to Supabase; the widget itself is not wired yet (marked `TURNSTILE SEAM` in `SignInPage.tsx`).
-- **After sign-in** the app calls `GET /api/v1/me`. A `403` shows only "This account cannot use Skillstack." with a sign-out button, so the screen cannot be used to probe the allowlist. A `401` ends the local session.
-- **Delete my account** removes the Skillstack data and, on the live app only, the Supabase Auth user (email, sign-in record) in one step; see "Deleting an account". On R&D it removes only R&D data. The web app never holds the service key.
+- **After sign-in** the app calls `GET /api/v1/me`. A `403` shows only "This account cannot use Upversion." with a sign-out button, so the screen cannot be used to probe the allowlist. A `401` ends the local session.
+- **Delete my account** removes the Upversion data and, on the live app only, the Supabase Auth user (email, sign-in record) in one step; see "Deleting an account". On R&D it removes only R&D data. The web app never holds the service key.
 - **Typed client.** The web app's API types are generated from this API's OpenAPI document: `pnpm api:types` after changing a route or schema, commit `apps/web/src/api/schema.d.ts`. CI fails when it is out of date (`pnpm api:types:check`).
 
 ## The first admin
@@ -61,7 +61,7 @@ What the app does, and what to configure for it (all dashboard menu names **need
 There is no way to become admin in the app. After the database is migrated:
 
 ```bash
-DATABASE_URL=<admin connection> pnpm --filter @skillstack/db migrate promote-admin --schema rnd --email you@example.com
+DATABASE_URL=<admin connection> pnpm --filter @upversion/db migrate promote-admin --schema rnd --email you@example.com
 ```
 
 This adds the email to the allowlist and, if the account already exists, sets its role to `admin`. If you have not signed in yet, sign in once (the API creates the account), then run the command again. It refuses to run without `--schema`.

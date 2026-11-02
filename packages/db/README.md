@@ -1,4 +1,4 @@
-# @skillstack/db
+# @upversion/db
 
 Database environments (`prod`, `rnd`) and the migration runner. Background: ADR 003 and SPEC sections 3.A, 5 and 6.
 
@@ -37,11 +37,11 @@ SQL tokens: `{{schema}} {{owner}} {{app}} {{app_user}} {{backup}}`. Anything els
 ## Commands
 
 ```bash
-DATABASE_URL=... pnpm --filter @skillstack/db migrate migrate --schema rnd --dry-run
-pnpm --filter @skillstack/db migrate migrate --schema rnd
-pnpm --filter @skillstack/db migrate status --schema rnd
-APP_PASSWORD=... BACKUP_PASSWORD=... pnpm --filter @skillstack/db migrate set-passwords --schema rnd
-pnpm --filter @skillstack/db migrate promote-admin --schema rnd --email you@example.com   # the only way to become admin
+DATABASE_URL=... pnpm --filter @upversion/db migrate migrate --schema rnd --dry-run
+pnpm --filter @upversion/db migrate migrate --schema rnd
+pnpm --filter @upversion/db migrate status --schema rnd
+APP_PASSWORD=... BACKUP_PASSWORD=... pnpm --filter @upversion/db migrate set-passwords --schema rnd
+pnpm --filter @upversion/db migrate promote-admin --schema rnd --email you@example.com   # the only way to become admin
 ```
 
 `DATABASE_URL` is the admin connection (from a secret). Passwords must be at least 24 characters. Missing `--schema` or `DATABASE_URL` exits with code 2. The connection string and passwords are never printed.
@@ -50,9 +50,9 @@ pnpm --filter @skillstack/db migrate promote-admin --schema rnd --email you@exam
 
 ```bash
 packages/db/scripts/test-postgres.sh start        # throwaway cluster on port 55432 (needs PG 16 binaries)
-export TEST_DATABASE_URL=postgres://migrator@127.0.0.1:55432/skillstack_test
-export TEST_SUPERUSER_URL=postgres://postgres@127.0.0.1:55432/skillstack_test   # same as: scripts/test-postgres.sh env
-pnpm --filter @skillstack/db test
+export TEST_DATABASE_URL=postgres://migrator@127.0.0.1:55432/upversion_test
+export TEST_SUPERUSER_URL=postgres://postgres@127.0.0.1:55432/upversion_test   # same as: scripts/test-postgres.sh env
+pnpm --filter @upversion/db test
 packages/db/scripts/test-postgres.sh stop         # stops the cluster and deletes its directory
 ```
 
