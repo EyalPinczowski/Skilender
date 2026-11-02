@@ -1,6 +1,8 @@
 # 006 – OAuth in production status, without Google verification at first
 
-**Status:** Planned · built with the calendar feature (v0.3b)
+**Status:** Accepted · calendar feature (v0.3b)
+
+> Note: Accepted (2026-11-02): owner steps are in `docs/google-calendar-setup.md`. Google's limits remain **needs check** until smoke-tested.
 
 ## Context
 Calendar scopes are "sensitive". In Google's **Testing** status, refresh tokens expire after about a week (**needs check** on Google's current rules), which would silently break calendar sync. Google verification requires a domain the owner does not have yet.
