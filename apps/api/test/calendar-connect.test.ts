@@ -751,36 +751,43 @@ describe.skipIf(!dbAvailable)(
         expect(stub.seen.some((r) => r.path === '/revoke')).toBe(false);
       });
 
-      it('marks needs_reconnect on invalid_grant and keeps the other data', async () => {
+      it('still disconnects when Google rejects the credentials (invalid_grant)', async () => {
         const h = await asA();
         await connected(h);
+        await seedRows();
         stub.refreshGrant = () => ({ status: 400, body: { error: 'invalid_grant' } });
         stub.apiStatus = 401; // the first access token is rejected, forcing a refresh
+        stub.seen.length = 0;
         const res = await call('DELETE', '/calendar', h);
-        expect(res.statusCode).toBe(409);
-        expect(res.json().error.code).toBe('calendar_reconnect_required');
-        const status = (await call('GET', '/calendar', h)).json();
-        expect(status.status).toBe('needs_reconnect');
-        expect(status.lastErrorCode).toBe('invalid_grant');
-        expect(status.sources).toHaveLength(2);
-        const [conn] = await rows<{ refresh_token_ciphertext: string }>(
-          'select refresh_token_ciphertext from rnd.calendar_connections',
-        );
-        expect(conn!.refresh_token_ciphertext).toBeTruthy();
+        expect(res.statusCode).toBe(204);
+        expect(stub.seen.some((r) => r.method === 'DELETE')).toBe(false);
+        for (const table of ['calendar_connections', 'calendar_sources', 'calendar_event_links']) {
+          expect(await count(table), table).toBe(0);
+        }
+        expect((await call('GET', '/calendar', h)).json().status).toBe('disconnected');
+        expect(logs.join('\n')).toContain('credentials no longer work');
       });
 
-      it('treats an unreadable stored token as a reason to reconnect', async () => {
+      it('still disconnects when the stored token is unreadable', async () => {
         const h = await asA();
         await connected(h);
         await rows(
           `update rnd.calendar_connections set refresh_token_ciphertext = 'v1.AAAA.AAAA.AAAA'`,
         );
-        const res = await call('DELETE', '/calendar', h);
-        expect(res.statusCode).toBe(409);
-        expect((await call('GET', '/calendar', h)).json()).toMatchObject({
-          status: 'needs_reconnect',
-          lastErrorCode: 'token_unreadable',
-        });
+        expect((await call('DELETE', '/calendar', h)).statusCode).toBe(204);
+        expect(await count('calendar_connections')).toBe(0);
+      });
+
+      it('disconnects a connection that is already marked needs_reconnect', async () => {
+        const h = await asA();
+        await connected(h);
+        await rows(
+          `update rnd.calendar_connections set status = 'needs_reconnect', last_error_code = 'invalid_grant'`,
+        );
+        stub.apiStatus = 401;
+        stub.refreshGrant = () => ({ status: 400, body: { error: 'invalid_grant' } });
+        expect((await call('DELETE', '/calendar', h)).statusCode).toBe(204);
+        expect((await call('GET', '/calendar', h)).json().status).toBe('disconnected');
       });
     });
 

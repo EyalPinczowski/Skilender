@@ -106,7 +106,7 @@ export const calendarRoutes: FastifyPluginAsyncZod<CalendarRoutesOptions> = asyn
         tags,
         summary: 'Disconnect Google Calendar',
         description:
-          'Deletes the events the app created (never the calendar itself and never other events), revokes the refresh token at Google (best effort) and deletes the calendar data the app stores. If Google rejects the stored credentials (409 `calendar_reconnect_required`) or cannot be reached (502), nothing is deleted and the request can be repeated after reconnecting or later.',
+          'Deletes the events the app created (never the calendar itself and never other events), revokes the refresh token at Google (best effort) and deletes the calendar data the app stores. If Google rejects the stored credentials (consent revoked), the events cannot be deleted: the local data is still cleared and the events the app created may remain in Google until the user deletes the calendar there. If Google cannot be reached (502), nothing is deleted and the request can be repeated later.',
         security,
         response: { 204: z.null(), ...errors },
       },

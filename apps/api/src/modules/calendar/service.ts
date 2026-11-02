@@ -162,11 +162,24 @@ export function createCalendarService(options: CalendarServiceOptions) {
           await guard.deleteAllAppEvents(conn.app_calendar_id);
         }
       } catch (error) {
-        if (!bestEffort) throw await toHttpError(userId, error);
-        log.warn(
-          { reason: error instanceof Error ? error.name : 'unknown' },
-          'calendar cleanup before account deletion did not finish',
-        );
+        const credentialsDead =
+          error instanceof CalendarAuthError || error instanceof CalendarCryptoError;
+        if (credentialsDead && !bestEffort) {
+          // Without a usable token the events cannot be deleted, but the user must still be able
+          // to leave. The rows are cleared below; the app's events may remain in Google until the
+          // user deletes the calendar there.
+          log.warn(
+            { reason: error.name },
+            'calendar disconnected without deleting events: credentials no longer work',
+          );
+        } else if (!bestEffort) {
+          throw await toHttpError(userId, error);
+        } else {
+          log.warn(
+            { reason: error instanceof Error ? error.name : 'unknown' },
+            'calendar cleanup before account deletion did not finish',
+          );
+        }
       }
       // Best effort in both modes: a failed revoke never blocks the disconnect.
       if (refreshToken) await revokeToken(oauth, refreshToken);
