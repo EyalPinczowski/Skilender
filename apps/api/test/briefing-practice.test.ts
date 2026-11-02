@@ -2,6 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { createDatabase, type Database } from '../src/db/database';
 import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
+import { createBriefingService } from '../src/modules/briefing/service';
+import { HttpError } from '../src/errors';
+import type { PracticeService } from '../src/modules/practice/service';
+import type { SchedulingService } from '../src/modules/scheduling/service';
 import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
 import { testConfig } from './helpers';
 import { ISSUER, makeTestKeys, type TestKeys } from './tokens';
@@ -15,10 +19,6 @@ const PLAN_B = 'b0000000-0000-4000-8000-000000000001';
 const S = (n: number) => `d0000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`;
 
 const NOW = new Date('2026-11-02T10:00:00Z');
-
-import { createBriefingService } from '../src/modules/briefing/service';
-import type { PracticeService } from '../src/modules/practice/service';
-import type { SchedulingService } from '../src/modules/scheduling/service';
 
 const BLOCK = (score: string, focus: string) =>
   `Here you go.\n===FEEDBACK===\nscore: ${score}\nstrengths: Clear structure and calm delivery\nimprove: Give numbers\nnext_focus: ${focus}\n===END===`;
@@ -123,6 +123,7 @@ describe.skipIf(!dbAvailable)('briefing practice prompts (real Postgres)', () =>
     authorization: `Bearer ${await keys.sign({ sub, email })}`,
   });
   const asA = () => as(A, 'zed.quill@example.com');
+  const asB = () => as(B, 'b@example.com');
   const call = async (
     method: Method,
     url: string,
@@ -202,6 +203,59 @@ describe.skipIf(!dbAvailable)('briefing practice prompts (real Postgres)', () =>
     expect(await entry('p1')).not.toHaveProperty('practiceSessionId');
   });
 
+  it('does not leak another plan’s or another user’s data', async () => {
+    // Same kind, other plan of the same user: its next_focus must not reach PLAN_A.
+    await callA('PUT', `/plans/${PLAN_A2}/practice/context`, { jobDescription: 'x' });
+    const other = await callA('POST', `/plans/${PLAN_A2}/tasks/q1/practice/sessions`, {
+      id: S(8),
+      channel: 'external',
+    });
+    expect(other.statusCode).toBe(201);
+    await callA('POST', `/plans/${PLAN_A2}/practice/sessions/${S(8)}/feedback`, {
+      text: BLOCK('6/10', 'FOCUS-OTHER-PLAN'),
+      markDone: false,
+    });
+    // User B has an active session on PLAN_B/p1 (same task id).
+    const b = await call('POST', `/plans/${PLAN_B}/tasks/p1/practice/sessions`, await asB(), {
+      id: S(9),
+      channel: 'external',
+    });
+    expect(b.statusCode).toBe(201);
+    const p1 = await entry('p1');
+    expect(p1.promptTemplate).not.toContain('FOCUS-OTHER-PLAN');
+    expect(p1).not.toHaveProperty('practiceSessionId');
+  });
+
+  it('puts the job description in the briefing prompt exactly like the prompt route', async () => {
+    await callA('PUT', `${base}/practice/context`, { jobDescription: 'JOBDESC-MARKER backend' });
+    const prompt = (await entry('p1')).promptTemplate as string;
+    expect(prompt).toContain('JOBDESC-MARKER');
+    expect(prompt).toBe((await callA('GET', `${base}/tasks/p1/practice/prompt`)).json().prompt);
+  });
+
+  it('hides the user’s name in the job description, like the prompt route', async () => {
+    // The redactor removes a known name, so the real stack never reaches `pii_blocked` from
+    // this input; the 422 `pii_blocked` fallback is covered with a throwing practice service.
+    await callA('PUT', `${base}/practice/context`, {
+      jobDescription: 'Contact Zebediah Quillfeather about the role',
+    });
+    const route = await callA('GET', `${base}/tasks/p1/practice/prompt`);
+    expect(route.statusCode).toBe(200);
+    const p1 = await entry('p1');
+    expect(p1.promptTemplate).toBe(route.json().prompt);
+    expect(p1.promptTemplate).not.toContain('Quillfeather');
+  });
+
+  it('keeps the stored template and no session id on a past day', async () => {
+    await start('p1', S(1));
+    const res = await callA('GET', `${base}/days/2026-11-01/briefing`);
+    expect(res.statusCode, res.body).toBe(200);
+    for (const t of res.json().tasks as Record<string, unknown>[]) {
+      expect(t).not.toHaveProperty('practiceSessionId');
+      if (t.type === 'practice') expect(t.promptTemplate).toBe('Run a mock interview with me.');
+    }
+  });
+
   it('leaves non-practice tasks untouched', async () => {
     const c1 = await entry('c1');
     expect(c1.promptTemplate).toBe('Run a mock interview with me.'); // its own template, not a built prompt
@@ -256,6 +310,8 @@ describe('briefing service (no database)', () => {
   });
   const scheduling = (tasks: ReturnType<typeof task>[]) =>
     ({ dayPlan: async () => day(tasks) }) as unknown as SchedulingService;
+  const logged: Record<string, unknown>[] = [];
+  const log = { warn: (obj: Record<string, unknown>) => void logged.push(obj) };
   const practiceOf = (fn: () => Promise<unknown>) =>
     ({ briefingEntry: fn }) as unknown as PracticeService;
 
@@ -268,6 +324,7 @@ describe('briefing service (no database)', () => {
         calls += 1;
         return { prompt: 'x', practiceSessionId: null };
       }),
+      () => NOW,
     );
     const plain = createBriefingService(scheduling(tasks));
     const a = await withPractice.get('u', 'p', '2026-11-02');
@@ -281,12 +338,55 @@ describe('briefing service (no database)', () => {
     const service = createBriefingService(
       scheduling(tasks),
       practiceOf(async () => {
-        throw new Error('boom');
+        throw new Error('boom SECRET-TEXT');
       }),
+      () => NOW,
+      log,
     );
     const b = await service.get('u', 'p', '2026-11-02');
     expect(b.tasks.map((t) => t.promptTemplate)).toEqual(['MY TEMPLATE', null]);
     expect(b.tasks.every((t) => !('practiceSessionId' in t))).toBe(true);
     expect(b).toEqual(await createBriefingService(scheduling(tasks)).get('u', 'p', '2026-11-02'));
+    // Unexpected errors are logged by class only, never their message.
+    expect(logged).toHaveLength(2);
+    expect(JSON.stringify(logged)).not.toContain('SECRET-TEXT');
+    expect(logged[0]).toMatchObject({ errorClass: 'Error' });
+  });
+
+  it('falls back silently on an expected 404 or 422', async () => {
+    logged.length = 0;
+    const tasks = [task('p1', 'practice', 'MY TEMPLATE')];
+    for (const e of [
+      new HttpError(404, 'not_found', 'x'),
+      new HttpError(422, 'pii_blocked', 'x'),
+    ]) {
+      const service = createBriefingService(
+        scheduling(tasks),
+        practiceOf(async () => {
+          throw e;
+        }),
+        () => NOW,
+        log,
+      );
+      const b = await service.get('u', 'p', '2026-11-02');
+      expect(b.tasks[0]!.promptTemplate).toBe('MY TEMPLATE');
+    }
+    expect(logged).toHaveLength(0);
+  });
+
+  it('does not ask the practice service for a day other than today', async () => {
+    let calls = 0;
+    const tasks = [task('p1', 'practice', 'MY TEMPLATE')];
+    const service = createBriefingService(
+      scheduling(tasks),
+      practiceOf(async () => {
+        calls += 1;
+        return { prompt: 'x', practiceSessionId: null };
+      }),
+      () => new Date('2026-11-03T10:00:00Z'),
+    );
+    const b = await service.get('u', 'p', '2026-11-02');
+    expect(calls).toBe(0);
+    expect(b.tasks[0]!.promptTemplate).toBe('MY TEMPLATE');
   });
 });
