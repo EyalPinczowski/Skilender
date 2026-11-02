@@ -1,4 +1,4 @@
-import { PiiLeakError } from '@skillstack/shared';
+import { PiiLeakError } from '@skilender/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app';
 import type { AIUsageStore } from '../src/ai/budget';
@@ -28,7 +28,7 @@ import { testConfig } from './helpers';
 
 // Lets one test switch redaction off, so only the final gate stands between text and the model.
 const redaction = vi.hoisted(() => ({ off: false }));
-vi.mock('@skillstack/shared', async (importOriginal) => {
+vi.mock('@skilender/shared', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
   return {
     ...original,

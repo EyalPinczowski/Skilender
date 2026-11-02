@@ -73,14 +73,14 @@ describe('route guard', () => {
 describe('403 from GET /me', () => {
   beforeEach(() => {
     installApi({
-      'GET /api/v1/me': () => apiError(403, 'forbidden', 'This account cannot use Skillstack.'),
+      'GET /api/v1/me': () => apiError(403, 'forbidden', 'This account cannot use Skilender.'),
     });
   });
 
   it('shows only the generic message and a sign-out button, with no hint why', async () => {
     renderApp({ auth: fakeAuth(SESSION), path: '/' });
     expect(
-      await screen.findByRole('heading', { name: 'This account cannot use Skillstack.' }),
+      await screen.findByRole('heading', { name: 'This account cannot use Skilender.' }),
     ).toBeInTheDocument();
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(

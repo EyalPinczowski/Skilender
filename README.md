@@ -1,14 +1,16 @@
-# Skillstack
+# Skilender
 
 *Build your skills, one block at a time.*
 
-Skillstack is a web app (PWA) that turns a learning goal into a study plan – courses, certificates and practice sized to the time you have – and then runs that plan day by day: what to do today, practice sessions, an end-of-day review, and automatic rescheduling based on what actually happened.
+Formerly Skillstack.
+
+Skilender is a web app (PWA) that turns a learning goal into a study plan – courses, certificates and practice sized to the time you have – and then runs that plan day by day: what to do today, practice sessions, an end-of-day review, and automatic rescheduling based on what actually happened.
 
 > **Status: early development.** Phase 0 (environments) is released as v0.0. v0.1 (foundation) and v0.2 (daily experience) are built on `rnd` and awaiting release approval; the reviews are in `docs/reviews/`. This README grows with each release.
 
 ## Why
 
-Study plans usually fail on the second day: something takes longer, something comes up, and the plan is out of date. Skillstack treats the plan as an ordered task list plus daily capacity, and reschedules from today onward after every change.
+Study plans usually fail on the second day: something takes longer, something comes up, and the plan is out of date. Skilender treats the plan as an ordered task list plus daily capacity, and reschedules from today onward after every change.
 
 ## Roadmap
 
@@ -65,8 +67,8 @@ Node 22 and pnpm 10. The API reads plain environment variables (see `.env.exampl
 
 ```bash
 pnpm install
-CORS_ORIGINS=http://localhost:5173 pnpm --filter @skillstack/api dev   # http://localhost:3000, docs at /api/v1/docs
-pnpm --filter @skillstack/web dev     # http://localhost:5173
+CORS_ORIGINS=http://localhost:5173 pnpm --filter @skilender/api dev   # http://localhost:3000, docs at /api/v1/docs
+pnpm --filter @skilender/web dev     # http://localhost:5173
 pnpm lint && pnpm typecheck && pnpm test
 ```
 

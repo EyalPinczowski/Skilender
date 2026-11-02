@@ -12,8 +12,8 @@ select 'create role migrator login createrole createdb bypassrls nosuperuser'
 where not exists (select from pg_roles where rolname = 'migrator')
 \gexec
 
-select 'create database skillstack_test owner migrator'
-where not exists (select from pg_database where datname = 'skillstack_test')
+select 'create database skilender_test owner migrator'
+where not exists (select from pg_database where datname = 'skilender_test')
 \gexec
 
 -- Nothing else is needed: policies use <schema>.current_user_id() from the migrations (ADR 010),

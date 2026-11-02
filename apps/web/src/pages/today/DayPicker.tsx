@@ -1,4 +1,4 @@
-import { addDays, compareDates } from '@skillstack/shared';
+import { addDays, compareDates } from '@skilender/shared';
 import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons';
 import { Button } from '../../components/ui';
 

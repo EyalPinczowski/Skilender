@@ -170,7 +170,7 @@ export async function migrate(options: MigrateOptions): Promise<MigrateResult> {
     // One migration run per schema at a time. The lock is held by this connection and is
     // released explicitly below or, at the latest, when the connection closes.
     await client.query('select pg_advisory_lock(hashtextextended($1, 0))', [
-      `skillstack:migrate:${names.schema}`,
+      `skilender:migrate:${names.schema}`,
     ]);
     try {
       const bootstrap = renderSql(await readFile(BOOTSTRAP_FILE, 'utf8'), names);
@@ -202,7 +202,7 @@ export async function migrate(options: MigrateOptions): Promise<MigrateResult> {
       // If the connection is already broken the original error is the useful one.
       await client
         .query('select pg_advisory_unlock(hashtextextended($1, 0))', [
-          `skillstack:migrate:${names.schema}`,
+          `skilender:migrate:${names.schema}`,
         ])
         .catch(() => undefined);
     }

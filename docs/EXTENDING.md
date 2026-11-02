@@ -1,4 +1,4 @@
-# Extending Skillstack
+# Extending Skilender
 
 Each extension point is meant to be **one new file plus a config entry, with no change to the core**. This guide is filled in as the interfaces are built (see `docs/decisions/`); until then it records the intended shape.
 

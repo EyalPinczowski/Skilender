@@ -2,7 +2,7 @@
  * Exports a plan file as a schedule: calendar (.ics), printable HTML, CSV log template and a
  * JSON summary. Personal plans are kept outside this repository; pass their path.
  *
- *   pnpm --filter @skillstack/shared export-plan --plan <plan.json> --out <dir> [--today YYYY-MM-DD]
+ *   pnpm --filter @skilender/shared export-plan --plan <plan.json> --out <dir> [--today YYYY-MM-DD]
  *        [--no-cv-tasks]   don't add the projected "Update CV and LinkedIn" tasks
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -73,7 +73,7 @@ writeFileSync(
   join(out, 'schedule.ics'),
   scheduleToIcs(result.blocks, tasks, {
     timeZone: plan.weekPattern.timezone,
-    calendarName: 'Skillstack',
+    calendarName: 'Skilender',
     generatedAt: new Date(),
   }),
 );

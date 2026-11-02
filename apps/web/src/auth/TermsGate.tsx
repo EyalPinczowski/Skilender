@@ -41,7 +41,7 @@ export function TermsGate({ me }: { me: Me }) {
       <h1>Before you continue</h1>
       <p>
         Please read and accept the current Terms of Use (version {terms.currentVersion}) and Privacy
-        Policy (version {privacy.currentVersion}). Skillstack is a free beta, and these are drafts.
+        Policy (version {privacy.currentVersion}). Skilender is a free beta, and these are drafts.
       </p>
       <ul className="list-disc space-y-1 pl-6">
         <li>

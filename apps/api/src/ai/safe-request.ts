@@ -1,4 +1,4 @@
-import { assertNoPii, redactPii } from '@skillstack/shared';
+import { assertNoPii, redactPii } from '@skilender/shared';
 import { z } from 'zod';
 import { AI_PURPOSES } from './provider';
 
@@ -48,7 +48,7 @@ export function isSafeAIRequest(value: unknown): value is SafeAIRequest {
 
 /**
  * Redacts every string with the user's known identifiers, then runs the final check on the
- * result. Throws `PiiLeakError` (from `@skillstack/shared`) when anything personal survives;
+ * result. Throws `PiiLeakError` (from `@skilender/shared`) when anything personal survives;
  * callers answer 422 `pii_blocked` and make no model call. Fails closed.
  */
 export function buildSafeRequest(

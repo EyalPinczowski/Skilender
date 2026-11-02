@@ -1,4 +1,4 @@
-import { isLocalDate } from '@skillstack/shared';
+import { isLocalDate } from '@skilender/shared';
 
 /** The date segment of /briefing/:date and /review/:date, if it is a real YYYY-MM-DD date. */
 export function validDate(value: string | undefined): string | null {

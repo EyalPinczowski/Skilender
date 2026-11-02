@@ -1,6 +1,6 @@
-# Skillstack – Build Spec
+# Skilender – Build Spec
 
-*Skillstack – build your skills, one block at a time.*
+*Skilender – build your skills, one block at a time.*
 
 > Paste this document into Claude Code. Before writing any code: (1) save it as `docs/SPEC.md` in the repo, (2) create a `CLAUDE.md` that points to it as the project's source of truth, (3) read all of it, present a short work plan, and ask me the questions in section 13.
 
@@ -15,7 +15,7 @@ A web app (PWA) that turns a learning goal into a working study plan – and the
 
 The owner's own study plan (section 7) is the first plan in the system, and the first real test of the plan builder.
 
-**Name:** Skillstack. Tagline: "build your skills, one block at a time". Use the name consistently: app title, PWA name, calendar names, repo, README.
+**Name:** Skilender. Tagline: "build your skills, one block at a time". Use the name consistently: app title, PWA name, calendar names, repo, README.
 
 **Two goals:**
 1. **A real working tool** that I use every day in November 2026.
@@ -26,7 +26,7 @@ The owner's own study plan (section 7) is the first plan in the system, and the 
 - **Planning accuracy:** actual hours vs. estimated hours per task type, and how it improved after accepted adjustments.
 - **Outcome:** certificates earned vs. planned; anchor exams taken on their original date.
 - **Performance:** a reschedule completes in under 2 seconds; the dashboard loads in under 2 seconds on the tablet (excluding backend cold start, which is measured separately).
-- **Reliability:** zero calendar writes outside the "Skillstack" calendar; zero lost practice feedback.
+- **Reliability:** zero calendar writes outside the "Skilender" calendar; zero lost practice feedback.
 - **Plan builder quality:** for my own goal, the generated plan covers the same core certificates as the owner's hand-made reference plan (section 7); I keep at least 70% of suggested items without removing them.
 
 **Users:** anyone who signs up with their email. Every user has their own account, and all their data – intake answers, plans, progress, reviews, practice feedback and the courses they add – is saved to that account and visible only to them. I am the first user and the admin. Plus a **public demo mode** with sample data that needs no sign-in (section 10).
@@ -51,8 +51,8 @@ Every change (an unfinished task, a calendar event, changed hours, an added day,
 ### 3.A Accounts – sign in before starting
 **Nothing starts without an account.** The first screen for a new visitor is sign-in; the guided intake (3.0) begins only after it. The public demo (section 10) is the one exception.
 
-**Invite-only, with "Request access":** Skillstack starts as a closed beta. Only approved emails can create an account.
-- **Request access** (public page): email, name (optional), what they want to achieve (one line, chosen from the goal types in the intake), and how they heard about Skillstack. Protected by Turnstile (below). The visitor sees "Thanks – you're on the list" and gets a confirmation email.
+**Invite-only, with "Request access":** Skilender starts as a closed beta. Only approved emails can create an account.
+- **Request access** (public page): email, name (optional), what they want to achieve (one line, chosen from the goal types in the intake), and how they heard about Skilender. Protected by Turnstile (below). The visitor sees "Thanks – you're on the list" and gets a confirmation email.
 - **Access requests queue** in the admin console (3.B): pending / approved / declined, with the request date and the short answers. Approve or decline with one click, or in bulk.
 - **On approval:** the email is added to the allowlist and the user receives an invite email with a sign-in link. On decline: an optional, polite email ("we're not adding new users right now").
 - **Invite directly:** the admin can also invite an email without a request, or generate a single-use invite link (expires after 7 days).
@@ -80,13 +80,13 @@ Every change (an unfinished task, a calendar event, changed hours, an added day,
 
 **Account control (required, also for privacy law):**
 - **Export my data:** a JSON download of everything in the account.
-- **Delete my account:** removes all the user's data, revokes the calendar connection, and deletes the Skillstack calendar events the app created. Confirmed with a typed confirmation, completed within the same request.
+- **Delete my account:** removes all the user's data, revokes the calendar connection, and deletes the Skilender calendar events the app created. Confirmed with a typed confirmation, completed within the same request.
 - **Legal pages:** a **Privacy Policy**, **Terms of Use** and a short **disclaimer** – drafts are provided in `docs/legal/` (see section 3.C). They're linked from the sign-in page, the request-access page and Settings, and the user accepts the Terms once at sign-up (the acceptance and version are stored).
 
 **Roles:** `user` (default) and `admin` (me). The admin account is created by a one-time setup script that promotes my email to `admin` – there is no "become admin" option in the app.
 
 ### 3.B Admin console – the users database
-A separate area of the app, visible only to the `admin` role, for running Skillstack as a product.
+A separate area of the app, visible only to the `admin` role, for running Skilender as a product.
 
 **Users table** (searchable, sortable, filterable, exportable to CSV):
 - Account: email, display name, sign-up date, last active, sign-in method, devices count, status (active / inactive 14+ days / deleted).
@@ -322,9 +322,9 @@ All of these are editable in Settings, and every change triggers a reschedule (w
 The principle: **the app manages only the events it created itself. All other events are view-only.**
 
 **The app's own events (read and write):**
-- A dedicated secondary calendar named "Skillstack". All study blocks are created there only.
+- A dedicated secondary calendar named "Skilender". All study blocks are created there only.
 - Create, move, change and delete these events on every reschedule, with no duplicates (each block maps to exactly one event by event id).
-- Every event is tagged with `extendedProperties.private` (`source=skillstack`, `task_id=...`).
+- Every event is tagged with `extendedProperties.private` (`source=skilender`, `task_id=...`).
 - If the user moves a study block directly in Google Calendar – on sync the new position is locked as my decision, and everything else is rescheduled around it.
 
 **All other events (view-only):**
@@ -335,7 +335,7 @@ The principle: **the app manages only the events it created itself. All other ev
 - Busy events are subtracted from capacity. A 2-hour interview on Sunday → 5 study hours instead of 7, with study blocks scheduled around it.
 - **The app must never change, move or delete an event it didn't create.** Two layers of protection:
   1. **Minimal OAuth scopes:** `calendar.app.created` + `calendar.readonly` only. No full `calendar` scope.
-  2. **In code:** every write goes through a single function that checks the event is in the "Skillstack" calendar and tagged as the app's own; otherwise it throws. With a unit test.
+  2. **In code:** every write goes through a single function that checks the event is in the "Skilender" calendar and tagged as the app's own; otherwise it throws. With a unit test.
 - All-day event (e.g. "Vacation" or "Conference") → option to have it cancel the study day.
 - External event content is not stored beyond what's needed (title and times).
 
@@ -443,7 +443,7 @@ The code is split into two separate parts in one monorepo:
 - Google Calendar API: `calendar.app.created` + `calendar.readonly` only (3.8). Free.
 - Free-tier AI models only (GitHub Models / Groq / Gemini), via an abstraction layer in the backend with fallback (3.3). No Claude API.
 - Free hosting, two environments (section 6): frontend on Vercel Hobby (production for `main`, a preview deployment for `rnd`). Backend – propose a free option (e.g. Render Free, or Vercel Functions as a separate project) with its pros and cons, including cold-start times on services that sleep.
-- **Address:** the free Vercel address (`skillstack-<something>.vercel.app` for Operational, a preview URL for R&D, a separate one for the demo). No custom domain in v1.0. Two consequences to plan for:
+- **Address:** the free Vercel address (`skilender-<something>.vercel.app` for Operational, a preview URL for R&D, a separate one for the demo). No custom domain in v1.0. Two consequences to plan for:
   - **Sign-in emails** are sent with Supabase Auth's built-in mailer. Its sending limit is very low, which fits an invite-only beta; a custom email provider usually requires owning a domain, so it's deferred.
   - **Google verification** (needed before calendar sync is opened to the public, 3.8) requires a domain I own. Until then, calendar sync stays limited to me and invited testers. Both items go in `docs/FUTURE.md`.
 - PWA: manifest and service worker in the frontend.
@@ -469,7 +469,7 @@ The app is used every day during the sprint, so the version in use must stay sta
 | Purpose | The version I use daily | Where new features are built and tested |
 | Deployment | Production URL (Vercel production + backend production) | Separate R&D URL (Vercel preview + backend R&D instance) |
 | Database | `prod` schema – my real data | `rnd` schema – seed and test data. Same Supabase project, separate schema (see below) |
-| Google Calendar | Writes to the "Skillstack" calendar | Writes only to a separate "Skillstack (R&D)" calendar, so experiments never touch my real schedule |
+| Google Calendar | Writes to the "Skilender" calendar | Writes only to a separate "Skilender (R&D)" calendar, so experiments never touch my real schedule |
 | AI providers | Real keys | Separate keys where possible, so R&D testing doesn't use up the operational quota |
 | Stability | Always working. No direct commits. | May be unstable. Breaking things here is fine. |
 
@@ -620,7 +620,7 @@ Design: clean, practical, touch-friendly, light and dark mode. A daily work tool
 - `next_focus` from a previous practice appears in the prompt of the next practice of the same type.
 
 **Environments:**
-- An action in R&D (e.g. a reschedule) creates events only in "Skillstack (R&D)" and changes nothing in the Operational database or calendar.
+- An action in R&D (e.g. a reschedule) creates events only in "Skilender (R&D)" and changes nothing in the Operational database or calendar.
 - The `app_rnd` role is refused (permission error) when it tries to read or write any table in the `prod` schema.
 - A migration run without an explicit target schema refuses to start.
 - The R&D badge is visible in R&D and absent in Operational.
@@ -726,7 +726,7 @@ Each phase = several feature branches → PRs into `rnd` → tested on the R&D e
 1. **v0.1 – Foundation:** monorepo setup (web, api, shared), CI, **sign-in and accounts with RLS (3.A)**, data model, seed, scheduling engine + tests, tasks API, progress logging and time settings, and a minimal UI connected to it.
 2. **v0.2 – Daily experience:** daily and weekly dashboard, day briefing with links and the AI/template day overview, day review, adjustment rules + suggestions, Playwright e2e tests for the 3 core flows.
 3. **v0.3 – Practices:** dynamic prompts, timer, in-app practice chat with provider layer and fallback, JSON feedback, claude.ai alternative, score trends. Voice input – at the end of the phase, if time allows.
-3b. **v0.3b – Calendar** *(moved here from v0.6 by the owner on 1 Nov 2026, so that calendar events shape capacity before the content and plan-builder phases)*: Google Calendar with minimal scopes and the protection layer. Connecting is one tap per user (the app creates the "Skillstack" calendar itself, with sensible defaults for which calendars block time). Google only for now; until Google verifies the app it is limited to testers (see 3.8). Version numbers v0.4 to v1.0 are unchanged.
+3b. **v0.3b – Calendar** *(moved here from v0.6 by the owner on 1 Nov 2026, so that calendar events shape capacity before the content and plan-builder phases)*: Google Calendar with minimal scopes and the protection layer. Connecting is one tap per user (the app creates the "Skilender" calendar itself, with sensible defaults for which calendars block time). Google only for now; until Google verifies the app it is limited to testers (see 3.8). Version numbers v0.4 to v1.0 are unchanged.
 4. **v0.4 – Content, plan and admin:** admin console (3.B), plan and certificate screens, automatic CV tasks, system recommendations, content list.
 5. **v0.5 – Plan builder:** catalog (data, screen, link checker), goal intake wizard, AI plan generation + rule-based fallback, fit check, review and "Start this plan", multiple plans.
 7. **v1.0 – Showcase:** PWA, polish, in-browser demo mode, "App health" metrics card, full README with screenshots, diagram, ADR summary and sprint results, deployment.
@@ -744,7 +744,7 @@ The balance: **prepare the seams, not the features.** That means interfaces with
 | Item | Why it's out of v1.0 | What to do instead in v1.0 |
 |---|---|---|
 | **Sharing** (sharing a plan or progress with a friend, mentor or employer) | Needs sharing permissions on top of RLS and a public-view mode. | Export my data; screenshots; the demo URL. |
-| **Push notifications** | Needs a push service, permission flows and background workers; calendar events already notify me. | Calendar reminders on "Skillstack" events, in-app warnings. |
+| **Push notifications** | Needs a push service, permission flows and background workers; calendar events already notify me. | Calendar reminders on "Skilender" events, in-app warnings. |
 | **Native mobile app** | A PWA installs on tablet and phone with no store and no cost. | PWA only. |
 | **Offline-first editing** | Syncing offline edits with the backend and calendar is hard. | Read-only cache of the last view; edits need a connection, with a clear "offline" message. |
 | **Course-platform integrations** (auto-reading progress from Coursera, Skilljar, Kaggle…) | No public progress APIs; scraping is fragile. | Manual progress marking. |
@@ -808,7 +808,7 @@ Each seam below costs little in v1.0 and makes a deferred item a contained addit
 
 - Where to host: Vercel + Supabase on free addresses (decided: no custom domain in v1.0), or something else you'd recommend for the backend?
 - The admin email to promote, and the initial user capacity for the beta (default 25)?
-- Repo name (suggested: `skillstack`, or `skillstack-app` if taken), and should it be public from the start or private until v1.0?
+- Repo name (suggested: `skilender`, or `skilender-app` if taken), and should it be public from the start or private until v1.0?
 - Do I already have keys for GitHub Models / Groq / Gemini, or do I need a walkthrough to create them?
 - Do I have a Google Cloud project, or do I need a step-by-step guide to set up OAuth for Calendar?
 - Do the estimates in section 7 look reasonable, or should we calibrate them after the first week based on actual hours?

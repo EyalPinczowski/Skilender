@@ -1,8 +1,8 @@
 {
-  "name": "@skillstack/api",
+  "name": "@skilender/api",
   "version": "0.0.0",
   "private": true,
-  "description": "Skillstack REST API (Fastify).",
+  "description": "Skilender REST API (Fastify).",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -17,7 +17,7 @@
     "@fastify/rate-limit": "^11.2.1",
     "@fastify/swagger": "^9.9.2",
     "@fastify/swagger-ui": "^6.1.2",
-    "@skillstack/shared": "workspace:*",
+    "@skilender/shared": "workspace:*",
     "fastify": "^5.12.7",
     "fastify-type-provider-zod": "^7.0.0",
     "jose": "^6.2.14",
@@ -25,7 +25,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@skillstack/db": "workspace:*",
+    "@skilender/db": "workspace:*",
     "@types/pg": "^8.23.1",
     "tsup": "^9.0.0"
   }

@@ -6,7 +6,7 @@ import {
   type DayOverride,
   type Task,
   type WeekPattern,
-} from '@skillstack/shared';
+} from '@skilender/shared';
 import { z } from 'zod';
 
 /** Limits that keep one import small enough for the free tiers. */

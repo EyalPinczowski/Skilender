@@ -1,4 +1,4 @@
-import { addDays, diffDays } from '@skillstack/shared';
+import { addDays, diffDays } from '@skilender/shared';
 import { useId } from 'react';
 import { useReviewHistory, type ReviewPoint } from '../../api/review-hooks';
 import { QueryView } from '../../components/QueryView';

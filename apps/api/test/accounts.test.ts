@@ -19,7 +19,7 @@ const PLAN_B = 'b0000000-0000-4000-8000-000000000002';
 
 const GENERIC_403 = {
   code: 'forbidden',
-  message: 'This account cannot use Skillstack.',
+  message: 'This account cannot use Skilender.',
 };
 
 describe.skipIf(!dbAvailable)('accounts (real Postgres, locally signed tokens)', () => {

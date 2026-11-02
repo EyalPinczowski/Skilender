@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,7 +47,7 @@ async function roles(names: string[]): Promise<Map<string, RoleRow>> {
 
 const tempDirs: string[] = [];
 async function copyOfMigrations(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'skillstack-migrations-'));
+  const dir = await mkdtemp(join(tmpdir(), 'skilender-migrations-'));
   tempDirs.push(dir);
   await cp(MIGRATIONS, dir, { recursive: true });
   return dir;
@@ -176,6 +176,33 @@ describe.skipIf(!dbAvailable)('migrate (real Postgres, non-superuser admin)', ()
     });
   });
 
+  it('renames the practice provider on existing catalog rows, and is harmless without the table', async () => {
+    // Without a catalog table the data fix does nothing (it is part of the normal run above).
+    const dir = await copyOfMigrations();
+    // Put a stub catalog table (with old and new names) in front of the real data fix.
+    await rename(
+      join(dir, '0011_rename_practice_provider.sql'),
+      join(dir, '0012_rename_practice_provider.sql'),
+    );
+    await writeFile(
+      join(dir, '0011_catalog_stub.sql'),
+      `set local role {{owner}};
+create table {{schema}}.catalog_items (id text primary key, provider text);
+insert into {{schema}}.catalog_items values
+  ('a', 'Skillstack practice'), ('b', 'Skilender practice'), ('c', 'Microsoft');
+`,
+    );
+    await migrate({ schema: 'rnd', connectionString: TEST_DATABASE_URL!, migrationsDir: dir });
+    await withClient(TEST_SUPERUSER_URL!, async (client) => {
+      const { rows } = await client.query('select id, provider from rnd.catalog_items order by id');
+      expect(rows).toEqual([
+        { id: 'a', provider: 'Skilender practice' },
+        { id: 'b', provider: 'Skilender practice' },
+        { id: 'c', provider: 'Microsoft' },
+      ]);
+    });
+  });
+
   it('--dry-run lists what would run and changes nothing', async () => {
     const dir = await copyOfMigrations();
 
@@ -263,7 +290,7 @@ describe.skipIf(!dbAvailable)('migrate (real Postgres, non-superuser admin)', ()
 
 describe('migration files', () => {
   it('refuses two files with the same version number before it connects', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'skillstack-migrations-'));
+    const dir = await mkdtemp(join(tmpdir(), 'skilender-migrations-'));
     tempDirs.push(dir);
     await writeFile(join(dir, '0001_first.sql'), 'select 1;\n');
     await writeFile(join(dir, '0001_second.sql'), 'select 2;\n');

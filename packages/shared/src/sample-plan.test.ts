@@ -41,7 +41,7 @@ describe('demo sample plan', () => {
   it('never presents an unverified link as verified', () => {
     for (const t of plan.tasks) {
       // Catalog practice templates have no link at all; every other catalog item without one is flagged.
-      if (t.externalRef?.startsWith('catalog:') && !t.url && t.provider !== 'Skillstack practice') {
+      if (t.externalRef?.startsWith('catalog:') && !t.url && t.provider !== 'Skilender practice') {
         expect(t.notes ?? '').toMatch(/needs check/i);
       }
     }

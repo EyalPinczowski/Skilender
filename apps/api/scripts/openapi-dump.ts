@@ -1,7 +1,7 @@
 /**
  * Writes the API's OpenAPI document to a file (or stdout), so the web app can generate its typed
  * client from the real contract. Builds the app with fake collaborators: no database, no network,
- * no secrets. Usage: pnpm --filter @skillstack/api openapi:dump [--out <file>]
+ * no secrets. Usage: pnpm --filter @skilender/api openapi:dump [--out <file>]
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

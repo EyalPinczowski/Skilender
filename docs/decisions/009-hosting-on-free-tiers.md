@@ -11,7 +11,7 @@ Everything must run at $0, with an Operational and an R&D environment, for a sma
 - Database and sign-in: Supabase free plan.
 
 ## Decision
-Backend on **Render Free**, as a long-running Node service per environment (`skillstack-api`, `skillstack-api-rnd`). The API code stays host-agnostic, so moving is cheap. Free Render services sleep when idle, so a scheduled GitHub Action pings the production API during study hours (a UTC window that covers both daylight-saving offsets, plus a local-time check), and the web app shows a "waking up the server…" message instead of an error.
+Backend on **Render Free**, as a long-running Node service per environment (`skilender-api`, `skilender-api-rnd`). The API code stays host-agnostic, so moving is cheap. Free Render services sleep when idle, so a scheduled GitHub Action pings the production API during study hours (a UTC window that covers both daylight-saving offsets, plus a local-time check), and the web app shows a "waking up the server…" message instead of an error.
 
 ## Consequences
 - The cold start is measured separately from the dashboard's load time.

@@ -69,7 +69,7 @@ describe('api client', () => {
         {
           error: {
             code: 'forbidden',
-            message: 'This account cannot use Skillstack.',
+            message: 'This account cannot use Skilender.',
             requestId: 'r1',
           },
         },
@@ -80,7 +80,7 @@ describe('api client', () => {
     expect(error.kind).toBe('http');
     expect(error.status).toBe(403);
     expect(error.code).toBe('forbidden');
-    expect(error.message).toBe('This account cannot use Skillstack.');
+    expect(error.message).toBe('This account cannot use Skilender.');
     expect(error.requestId).toBe('r1');
   });
 

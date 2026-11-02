@@ -7,7 +7,7 @@ import {
   type Block,
   type Task,
   type WeekPattern,
-} from '@skillstack/shared';
+} from '@skilender/shared';
 import type { Database, UserContext } from '../../db/database';
 import { HttpError } from '../../errors';
 import type { PlanDetail } from '../plans/schemas';

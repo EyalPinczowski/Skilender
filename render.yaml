@@ -1,14 +1,14 @@
-# Render Blueprint: free web services for the Skillstack API.
+# Render Blueprint: free web services for the Skilender API.
 # Env var NAMES only; secrets use `sync: false` and are entered in the Render dashboard.
 # See docs/setup/deployments.md.
 services:
   - type: web
-    name: skillstack-api
+    name: skilender-api
     runtime: node
     plan: free
     branch: main
     autoDeployTrigger: commit
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skillstack/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skilender/api build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
@@ -55,12 +55,12 @@ services:
         sync: false
 
   - type: web
-    name: skillstack-api-rnd
+    name: skilender-api-rnd
     runtime: node
     plan: free
     branch: rnd
     autoDeployTrigger: commit
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skillstack/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @skilender/api build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
@@ -85,7 +85,7 @@ services:
       - key: SUPABASE_URL
         sync: false
       # No SUPABASE_SERVICE_ROLE_KEY here on purpose: R&D shares Supabase Auth with the live app, so
-      # only skillstack-api may hold the key. The R&D API refuses to start if the key is set.
+      # only skilender-api may hold the key. The R&D API refuses to start if the key is set.
       - key: DATABASE_URL
         sync: false
       # AI providers (optional; names only, values go in the Render dashboard). See docs/setup/ai-providers.md.

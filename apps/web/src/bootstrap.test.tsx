@@ -23,7 +23,7 @@ describe('mount', () => {
   it('shows a readable message instead of a blank page when the environment is invalid', () => {
     mount(root, { VITE_API_URL: 'localhost:3000', VITE_APP_ENV: 'staging' });
     const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent('Skillstack could not start');
+    expect(alert).toHaveTextContent('Skilender could not start');
     expect(alert).toHaveTextContent(/VITE_API_URL/);
     expect(alert).toHaveTextContent(/VITE_APP_ENV/);
     expect(alert).toHaveTextContent(/VITE_SUPABASE_URL/);

@@ -1,4 +1,4 @@
-import { addDays, compareDates } from '@skillstack/shared';
+import { addDays, compareDates } from '@skilender/shared';
 import type { Block } from '../api/client';
 import { formatHours, weekdayShort } from './format';
 

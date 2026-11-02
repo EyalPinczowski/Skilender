@@ -1,4 +1,4 @@
-import type { Block } from '@skillstack/shared';
+import type { Block } from '@skilender/shared';
 import { advisoryKey, type UserContext } from '../../db/database';
 
 export type SnapshotSource = 'day_end' | 'auto_rollover';

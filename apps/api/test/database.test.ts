@@ -177,7 +177,7 @@ describe.skipIf(!dbAvailable)('ping and idle connection errors (real Postgres)',
     const { port } = closed.address() as { port: number };
     await new Promise((resolve) => closed.close(resolve));
     const db = createDatabase({
-      connectionString: `postgres://app_rnd:very-secret-password@127.0.0.1:${port}/skillstack_test`,
+      connectionString: `postgres://app_rnd:very-secret-password@127.0.0.1:${port}/skilender_test`,
       appEnv: 'rnd',
     });
     try {
@@ -199,7 +199,7 @@ describe.skipIf(!dbAvailable)('ping and idle connection errors (real Postgres)',
     await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
     const { port } = silent.address() as { port: number };
     const db = createDatabase({
-      connectionString: `postgres://app_rnd:x@127.0.0.1:${port}/skillstack_test`,
+      connectionString: `postgres://app_rnd:x@127.0.0.1:${port}/skilender_test`,
       appEnv: 'rnd',
     });
     try {

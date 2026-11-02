@@ -1,4 +1,4 @@
-import { TASK_TYPE_LABEL } from '@skillstack/shared';
+import { TASK_TYPE_LABEL } from '@skilender/shared';
 import type { ComponentType } from 'react';
 import type { TaskType } from '../api/client';
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@skillstack/e2e",
+  "name": "@skilender/e2e",
   "version": "0.0.0",
   "private": true,
   "description": "End-to-end tests of the core flows against the real stack (test-only auth, throwaway Postgres).",
@@ -9,7 +9,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@skillstack/db": "workspace:*",
+    "@skilender/db": "workspace:*",
     "pg": "^8.23.1"
   },
   "devDependencies": {

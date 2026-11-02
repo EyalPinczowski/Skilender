@@ -56,7 +56,7 @@ export function buildCsp({ apiUrl, supabaseUrl }: CspOrigins): string {
 /** Adds the CSP meta tag to index.html in production builds only (dev needs inline HMR code). */
 export function cspMetaPlugin(origins: CspOrigins): Plugin {
   return {
-    name: 'skillstack-csp-meta',
+    name: 'skilender-csp-meta',
     apply: 'build',
     transformIndexHtml: () => [
       {

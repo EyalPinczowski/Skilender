@@ -1,6 +1,6 @@
 # Security policy
 
-Skillstack is an early-stage project handling user accounts and study data.
+Skilender is an early-stage project handling user accounts and study data.
 
 ## Reporting a vulnerability
 

@@ -30,17 +30,17 @@ export async function setPasswords(options: SetPasswordsOptions): Promise<void> 
     // statements are then built and executed on the server with %I / %L quoting, so the
     // passwords are never spliced into SQL text on the client.
     await client.query(
-      `select set_config('skillstack.app_password', $1, true),
-              set_config('skillstack.backup_password', $2, true)`,
+      `select set_config('skilender.app_password', $1, true),
+              set_config('skilender.backup_password', $2, true)`,
       [options.appPassword, options.backupPassword],
     );
     await client.query(
       `do $$
        begin
          execute format('alter role %I password %L', '${names.app}',
-                        current_setting('skillstack.app_password'));
+                        current_setting('skilender.app_password'));
          execute format('alter role %I password %L', '${names.backup}',
-                        current_setting('skillstack.backup_password'));
+                        current_setting('skilender.backup_password'));
        end
        $$`,
     );

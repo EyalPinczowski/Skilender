@@ -1,4 +1,4 @@
-import { MAX_LOG_HOURS } from '@skillstack/shared';
+import { MAX_LOG_HOURS } from '@skilender/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Task } from '../../api/client';

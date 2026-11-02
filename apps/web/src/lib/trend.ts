@@ -1,4 +1,4 @@
-import { diffDays } from '@skillstack/shared';
+import { diffDays } from '@skilender/shared';
 
 export type TrendStatus = 'ahead' | 'on_track' | 'behind' | 'unknown';
 

@@ -14,7 +14,7 @@ From [Project pausing](https://supabase.com/docs/guides/platform/free-project-pa
 - A free project with low activity over a week is paused. A few database requests a day are typically enough to prevent it.
 - A paused project is resumed from the dashboard, and the docs currently give a one-year restore window.
 
-Skillstack plans for this: the keep-warm workflow pings `GET /api/v1/health` of the production API every 14 minutes during study hours, and that route now runs a `select 1` against the database as the app login (cached for 5 seconds, 1.5 second timeout). So the ping is a database request every time the workflow runs, which should keep the project from pausing. **Needs check:** that a bare `select 1` counts as activity for the pause rule (the docs say only "a few database requests a day"), and that the ping runs on at least one day in every week (GitHub disables scheduled workflows after 60 days without repository activity, and the workflow stays quiet while `API_HEALTH_URL` is unset). Only the production API is pinged. The R&D schema lives in the same project (ADR 003), so one ping keeps both alive. Until you have seen the project stay active for a few weeks, also check the dashboard now and then; a paused project is resumed from the dashboard.
+Skilender plans for this: the keep-warm workflow pings `GET /api/v1/health` of the production API every 14 minutes during study hours, and that route now runs a `select 1` against the database as the app login (cached for 5 seconds, 1.5 second timeout). So the ping is a database request every time the workflow runs, which should keep the project from pausing. **Needs check:** that a bare `select 1` counts as activity for the pause rule (the docs say only "a few database requests a day"), and that the ping runs on at least one day in every week (GitHub disables scheduled workflows after 60 days without repository activity, and the workflow stays quiet while `API_HEALTH_URL` is unset). Only the production API is pinged. The R&D schema lives in the same project (ADR 003), so one ping keeps both alive. Until you have seen the project stay active for a few weeks, also check the dashboard now and then; a paused project is resumed from the dashboard.
 
 **Needs check:** whether the free plan asks for a credit card when creating the project. If it does, stop and tell the maintainer; the rule for this project is $0 and no card.
 
@@ -37,7 +37,7 @@ Open the project and click **Connect** (top of the page), then copy the string a
 
 - The direct connection is **IPv6-only on the Free plan**; the shared pooler is IPv4 on every plan. GitHub-hosted runners and Render may not reach IPv6 (**needs check**), so use the session-mode pooler unless that is confirmed.
 - A custom role connects through the pooler as `[ROLE].[PROJECT-REF]`, for example `app_rnd.abcdefghij`.
-- Transaction mode (port 6543) keeps no session state between transactions. Skillstack's API sets the user's role and claims with `SET LOCAL` inside each request's transaction, so it works there too; session mode is simply the documented choice for a persistent backend.
+- Transaction mode (port 6543) keeps no session state between transactions. Skilender's API sets the user's role and claims with `SET LOCAL` inside each request's transaction, so it works there too; session mode is simply the documented choice for a persistent backend.
 
 The connection strings are secrets. They go into GitHub Environments and Render's environment variables, never into the repository (see `docs/setup/database.md`).
 

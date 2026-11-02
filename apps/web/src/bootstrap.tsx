@@ -10,7 +10,7 @@ import { applyTheme, readTheme } from './lib/theme';
 /** Plain DOM on purpose: this runs when the app itself cannot start. */
 function showConfigError(root: HTMLElement, error: unknown) {
   const title = document.createElement('h1');
-  title.textContent = 'Skillstack could not start';
+  title.textContent = 'Skilender could not start';
   const detail = document.createElement('pre');
   detail.textContent = error instanceof Error ? error.message : String(error);
   detail.style.whiteSpace = 'pre-wrap';

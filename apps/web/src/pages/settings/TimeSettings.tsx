@@ -1,4 +1,4 @@
-import { WEEKDAY_NAMES } from '@skillstack/shared';
+import { WEEKDAY_NAMES } from '@skilender/shared';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { DayOverride, PlanDetail, WeekPattern } from '../../api/client';
 import { usePlan, usePreviewSchedule, useSaveTimeSettings } from '../../api/hooks';

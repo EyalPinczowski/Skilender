@@ -6,7 +6,7 @@ import { API_URL, WORKER_ENV, requireEnv } from './support/env';
 import { issueToken } from './support/tokens';
 
 /** Must match E2E_TOKEN_KEY in apps/web/src/e2e/e2e-auth-service.ts (test-only build). */
-const TOKEN_KEY = 'skillstack.e2e.access-token';
+const TOKEN_KEY = 'skilender.e2e.access-token';
 
 export interface TestUser {
   id: string;

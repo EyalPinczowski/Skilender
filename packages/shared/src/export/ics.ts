@@ -67,10 +67,10 @@ export function scheduleToIcs(blocks: Block[], tasks: Task[], options: IcsOption
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Skillstack//Schedule export//EN',
+    'PRODID:-//Skilender//Schedule export//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    `X-WR-CALNAME:${escapeIcsText(options.calendarName ?? 'Skillstack')}`,
+    `X-WR-CALNAME:${escapeIcsText(options.calendarName ?? 'Skilender')}`,
   ];
   for (const b of blocks) {
     const task = byId.get(b.taskId);
@@ -78,14 +78,14 @@ export function scheduleToIcs(blocks: Block[], tasks: Task[], options: IcsOption
     const end = zonedTimeToUtc(b.date, parseTime(b.end), options.timeZone);
     lines.push(
       'BEGIN:VEVENT',
-      `UID:${b.taskId}-${b.date}-${b.start.replace(':', '')}@skillstack`,
+      `UID:${b.taskId}-${b.date}-${b.start.replace(':', '')}@skilender`,
       `DTSTAMP:${stamp}`,
       `DTSTART:${utcStamp(start)}`,
       `DTEND:${utcStamp(end)}`,
       `SUMMARY:${escapeIcsText(task?.title ?? b.taskId)}`,
       `DESCRIPTION:${escapeIcsText(describe(task, b))}`,
       `CATEGORIES:${escapeIcsText(task ? TASK_TYPE_LABEL[task.type] : 'Study')}`,
-      `X-SKILLSTACK-TASK-ID:${escapeIcsText(b.taskId)}`,
+      `X-SKILENDER-TASK-ID:${escapeIcsText(b.taskId)}`,
       'TRANSP:OPAQUE',
       'END:VEVENT',
     );
