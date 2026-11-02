@@ -13,6 +13,7 @@ import {
 } from '@upversion/shared';
 import type { Database } from '../../db/database';
 import { HttpError } from '../../errors';
+import { NO_CALENDAR, withDayOffs } from '../calendar/inputs';
 import type { DayContext, DaysService } from '../days/service';
 import type { PlanDetail } from '../plans/schemas';
 
@@ -107,20 +108,40 @@ export function createSchedulingService(db: Database, days: DaysService) {
     return day;
   };
 
+  /** The overrides with the calendar's blocking all-day events added as days off. */
+  const withCalendarDays = (c: DayContext, overrides: DayOverride[]) =>
+    withDayOffs(overrides, c.calendar.dayOffs);
+
+  /**
+   * Runs the engine with the user's synced calendar: busy events are subtracted from capacity
+   * (spec 3.8), blocking all-day events are days off, blocks the user moved in the calendar
+   * keep their time, and the time of a block the user deleted there is busy (skipped). `useCalendar: false` gives the plan as if nothing were synced.
+   *
+   * A locked block that overlaps a busy event: the engine does not move the locked block (the
+   * user's own placement wins) and does not warn about the overlap with busy time. Other
+   * blocks avoid both. The locked minutes still count against the day's capacity, which busy
+   * time has already reduced, so the day may fill earlier (pinned by a test in
+   * calendar-capacity.test.ts).
+   */
   const run = (
     c: DayContext,
     pattern: WeekPattern,
     overrides: DayOverride[],
     viewDay: string,
     tasks: Task[] = c.plan.tasks,
-  ) =>
-    schedule({
+    useCalendar = true,
+  ) => {
+    const calendar = useCalendar ? c.calendar : NO_CALENDAR;
+    return schedule({
       tasks,
       pattern,
-      overrides,
+      overrides: useCalendar ? withCalendarDays(c, overrides) : overrides,
+      busy: calendar.busy,
+      lockedBlocks: calendar.lockedBlocks,
       today: engineToday(c, viewDay),
       frozenBlocks: c.snapshots.flatMap((s) => s.blocks),
     });
+  };
 
   const mergeOverrides = (plan: PlanDetail, changes: PreviewChanges): DayOverride[] => {
     const removed = new Set(changes.removeOverrideDates ?? []);
@@ -143,7 +164,7 @@ export function createSchedulingService(db: Database, days: DaysService) {
       summary: summarizeChanges(before, after, {
         today: engineToday(c, c.today),
         pattern: proposed.pattern,
-        overrides: proposed.overrides,
+        overrides: withCalendarDays(c, proposed.overrides),
         tasks: proposed.tasks,
       }),
       current: { finishDate: before.finishDate, warnings: before.warnings },
@@ -153,6 +174,27 @@ export function createSchedulingService(db: Database, days: DaysService) {
 
   return {
     compareProposal,
+
+    /**
+     * The change summary for what the calendar did to the plan: the schedule without the synced
+     * calendar compared with the schedule with it (same frozen days, same first date). Its
+     * `movedTaskIds` are the tasks whose blocks moved because of busy events, blocking all-day
+     * events or locked blocks, which is what the user sees after a sync. With nothing synced
+     * nothing moved. Saves nothing but the automatic freezing of days that have passed.
+     */
+    async calendarImpact(userId: string, planId: string): Promise<ChangeSummary> {
+      return db.withUser(userId, async (ctx) => {
+        const c = await days.open(ctx, userId, planId);
+        const without = run(c, c.pattern, c.plan.overrides, c.today, c.plan.tasks, false);
+        const withCal = run(c, c.pattern, c.plan.overrides, c.today);
+        return summarizeChanges(without, withCal, {
+          today: engineToday(c, c.today),
+          pattern: c.pattern,
+          overrides: withCalendarDays(c, c.plan.overrides),
+          tasks: c.plan.tasks,
+        });
+      });
+    },
 
     async getSchedule(userId: string, planId: string, today?: string): Promise<ScheduleView> {
       return db.withUser(userId, async (ctx) => {
@@ -230,7 +272,7 @@ export function createSchedulingService(db: Database, days: DaysService) {
           summary: summarizeChanges(before, after, {
             today: engineToday(c, day),
             pattern,
-            overrides,
+            overrides: withCalendarDays(c, overrides),
             tasks: c.plan.tasks,
           }),
           current: { finishDate: before.finishDate, warnings: before.warnings },
