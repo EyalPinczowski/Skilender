@@ -3,7 +3,7 @@ import {
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_LOG_HOURS,
   MAX_PASTED_FEEDBACK_LENGTH,
-} from '@skillstack/shared';
+} from '@upversion/shared';
 import { z } from 'zod';
 import { noNulCharacters } from '../../validation';
 

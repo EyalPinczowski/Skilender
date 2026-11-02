@@ -9,8 +9,12 @@ import type { CalendarEvent } from './event';
  * Google and never decides anything about writing; it only says what counts against capacity.
  */
 
-/** Value of `extendedProperties.private.source` on events the app created (spec 3.8). */
-export const APP_EVENT_SOURCE = 'skillstack';
+/**
+ * Value of `extendedProperties.private.source` on events the app created (spec 3.8). It is stored
+ * on real calendar events, so it is a fixed neutral value, not the product name, and it must
+ * NEVER change: a different value would orphan every event the app already wrote.
+ */
+export const APP_EVENT_SOURCE = 'studyplanner-app';
 
 /** Display name of the app's secondary calendar (spec 3.8). Always equal to the product name. */
 export const APP_CALENDAR_NAME = APP_NAME;

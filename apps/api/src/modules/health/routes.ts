@@ -1,4 +1,4 @@
-import { APP_NAME } from '@skillstack/shared';
+import { APP_NAME } from '@upversion/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import pkg from '../../../package.json' with { type: 'json' };

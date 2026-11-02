@@ -1,4 +1,4 @@
-import { APP_EVENT_SOURCE, type CalendarEvent } from '@skillstack/shared';
+import { APP_EVENT_SOURCE, type CalendarEvent } from '@upversion/shared';
 import { CalendarConflictError, CalendarPreconditionFailedError } from './errors';
 import { mintInsertTarget, mintTarget, type GuardedTarget } from './guarded';
 import type { AppEventDraft, CalendarProvider, EventPatch } from './provider';
@@ -9,7 +9,7 @@ import type { AppEventDraft, CalendarProvider, EventPatch } from './provider';
  *    bypassing the guard does not compile;
  *  - an ESLint rule forbids calling them from any other file.
  * A write goes ahead only when the event is in the app's own calendar AND is tagged as the app's
- * (`source=skillstack` plus a `task_id`). The event is fetched fresh from the provider for every
+ * (`source=<APP_EVENT_SOURCE value>` plus a `task_id`). The event is fetched fresh from the provider for every
  * patch or delete, never trusted from a caller or a cache.
  */
 

@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@skillstack/shared';
+import type { CalendarEvent } from '@upversion/shared';
 import {
   CalendarConflictError,
   CalendarPreconditionFailedError,

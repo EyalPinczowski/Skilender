@@ -15,15 +15,15 @@ This follows SPEC section 5: a **daily** job in the private repo uploads the enc
 
 ### 1. Create the private repo
 
-Create a **private** GitHub repo, for example `skillstack-private`, with no template files. Do not put anything else secret in it that you would not want next to the backups. Real data and real keys never go in the public Skillstack repo.
+Create a **private** GitHub repo, for example `upversion-private`, with no template files. Do not put anything else secret in it that you would not want next to the backups. Real data and real keys never go in the public Upversion repo.
 
 ### 2. Generate the age key pair (on your computer)
 
 ```bash
-age-keygen -o skillstack-backup.key     # prints the public key (age1...) to the terminal
+age-keygen -o upversion-backup.key     # prints the public key (age1...) to the terminal
 ```
 
-- The file `skillstack-backup.key` holds the **private key** (`AGE-SECRET-KEY-...`). Store it **offline in your password manager** (as a secure note or attachment), then delete the local file. Never put it in GitHub, in a secret, in the public repo or in the private repo.
+- The file `upversion-backup.key` holds the **private key** (`AGE-SECRET-KEY-...`). Store it **offline in your password manager** (as a secure note or attachment), then delete the local file. Never put it in GitHub, in a secret, in the public repo or in the private repo.
 - Keep a second copy somewhere independent (for example a printed copy or a second password manager entry). Without the private key every backup is unreadable.
 - The **public** key (the `age1...` line) is safe to store as a secret or variable.
 
@@ -58,7 +58,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PUBLIC_REPO: <owner>/skillstack
+  PUBLIC_REPO: <owner>/upversion
   PUBLIC_REF: <tag-or-full-commit-sha> # pin this
   SCHEMA: prod
 
@@ -72,7 +72,7 @@ jobs:
         with:
           repository: ${{ env.PUBLIC_REPO }}
           ref: ${{ env.PUBLIC_REF }}
-          path: skillstack-public
+          path: upversion-public
           persist-credentials: false
 
       - name: Install age and the Postgres client
@@ -88,7 +88,7 @@ jobs:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           AGE_RECIPIENT: ${{ secrets.AGE_RECIPIENT }}
         run: |
-          bash skillstack-public/packages/db/scripts/backup.sh --schema "$SCHEMA" --out-dir backups
+          bash upversion-public/packages/db/scripts/backup.sh --schema "$SCHEMA" --out-dir backups
 
       - name: Upload the encrypted file as a private artifact
         uses: actions/upload-artifact@v4 # needs check: pin to a full commit SHA

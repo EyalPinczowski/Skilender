@@ -1,4 +1,4 @@
-import { APP_TAGLINE } from '@skillstack/shared';
+import { APP_TAGLINE } from '@upversion/shared';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { AuthFailure } from '../auth/auth-service';
@@ -163,7 +163,7 @@ export function SignInPage() {
 
         <h1>Sign in</h1>
         <p className="text-muted">
-          Skillstack is an invite-only beta. Use the email you were invited with.
+          Upversion is an invite-only beta. Use the email you were invited with.
         </p>
 
         {step === 'email' ? (

@@ -1,4 +1,4 @@
-import { TASK_TYPE_LABEL, WEEKDAY_NAMES } from '@skillstack/shared';
+import { TASK_TYPE_LABEL, WEEKDAY_NAMES } from '@upversion/shared';
 import type { ProposedChange } from '../../api/review-hooks';
 import { formatDate, formatHours } from '../../lib/format';
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Throwaway PostgreSQL cluster for the @skillstack/db tests.
+# Throwaway PostgreSQL cluster for the @upversion/db tests.
 #
 #   scripts/test-postgres.sh start   create and start the cluster
 #   scripts/test-postgres.sh env     print the `export` lines the tests need
@@ -10,9 +10,9 @@ set -euo pipefail
 
 PORT="${TEST_PG_PORT:-55432}"
 PG_BIN="${PG_BIN:-/usr/lib/postgresql/16/bin}"
-DIR="${TEST_PG_DIR:-${TMPDIR:-/tmp}/skillstack-test-pg}"
+DIR="${TEST_PG_DIR:-${TMPDIR:-/tmp}/upversion-test-pg}"
 SETUP_SQL="$(cd "$(dirname "$0")/.." && pwd)/test/setup.sql"
-DB_NAME=skillstack_test
+DB_NAME=upversion_test
 
 # initdb and postgres refuse to run as root: use the OS user `postgres` in that case.
 as_pg() {

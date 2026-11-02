@@ -1,4 +1,4 @@
-import { PiiLeakError } from '@skillstack/shared';
+import { PiiLeakError } from '@upversion/shared';
 import type { FastifyInstance } from 'fastify';
 import {
   hasZodFastifySchemaValidationErrors,

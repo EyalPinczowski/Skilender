@@ -1,11 +1,11 @@
-# Skillstack – Privacy Policy
+# Upversion – Privacy Policy
 
 **Version 0.1 · Effective date: [EFFECTIVE DATE]**
 **Contact: [CONTACT EMAIL]**
 
-> Draft for a free, invite-only beta. Not legal advice – have it reviewed before opening Skillstack to the public.
+> Draft for a free, invite-only beta. Not legal advice – have it reviewed before opening Upversion to the public.
 
-Skillstack ("we", "the app") helps you turn a learning goal into a study plan and run it day by day. This policy explains what we collect, why, who we share it with, and how you control it. We collect only what the app needs to work.
+Upversion ("we", "the app") helps you turn a learning goal into a study plan and run it day by day. This policy explains what we collect, why, who we share it with, and how you control it. We collect only what the app needs to work.
 
 ## 1. What we collect
 
@@ -37,7 +37,7 @@ We **don't** use advertising trackers, sell data, or build profiles for marketin
 - To run practice sessions and save your feedback.
 - To sync with your calendar, if you choose to.
 - To keep the service secure, prevent abuse, and stay within the limits of the free services we use.
-- To improve Skillstack using **aggregate** statistics (for example, how many people finish the intake) – not your individual content.
+- To improve Upversion using **aggregate** statistics (for example, how many people finish the intake) – not your individual content.
 
 ## 3. AI features
 Some features use third-party AI models with free tiers: the day overview, plan suggestions, and in-app practice. When you use them:
@@ -47,7 +47,7 @@ Some features use third-party AI models with free tiers: the day overview, plan 
 - You can always use the app without the AI features: plans can be built by the rule-based builder, and practices can be run in your own Claude account instead.
 
 ## 4. Who we share data with
-We use these service providers to run Skillstack. They process data on our behalf:
+We use these service providers to run Upversion. They process data on our behalf:
 
 | Provider | What for |
 |---|---|
@@ -79,8 +79,8 @@ Connecting your calendar is optional and off by default. The app works fully wit
 
 **Limited Use.** [Needs check against Google's current policy; use Google's exact required wording here.] The app's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements. In plain terms: we use Google Calendar data only to provide and improve the planning and calendar features you see in the app; we do not transfer it to others except as needed to provide those features, to comply with the law, or as part of a merger or sale with your notice; we do not use it for advertising; no human reads it except with your consent, for security, or to comply with the law; and **calendar data is never sent to AI models**.
 
-## 6. Who at Skillstack can see your data
-Skillstack is run by one person, who is the admin.
+## 6. Who at Upversion can see your data
+Upversion is run by one person, who is the admin.
 - The admin can see **account and usage information**: your email, sign-up and activity dates, your goal and target role, plan progress, certificates earned, and how much you use the AI features.
 - The admin **can't** see your free-text answers, pasted job postings, practice conversations, or day-review notes – unless **you** turn on "Allow support access" in Settings (for example, when you ask for help). It switches off automatically after 7 days.
 - Every time the admin opens your details, it's recorded, and you can see this log in Settings.
@@ -103,7 +103,7 @@ Depending on where you live (for example, under the Israeli Privacy Protection L
 Data is encrypted in transit and at rest by our providers. Each user's data is separated at the database level, so it can't be read by other users. Backups are encrypted. No system is perfectly secure; if a breach affects your data, we'll tell you as required by law.
 
 ## 10. Age
-Skillstack is meant for people aged **[16]** and over.
+Upversion is meant for people aged **[16]** and over.
 
 ## 11. Cookies and local storage
 We use only what's needed to keep you signed in and remember your settings. No advertising or tracking cookies.

@@ -1,4 +1,4 @@
-import { GENERIC_RUBRIC_STEPS } from '@skillstack/shared';
+import { GENERIC_RUBRIC_STEPS } from '@upversion/shared';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';

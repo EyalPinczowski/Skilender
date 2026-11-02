@@ -1,4 +1,4 @@
-import { APP_CALENDAR_NAME, APP_EVENT_SOURCE, type CalendarEvent } from '@skillstack/shared';
+import { APP_CALENDAR_NAME, APP_EVENT_SOURCE, type CalendarEvent } from '@upversion/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { eventIdFor } from '../src/modules/calendar/event-id';
 import { CalendarWriteRefused, createWriteGuard } from '../src/modules/calendar/write-guard';
