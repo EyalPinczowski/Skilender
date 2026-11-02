@@ -62,6 +62,10 @@ Decisions and limits:
 - `topics`: titles of the **other** tasks the user logged time on in the last 7 plan-local days (today and the six before), newest first, at most 10. (Skill ids are not on tasks, so none are sent.)
 - `jobDescriptionIncluded`, `redactions` (how many personal details were removed).
 
+## Day briefing
+
+`GET /plans/:planId/days/:date/briefing` stays deterministic and AI-free (no provider call, nothing stored, no event). For each `practice` task of the day, the `promptTemplate` field now holds the same prompt as `GET .../practice/prompt` (persona, task setup, the last same-kind `next_focus`, recent topics), built by the practice service's `briefingEntry`. It is read-only: it shows what the user would copy, so the job description is included exactly as in the prompt route (after personal details are removed) and, as there, never stored or logged. `practiceSessionId` is set only while a session for that task is `active`. If building the prompt fails for any reason (for example `pii_blocked`), that entry keeps the task's own template and has no `practiceSessionId`. Plans without practice tasks are unchanged.
+
 ## Sessions
 
 - **Create.** Idempotent on the client's `id`: the same id with the same task and channel answers 200 with the stored session; the same id for anything else is 409. A second **active** session on a task is 409 with code `practice_session_active` and the existing id in the message. Two simultaneous starts are serialised by the plan row lock, so exactly one wins. Writes `practice.started`. `planned_minutes` is the task estimate in minutes. The stored prompt is the one **without** the job description.
@@ -101,4 +105,3 @@ Tables `practice_contexts`, `practice_sessions`, `practice_messages`, `practice_
 
 - The chat is tested with the fake provider only (no real provider has been called). The real providers' behaviour on a mid-conversation 429, their token limits and response times are "needs check" until the owner's first real call on R&D.
 - Cancelling a request (the client going away) is not wired from the route to the gateway; the turn finishes and is stored.
-- The briefing still shows the raw `promptTemplate`; the dynamic prompt reaches it in its own package.
