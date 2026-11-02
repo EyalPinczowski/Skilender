@@ -224,7 +224,12 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
         verifier,
         db,
         now: deps.now,
-        chat: { gateway: aiGateway, usage: aiUsage, userCaps: config.ai.userCaps },
+        chat: {
+          gateway: aiGateway,
+          usage: aiUsage,
+          userCaps: config.ai.userCaps,
+          turnTimeoutMs: config.ai.turnTimeoutMs,
+        },
       });
       v1.register(taskRoutes, { verifier, db, now: deps.now });
       v1.register(aiRoutes, {

@@ -45,7 +45,14 @@ Spec 3.3, channel `in_app`. Needs at least one configured AI provider (see the A
   - **Done-marking is never automatic**: the task is marked done only with `markDone: true`. A repeated identical `finish` is a replay (200) with no model call.
 - The pasted-feedback route also works on `in_app` sessions.
 
-Decisions and limits: the stored prompt has no job description, so the chat does not see it either (a follow-up could rebuild it per turn); the per-user turn window is in memory (one instance on the free plan); a user message kept after a failed turn is sent again on the next turn merged with the new one if the user sends a different id instead of retrying.
+Decisions and limits:
+
+- The stored prompt has no job description, so the chat does not see it either (a follow-up could rebuild it per turn).
+- The per-user turn window is in memory (one instance on the free plan).
+- **Merged turns.** A message that failed and was not retried stays stored, but only the newest of a run of user messages with no answer between them is sent to the model; older unanswered ones are dropped from the request, so the size stays bounded. The newest 60 turns are taken, the transcript starts with a user turn, and history is then cut to the smallest provider limit (a one-line "earlier turns omitted" note stays on the oldest kept turn).
+- **Retrying an older id.** Retrying a failed message after a later message was sent is 409 `message_superseded` (the stored pair of a message is only ever its own reply).
+- **Stale pending.** A turn is treated as dead after `max(60 s, 2 x AI_TURN_TIMEOUT_MS + 15 s)`. The reply (or AI feedback) is saved only if the session is still active and the turn still owns the marker; otherwise it is dropped and the call answers 409 `turn_superseded`. A plain finish or abandon during a turn therefore wins, and no late reply is appended.
+- A retry that needed local repair is saved as `model_repaired`. An AI finish with `markDone` on a skipped task is 409 before any model call.
 
 ## Prompt
 

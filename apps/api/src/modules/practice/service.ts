@@ -81,10 +81,18 @@ export interface ChatDeps {
   gateway: AIGateway;
   usage: AIUsageStore;
   userCaps: Readonly<Record<AIPurpose, number>>;
+  /** The gateway's whole-turn limit; a pending marker only goes stale well after it. */
+  turnTimeoutMs: number;
 }
 
-/** A model turn that has been pending longer than this is treated as dead (a crash). */
-export const STALE_PENDING_MS = 60_000;
+/** The least time a pending marker is believed. */
+export const MIN_STALE_PENDING_MS = 60_000;
+/**
+ * A turn that has been pending longer than this is treated as dead (a crash). It must outlast
+ * a live turn: an AI finish can make two gateway calls, each up to the turn limit.
+ */
+export const stalePendingMs = (turnTimeoutMs: number): number =>
+  Math.max(MIN_STALE_PENDING_MS, 2 * turnTimeoutMs + 15_000);
 /** What the client can do instead of the in-app chat. */
 const FALLBACKS = ['copy_prompt', 'self_rubric'];
 /** A model name or provider id is shown to the client only if it looks like a plain slug. */
@@ -272,6 +280,8 @@ interface FinishRequest extends Completion {
   feedback: NewFeedback | null;
   /** Pasted text: its parse result is reported back. */
   parsed?: boolean;
+  /** AI finish: the turn marker this call set; if it is gone the model result is dropped. */
+  pendingTurnId?: string;
 }
 
 export interface FinishResult {
@@ -303,6 +313,10 @@ export function createPracticeService(
   now: () => Date = () => new Date(),
   chat: ChatDeps | null = null,
 ) {
+  const staleMs = stalePendingMs(chat?.turnTimeoutMs ?? 0);
+  const isFresh = (pending: { since: Date } | null): boolean =>
+    pending !== null && now().getTime() - pending.since.getTime() < staleMs;
+
   /** True when at least one provider could take a call now. */
   const aiAvailable = (): boolean =>
     chat !== null &&
@@ -336,17 +350,23 @@ export function createPracticeService(
         opener = m.content;
         continue;
       }
+      // Older unanswered user messages (a failed turn the user did not retry) are dropped:
+      // only the newest of a run counts, so the size stays bounded.
       const last = turns[turns.length - 1];
-      if (last && last.role === m.role) last.content += `\n\n${m.content}`;
+      if (last && last.role === m.role) last.content = m.content;
       else turns.push({ role: m.role, content: m.content });
     }
+    // Newest 60 turns, starting with the user, then cut to the size limit (which keeps the
+    // "earlier turns omitted" note on the oldest kept turn).
+    let recent = turns.slice(-60);
+    while (recent[0]?.role === 'assistant' && recent.length > 1) recent = recent.slice(1);
     const system = clip(
       `${persona.system}\n\n${setup}${
         opener ? `\n\nYou already opened the session with: ${opener}` : ''
       }\n\nThe user now answers. Do not write a feedback block unless asked.`,
       MAX_SYSTEM_CHARS,
     );
-    const history: SafeMessage[] = truncateHistory(turns, historyChars).slice(-60);
+    const history: SafeMessage[] = truncateHistory(recent, historyChars);
     return { system, history };
   }
 
@@ -508,6 +528,16 @@ export function createPracticeService(
     return db.withUser(userId, async (ctx) => {
       const session = await repo.getSession(ctx, userId, planId, sessionId, true);
       if (!session) throw notFound();
+      if (request.pendingTurnId !== undefined) {
+        // The model result is only used if this turn still owns the session and it is active.
+        const pending = await repo.getPending(ctx, userId, sessionId);
+        if (session.status !== 'active' || pending?.turnId !== request.pendingTurnId) {
+          throw conflict(
+            'The session changed while the feedback was written. Try again.',
+            'turn_superseded',
+          );
+        }
+      }
       if (session.status === 'abandoned') throw conflict('This practice was abandoned.');
       let current = await tasks.getTaskIn(ctx, userId, planId, session.taskId);
       if (session.status === 'finished') {
@@ -583,7 +613,7 @@ export function createPracticeService(
       // Finished or abandoned: the normal finish decides (replay or 409), with no model call.
       if (session.status !== 'active') return null;
       const pending = await repo.getPending(ctx, userId, sessionId);
-      if (pending && now().getTime() - pending.since.getTime() < STALE_PENDING_MS) {
+      if (isFresh(pending)) {
         throw turnInProgress();
       }
       const messages = await repo.listMessages(ctx, userId, sessionId);
@@ -591,6 +621,11 @@ export function createPracticeService(
         throw unprocessable('Say something in the chat before asking for feedback.');
       }
       if (!aiAvailable()) throw aiUnavailable();
+      if (body.markDone) {
+        // Fail before spending a call on a finish that would be refused afterwards.
+        const task = await tasks.getTaskIn(ctx, userId, planId, session.taskId);
+        if (task.status === 'skipped') throw conflict('Reopen the task before marking it done.');
+      }
       if (
         !(await reserveUserCap(
           ctx,
@@ -684,13 +719,22 @@ export function createPracticeService(
             const second = parseModelFeedback(
               (await ask(`${FEEDBACK_JSON_INSTRUCTION}\n\n${RETRY_JSON_INSTRUCTION}`)).text,
             );
-            if (second.ok) feedback = toFeedback(second.feedback, 'model_json');
+            if (second.ok) {
+              feedback = toFeedback(
+                second.feedback,
+                second.repaired ? 'model_repaired' : 'model_json',
+              );
+            }
           }
         } catch {
           // Keep the free text.
         }
       }
-      return await complete(userId, planId, sessionId, () => ({ ...options, feedback }));
+      return await complete(userId, planId, sessionId, () => ({
+        ...options,
+        feedback,
+        pendingTurnId: turnId,
+      }));
     } catch (error) {
       throw chatError(error);
     } finally {
@@ -904,12 +948,18 @@ export function createPracticeService(
           if (existing.role !== 'user' || existing.content !== clean.text) {
             throw conflict('This message id was already used for different text.');
           }
-          const answer = all.find((m) => m.role === 'assistant' && m.seq > existing.seq);
-          if (answer) return { kind: 'replay', userMessage: existing, reply: answer } as const;
+          const after = all.filter((m) => m.seq > existing.seq && m.role !== 'note');
+          if (after[0]?.role === 'assistant') {
+            return { kind: 'replay', userMessage: existing, reply: after[0] } as const;
+          }
+          if (after.length > 0) {
+            // Later messages exist but none answers this one: it was superseded, not pending.
+            throw conflict('A later message was sent after this one.', 'message_superseded');
+          }
         }
         if (session.status !== 'active') throw conflict('This practice is not active.');
         const pending = await repo.getPending(ctx, userId, sessionId);
-        if (pending && now().getTime() - pending.since.getTime() < STALE_PENDING_MS) {
+        if (isFresh(pending)) {
           throw turnInProgress();
         }
         if (!aiAvailable()) throw aiUnavailable();
@@ -995,7 +1045,16 @@ export function createPracticeService(
       let reply: MessageRow;
       try {
         reply = await db.withUser(userId, async (ctx) => {
-          await repo.getSession(ctx, userId, planId, sessionId, true);
+          const locked = await repo.getSession(ctx, userId, planId, sessionId, true);
+          const pending = await repo.getPending(ctx, userId, sessionId);
+          // Finished or abandoned meanwhile, or a newer turn took over after this one went
+          // stale: drop the reply (nothing appended, nothing cleared that is not ours).
+          if (!locked || locked.status !== 'active' || pending?.turnId !== turnId) {
+            throw conflict(
+              'The session changed while the reply was written. Try again.',
+              'turn_superseded',
+            );
+          }
           if (switched) {
             await repo.insertMessage(
               ctx,

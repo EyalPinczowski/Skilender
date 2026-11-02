@@ -4,6 +4,7 @@ import { ProviderQuotaError, ProviderUnavailableError, type AIProvider } from '.
 import type { SafeAIRequest } from '../src/ai/safe-request';
 import { loadConfig } from '../src/config';
 import { createDatabase, type Database } from '../src/db/database';
+import { stalePendingMs } from '../src/modules/practice/service';
 import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
 import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
 import { testConfig } from './helpers';
@@ -71,6 +72,7 @@ describe.skipIf(!dbAvailable)('practice chat with a fake provider (real Postgres
   const start = async (
     providers: AIProvider[],
     env: Record<string, string> = {},
+    database: Database = db,
   ): Promise<ReturnType<typeof buildApp>> => {
     const ai = loadConfig({
       APP_ENV: 'rnd',
@@ -81,7 +83,7 @@ describe.skipIf(!dbAvailable)('practice chat with a fake provider (real Postgres
     }).ai;
     const built = buildApp(testConfig({ appEnv: 'rnd', ai, rateLimitPerMinute: 100_000 }), {
       verifier: createSupabaseVerifier({ issuer: ISSUER, keys: keys.keys }),
-      db,
+      db: database,
       now: () => clock,
       ai: { providers },
     });
@@ -674,6 +676,251 @@ describe.skipIf(!dbAvailable)('practice chat with a fake provider (real Postgres
       expect(
         (await callA('POST', sessionUrl(S(1), '/finish'), { markDone: false })).statusCode,
       ).toBe(201);
+    });
+  });
+
+  describe('review fixes', () => {
+    const gateOf = () => {
+      let release: () => void = () => undefined;
+      const promise = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { promise, release };
+    };
+    const untilPending = async (session = S(1)) => {
+      for (let i = 0; i < 150 && (await pendingOf(session)).pending_turn_id === null; i += 1) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    };
+    const messagesOf = async (session = S(1)) =>
+      rows<{ role: string }>(
+        `select role from rnd.practice_messages where session_id = $1 order by seq`,
+        [session],
+      );
+
+    it('derives the stale window from the turn timeout', () => {
+      expect(stalePendingMs(25_000)).toBe(65_000);
+      expect(stalePendingMs(1000)).toBe(60_000);
+      expect(stalePendingMs(100_000)).toBe(215_000);
+    });
+
+    it('does not take over a turn that is still within the configured turn limit', async () => {
+      await start([makeProvider('groq', () => 'Hi.')], { AI_TURN_TIMEOUT_MS: '100000' });
+      await open();
+      await testDb.admin((c) =>
+        c.query(
+          `update rnd.practice_sessions set pending_turn_id = $1, pending_since = $2 where id = $3`,
+          [S(9), new Date(clock.getTime() - 120_000), S(1)],
+        ),
+      );
+      // 120 s is over the old fixed 60 s, but a 100 s turn limit makes it still live.
+      expect((await say(S(1), M(1), 'Hello.')).statusCode).toBe(409);
+      await testDb.admin((c) =>
+        c.query(`update rnd.practice_sessions set pending_since = $1 where id = $2`, [
+          new Date(clock.getTime() - 300_000),
+          S(1),
+        ]),
+      );
+      expect((await say(S(1), M(1), 'Hello.')).statusCode).toBe(201);
+    });
+
+    it('drops a late reply when a newer turn has taken over the session', async () => {
+      const gate = gateOf();
+      await start([
+        makeProvider('groq', async () => {
+          await gate.promise;
+          return 'Late answer.';
+        }),
+      ]);
+      await open();
+      const slow = say(S(1), M(1), 'First.');
+      await untilPending();
+      await testDb.admin((c) =>
+        c.query(`update rnd.practice_sessions set pending_turn_id = $1 where id = $2`, [
+          S(9),
+          S(1),
+        ]),
+      );
+      gate.release();
+      const late = await slow;
+      expect(late.statusCode).toBe(409);
+      expect(late.json().error.code).toBe('turn_superseded');
+      expect((await messagesOf()).map((m) => m.role)).toEqual(['assistant', 'user']);
+      // The newer turn's marker was not cleared by the stale one.
+      expect((await pendingOf()).pending_turn_id).toBe(S(9));
+    });
+
+    it('drops the reply when the session is finished or abandoned during the turn', async () => {
+      for (const how of ['finish', 'abandon'] as const) {
+        const gate = gateOf();
+        await start([
+          makeProvider('groq', async () => {
+            await gate.promise;
+            return 'Late answer.';
+          }),
+        ]);
+        await open(S(5), 'p1');
+        const slow = say(S(5), M(5), 'First.');
+        await untilPending(S(5));
+        const res =
+          how === 'finish'
+            ? await callA('POST', sessionUrl(S(5), '/finish'), { markDone: false })
+            : await callA('POST', sessionUrl(S(5), '/abandon'));
+        expect(res.statusCode, how).toBe(how === 'finish' ? 201 : 200);
+        gate.release();
+        const late = await slow;
+        expect(late.statusCode, how).toBe(409);
+        expect(
+          (await messagesOf(S(5))).map((m) => m.role),
+          how,
+        ).toEqual(['assistant', 'user']);
+        await app.close();
+        await testDb.admin((c) => c.query('delete from rnd.practice_sessions'));
+      }
+    });
+
+    it('does not save AI feedback if the session ended while the model was writing it', async () => {
+      const gate = gateOf();
+      await start([
+        makeProvider('groq', async (req) => {
+          if (!req.json) return 'Q?';
+          await gate.promise;
+          return GOOD_JSON;
+        }),
+      ]);
+      await open();
+      await say(S(1), M(1), 'An answer.');
+      const slow = finishAi(S(1), { markDone: true });
+      await untilPending();
+      expect((await callA('POST', sessionUrl(S(1), '/abandon'))).statusCode).toBe(200);
+      gate.release();
+      const late = await slow;
+      expect(late.statusCode).toBe(409);
+      expect(await rows(`select 1 from rnd.practice_feedback`)).toHaveLength(0);
+      expect(await taskStatus('p1')).not.toBe('done');
+    });
+
+    it('keeps a chat working after many failed long turns (older unanswered turns are dropped)', async () => {
+      await start([makeProvider('groq', () => 'Ok.')]);
+      await open();
+      for (let i = 1; i <= 5; i += 1) {
+        await rows(
+          `insert into rnd.practice_messages (user_id, session_id, id, seq, role, content)
+           values ($1, $2, $3, $4, 'user', $5)`,
+          [A, S(1), M(40 + i), i, `${String(i).repeat(4000)}`],
+        );
+      }
+      const res = await say(S(1), M(1), 'The one I want answered.');
+      expect(res.statusCode).toBe(201);
+      const sent = seen[0]!.request.messages;
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.content).toBe('The one I want answered.');
+    });
+
+    it('does not return another message’s reply when an earlier message is retried', async () => {
+      let n = 0;
+      await start([
+        makeProvider('groq', () => {
+          n += 1;
+          if (n === 1) throw new ProviderUnavailableError(true);
+          return 'Answer to B.';
+        }),
+      ]);
+      await open();
+      expect((await say(S(1), M(1), 'Message A.')).statusCode).toBe(503);
+      const b = await say(S(1), M(2), 'Message B.');
+      expect(b.statusCode).toBe(201);
+      const retry = await say(S(1), M(1), 'Message A.');
+      expect(retry.statusCode).toBe(409);
+      expect(retry.json().error.code).toBe('message_superseded');
+      expect(n).toBe(2);
+      // B itself still replays its own reply.
+      const again = await say(S(1), M(2), 'Message B.');
+      expect(again.statusCode).toBe(200);
+      expect(again.json().reply.content).toBe('Answer to B.');
+    });
+
+    it('holds no database connection while a provider call is in flight (pool of 2)', async () => {
+      const small = createDatabase({
+        connectionString: testDb.appUrl('rnd'),
+        appEnv: 'rnd',
+        max: 2,
+      });
+      try {
+        const gate = gateOf();
+        await start(
+          [
+            makeProvider('groq', async () => {
+              await gate.promise;
+              return 'Slow.';
+            }),
+          ],
+          {},
+          small,
+        );
+        await open(S(1), 'p1');
+        await open(S(2), 'p2');
+        const one = say(S(1), M(1), 'One.');
+        const two = say(S(2), M(2), 'Two.');
+        await untilPending(S(1));
+        await untilPending(S(2));
+        const probe = callA('GET', sessionUrl(S(1)));
+        const outcome = await Promise.race([
+          probe.then((r) => r.statusCode),
+          new Promise<string>((r) => setTimeout(() => r('hung'), 3000)),
+        ]);
+        expect(outcome).toBe(200);
+        gate.release();
+        expect((await one).statusCode).toBe(201);
+        expect((await two).statusCode).toBe(201);
+      } finally {
+        await app.close();
+        await small.close();
+      }
+    });
+
+    it('redacts at the request-building step, whatever the stored text holds', async () => {
+      await start([makeProvider('groq', () => 'Ok.')]);
+      await open();
+      // Text that reached the database without passing the turn redaction: the stored prompt,
+      // and earlier turns inserted directly.
+      await testDb.admin(async (c) => {
+        await c.query(
+          `update rnd.practice_sessions set prompt_used = prompt_used || ' Role-play with Zebediah Quillfeather.' where id = $1`,
+          [S(1)],
+        );
+        await c.query(
+          `insert into rnd.practice_messages (user_id, session_id, id, seq, role, content)
+           values ($1, $2, $3, 1, 'user', 'Hello, I am Zebediah.'),
+                  ($1, $2, $4, 2, 'assistant', 'Nice to meet you, Quillfeather.')`,
+          [A, S(1), M(41), M(42)],
+        );
+      });
+      const res = await say(S(1), M(1), 'Next question please.');
+      expect(res.statusCode).toBe(201);
+      const everything = JSON.stringify(
+        seen.map((s) => ({ system: s.request.system, messages: s.request.messages })),
+      );
+      expect(everything).not.toContain('Zebediah');
+      expect(everything).not.toContain('Quillfeather');
+      expect(everything).toContain('[removed]');
+    });
+
+    it('refuses an AI finish with markDone on a skipped task before any model call', async () => {
+      await start([makeProvider('groq', (req) => (req.json ? GOOD_JSON : 'Q?'))]);
+      await open();
+      await say(S(1), M(1), 'An answer.');
+      await rows(`update rnd.tasks set status = 'skipped' where plan_id = $1 and id = 'p1'`, [
+        PLAN_A,
+      ]);
+      seen = [];
+      const res = await finishAi(S(1), { markDone: true });
+      expect(res.statusCode).toBe(409);
+      expect(seen).toHaveLength(0);
+      const used = await rows(
+        `select 1 from rnd.ai_usage_daily where purpose = 'practice_feedback'`,
+      );
+      expect(used).toHaveLength(0);
     });
   });
 });
