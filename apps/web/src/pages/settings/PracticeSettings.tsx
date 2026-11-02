@@ -1,0 +1,17 @@
+import { PlanGate } from '../../plan/PlanGate';
+import { JobDescriptionField } from '../practice/JobDescriptionField';
+
+/** Practice: the job description every practice prompt of the active plan can use. */
+export function PracticeSettings() {
+  return (
+    <section
+      aria-labelledby="practice-heading"
+      className="space-y-3 rounded-md border border-border bg-surface p-4"
+    >
+      <h2 id="practice-heading">Practice</h2>
+      <PlanGate empty={<p className="text-muted">Import a plan to add a job description.</p>}>
+        {(plan) => <JobDescriptionField key={plan.id} planId={plan.id} />}
+      </PlanGate>
+    </section>
+  );
+}

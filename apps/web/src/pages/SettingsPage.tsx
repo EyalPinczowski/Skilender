@@ -8,6 +8,7 @@ import { Button, ErrorText, linkClass, TextField } from '../components/ui';
 import { DELETE_PHRASE, EXPORT_FILENAME } from '../lib/account';
 import { downloadJson } from '../lib/download';
 import { LEGAL_PAGES } from '../lib/legal';
+import { PracticeSettings } from './settings/PracticeSettings';
 import { TimeSettings } from './settings/TimeSettings';
 import { useTheme, type ThemePreference } from '../lib/theme';
 
@@ -261,6 +262,7 @@ export function SettingsPage({ appEnv = 'operational' }: { appEnv?: AppEnv }) {
       <h1>Settings</h1>
       <ProfileSection />
       <TimeSettings />
+      <PracticeSettings />
       <AppearanceSection />
       <DataSection />
       <SignOutSection />
