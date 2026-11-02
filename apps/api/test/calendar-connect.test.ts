@@ -554,7 +554,7 @@ describe.skipIf(!dbAvailable)(
         ).toHaveLength(1);
       });
 
-      it('revokes the previous refresh token after a successful reconnect', async () => {
+      it('overwrites the stored token on reconnect without revoking the old one', async () => {
         const h = await asA();
         await connected(h);
         stub.codeGrant = () => ({
@@ -567,15 +567,10 @@ describe.skipIf(!dbAvailable)(
         });
         stub.seen.length = 0;
         await connected(h);
-        const revoked = stub.seen
-          .filter((r) => r.path === '/revoke')
-          .map((r) => r.form.get('token'));
-        expect(revoked).toEqual([REFRESH]);
-      });
-
-      it('does not revoke anything on the first connect', async () => {
-        await connected(await asA());
+        // No revoke: Google may end the whole grant, which would kill the new token too.
         expect(stub.seen.some((r) => r.path === '/revoke')).toBe(false);
+        const appCrypto = new CalendarTokenCrypto([{ id: 'v1', key: APP_KEY }]);
+        expect(appCrypto.decrypt(await storedCiphertext(), A)).toBe('refresh-token-plaintext-0002');
       });
 
       it('leaves a healthy connection unflagged when a reconnect fails with invalid_grant', async () => {
