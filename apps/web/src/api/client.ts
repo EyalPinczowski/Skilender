@@ -105,6 +105,8 @@ export function createApiClient({
     listPlans: (signal?: AbortSignal) => unwrap(raw.GET('/api/v1/plans', { signal })),
     getPlan: (id: string, signal?: AbortSignal) =>
       unwrap(raw.GET('/api/v1/plans/{id}', { params: { path: { id } }, signal })),
+    deletePlan: (id: string) =>
+      unwrap(raw.DELETE('/api/v1/plans/{id}', { params: { path: { id } } })),
     importPlan: (body: ImportBody) => unwrap(raw.POST('/api/v1/plans/import', { body })),
     getSchedule: (id: string, signal?: AbortSignal) =>
       unwrap(raw.GET('/api/v1/plans/{id}/schedule', { params: { path: { id } }, signal })),

@@ -1,9 +1,16 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe';
 import { apiError, fakeAuth, installApi, json, renderApp, SESSION } from '../test/helpers';
-import { PLAN_ID, planRoutes, TASKS, taskView } from '../test/plan-fixtures';
+import {
+  PLAN_ID,
+  planDetail,
+  planRoutes,
+  planSummary,
+  TASKS,
+  taskView,
+} from '../test/plan-fixtures';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -181,5 +188,221 @@ describe('Task detail', () => {
     expect(api.count(`POST ${BASE}/tasks/setup/reopen`)).toBe(0);
     await userEvent.setup().click(button);
     await vi.waitFor(() => expect(api.count(`POST ${BASE}/tasks/setup/reopen`)).toBe(1));
+  });
+});
+
+describe('Manage plans', () => {
+  const NEW_ID = '33333333-3333-4333-8333-333333333333';
+
+  function openWithDelete() {
+    let deleted = false;
+    const api = installApi(
+      planRoutes({
+        'GET /api/v1/plans': () => json({ plans: deleted ? [] : [planSummary()] }),
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    return api;
+  }
+
+  it('deletes the plan only after confirmation, then shows the empty state', async () => {
+    const api = openWithDelete();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent(/progress and the calendar events/i);
+    expect(dialog).toHaveTextContent(/cannot be undone/i);
+    expect(api.count(`DELETE ${BASE}`)).toBe(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByText(/No plan yet/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Plan' })).toHaveFocus();
+    expect(api.count(`DELETE ${BASE}`)).toBe(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('cancelling the confirmation deletes nothing', async () => {
+    const api = openWithDelete();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(screen.getByRole('button', { name: 'Keep this plan' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}`)).toBe(0);
+    expect(screen.getByRole('heading', { name: 'Demo plan' })).toBeInTheDocument();
+  });
+
+  it('shows an error and keeps the plan when the delete fails', async () => {
+    open('/plan', { [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The plan could not be deleted');
+    expect(screen.getByRole('heading', { name: 'Demo plan' })).toBeInTheDocument();
+  });
+
+  const OTHER_ID = '44444444-4444-4444-8444-444444444444';
+  function twoPlans(extra: Parameters<typeof planRoutes>[0] = {}) {
+    let deleted = false;
+    const api = installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({
+            plans: deleted
+              ? [planSummary({ id: OTHER_ID, name: 'Other plan' })]
+              : [planSummary(), planSummary({ id: OTHER_ID, name: 'Other plan' })],
+          }),
+        [`GET /api/v1/plans/${OTHER_ID}/tasks`]: () => json({ tasks: [] }),
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+        ...extra,
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    return api;
+  }
+
+  it('announces and focuses even when the plan list refetches slowly after the delete', async () => {
+    let deleted = false;
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': async () => {
+          if (deleted) await new Promise((r) => setTimeout(r, 50));
+          return json({ plans: deleted ? [] : [planSummary()] });
+        },
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Plan deleted.');
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('clears the announcement on the next action and announces a second delete again', async () => {
+    const THIRD = '55555555-5555-4555-8555-555555555555';
+    const remaining = [PLAN_ID, OTHER_ID, THIRD];
+    const names: Record<string, string> = {
+      [PLAN_ID]: 'Demo plan',
+      [OTHER_ID]: 'Other plan',
+      [THIRD]: 'Third plan',
+    };
+    const route = (id: string, delay = 0) => ({
+      [`GET /api/v1/plans/${id}/tasks`]: () => json({ tasks: [] }),
+      [`DELETE /api/v1/plans/${id}`]: async () => {
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        remaining.splice(remaining.indexOf(id), 1);
+        return new Response(null, { status: 204 });
+      },
+    });
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({ plans: remaining.map((id) => planSummary({ id, name: names[id]! })) }),
+        ...route(OTHER_ID, 100),
+        ...route(THIRD),
+        [`DELETE ${BASE}`]: () => {
+          remaining.splice(remaining.indexOf(PLAN_ID), 1);
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Plan deleted.');
+    await screen.findByRole('heading', { name: 'Other plan' });
+    // Starting another delete clears the old announcement while it runs.
+    await user.click(screen.getByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.'));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('does not bring an old delete error back when returning to that plan', async () => {
+    twoPlans({ [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    await screen.findByRole('alert');
+    const picker = screen.getByRole('combobox', { name: 'Plan' });
+    await user.selectOptions(picker, OTHER_ID);
+    await screen.findByRole('heading', { name: 'Other plan' });
+    await user.selectOptions(picker, PLAN_ID);
+    await screen.findByRole('heading', { name: 'Demo plan' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says a lost connection may or may not have deleted the plan', async () => {
+    open('/plan', { [`DELETE ${BASE}`]: () => Promise.reject(new TypeError('Failed to fetch')) });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('may or may not have been deleted');
+  });
+
+  it('after deleting one of two plans the page shows the remaining one', async () => {
+    twoPlans();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('heading', { name: 'Other plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Demo plan' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.');
+  });
+
+  it('a delete error does not carry over to another plan', async () => {
+    twoPlans({ [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The plan could not be deleted');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Plan' }), OTHER_ID);
+    expect(await screen.findByRole('heading', { name: 'Other plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('imports another plan from the disclosure and selects it', async () => {
+    let imported = false;
+    const bodies: Record<string, unknown>[] = [];
+    installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({
+            plans: imported
+              ? [planSummary(), planSummary({ id: NEW_ID, name: 'Second plan' })]
+              : [planSummary()],
+          }),
+        'POST /api/v1/plans/import': async (request) => {
+          bodies.push((await request.json()) as Record<string, unknown>);
+          imported = true;
+          return json(planDetail({ id: NEW_ID, name: 'Second plan' }), 201);
+        },
+        [`GET /api/v1/plans/${NEW_ID}/tasks`]: () => json({ tasks: [] }),
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    const summary = await screen.findByText('Import another plan');
+    expect(screen.getByRole('textbox', { name: /paste the plan json/i })).not.toBeVisible();
+    await user.click(summary);
+    await user.click(screen.getByRole('textbox', { name: /paste the plan json/i }));
+    await user.paste(JSON.stringify({ formatVersion: 1, name: 'Second plan', tasks: [] }));
+    await user.click(screen.getByRole('button', { name: 'Import plan' }));
+    expect(await screen.findByRole('heading', { name: 'Second plan' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Plan' })).toHaveValue(NEW_ID);
+    expect(bodies).toHaveLength(1);
   });
 });

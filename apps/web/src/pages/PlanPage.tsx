@@ -1,12 +1,17 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import type { Task } from '../api/client';
-import { useTasks } from '../api/hooks';
+import { useDeletePlan, useTasks } from '../api/hooks';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
-import { linkClass } from '../components/ui';
+import { Button, ErrorText, linkClass } from '../components/ui';
+import { isConnectionProblem } from '../lib/messages';
 import { formatHours } from '../lib/format';
 import { anchorText, dependencyText } from '../lib/task-text';
 import { TASK_TYPE_META } from '../lib/task-types';
+import { ImportPlan } from '../plan/ImportPlan';
+import { useActivePlan } from '../plan/context';
 import { PlanGate, PlanSwitcher } from '../plan/PlanGate';
 
 function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => string }) {
@@ -39,9 +44,31 @@ function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => strin
 
 /** Every task of the plan, in plan order. */
 export function PlanPage() {
+  // Confirming a delete resets the notice and the hook callback sets it after the delete, so each
+  // delete announces and focuses again.
+  const [deleted, setDeleted] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // The deleted plan's button is gone: focus moves to the page heading, which stays.
+  useEffect(() => {
+    if (deleted) heading.current?.focus();
+  }, [deleted]);
+  // The mutation lives here, not in the part that disappears with the deleted plan.
+  const remove = useDeletePlan(() => setDeleted(true));
+  // An old delete error must not come back when the person returns to that plan.
+  const { plan: active } = useActivePlan();
+  const { reset } = remove;
+  const activeId = active?.id;
+  useEffect(() => {
+    reset();
+  }, [activeId, reset]);
   return (
     <div className="space-y-6">
-      <h1>Plan</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        Plan
+      </h1>
+      <div role="status" className="font-bold text-ok empty:hidden">
+        {deleted ? 'Plan deleted.' : null}
+      </div>
       <PlanSwitcher />
       <PlanGate
         empty={
@@ -54,7 +81,18 @@ export function PlanPage() {
           </p>
         }
       >
-        {(plan) => <TaskList planId={plan.id} name={plan.name} />}
+        {(plan) => (
+          <>
+            <TaskList planId={plan.id} name={plan.name} />
+            <ManagePlans
+              key={plan.id}
+              planId={plan.id}
+              name={plan.name}
+              remove={remove}
+              onDeleteStart={() => setDeleted(false)}
+            />
+          </>
+        )}
       </PlanGate>
     </div>
   );
@@ -79,5 +117,62 @@ function TaskList({ planId, name }: { planId: string; name: string }) {
         );
       }}
     </QueryView>
+  );
+}
+
+function ManagePlans({
+  planId,
+  name,
+  remove,
+  onDeleteStart,
+}: {
+  planId: string;
+  name: string;
+  remove: ReturnType<typeof useDeletePlan>;
+  onDeleteStart: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <section aria-labelledby="manage-heading" className="space-y-4 border-t border-border pt-6">
+      <h2 id="manage-heading">Manage plans</h2>
+      <div className="space-y-2">
+        <Button variant="danger" onClick={() => setConfirming(true)}>
+          Delete this plan
+        </Button>
+        {remove.error && remove.variables === planId ? (
+          <ErrorText>
+            {isConnectionProblem(remove.error)
+              ? 'Can’t reach the server. The plan may or may not have been deleted. Check your plan list or try again.'
+              : 'The plan could not be deleted. Nothing was changed. Try again in a moment.'}
+          </ErrorText>
+        ) : null}
+      </div>
+      <details className="rounded-sm border border-border">
+        <summary className="flex min-h-11 cursor-pointer items-center px-3 font-bold">
+          Import another plan
+        </summary>
+        <div className="px-3 pb-3 pt-2">
+          <ImportPlan />
+        </div>
+      </details>
+      {confirming ? (
+        <ConfirmDialog
+          title={`Delete “${name}”?`}
+          confirmLabel={remove.isPending ? 'Deleting…' : 'Delete plan'}
+          cancelLabel="Keep this plan"
+          busy={remove.isPending}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            onDeleteStart();
+            remove.mutate(planId, { onSettled: () => setConfirming(false) });
+          }}
+        >
+          <p>
+            Your progress and the calendar events Upversion created for this plan are removed. This
+            cannot be undone.
+          </p>
+        </ConfirmDialog>
+      ) : null}
+    </section>
   );
 }
