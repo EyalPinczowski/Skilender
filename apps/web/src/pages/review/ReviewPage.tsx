@@ -9,6 +9,7 @@ import { formatDate } from '../../lib/format';
 import { PlanGate } from '../../plan/PlanGate';
 import { validDate } from '../briefing/day-utils';
 import { DayQueryView } from '../briefing/DayQueryView';
+import { TodaysPractice } from '../practice-trends/TodaysPractice';
 import { ReviewForm, type ReviewRow } from './ReviewForm';
 import { ReviewTrend } from './ReviewTrend';
 import { SavedReview } from './SavedReview';
@@ -68,6 +69,7 @@ function ReviewContent({ planId, date }: { planId: string; date: string }) {
           </QueryView>
         )}
       </DayQueryView>
+      <TodaysPractice planId={planId} date={date} titleOf={titleOf} />
       <SuggestionsPanel planId={planId} titleOf={titleOf} />
       <ReviewTrend planId={planId} date={date} />
     </>
