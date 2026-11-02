@@ -24,6 +24,8 @@ export class FakeCalendarProvider implements CalendarProvider {
   pageSize = 100;
   /** When true, listEvents ignores privateTags, like a backend whose filter is lax. */
   ignoreTagFilter = false;
+  /** When true, deleting keeps the event as `cancelled` (Google keeps a deleted event's id). */
+  keepCancelled = false;
   /** Runs right before a write is applied; tests use it to simulate a concurrent change. */
   onBeforeWrite: (() => void) | null = null;
   private seq = 0;
@@ -51,10 +53,12 @@ export class FakeCalendarProvider implements CalendarProvider {
     options: ListEventsOptions = {},
   ): Promise<EventPage> {
     const tags = Object.entries(options.privateTags ?? {});
-    const all = [...this.bucket(calendarId).values()].filter(
-      (e) =>
-        this.ignoreTagFilter || tags.every(([k, v]) => e.extendedProperties?.private?.[k] === v),
-    );
+    const all = [...this.bucket(calendarId).values()]
+      .filter((e) => options.showDeleted || e.status !== 'cancelled')
+      .filter(
+        (e) =>
+          this.ignoreTagFilter || tags.every(([k, v]) => e.extendedProperties?.private?.[k] === v),
+      );
     // The page token is the last event id returned, so deleting while paging skips nothing.
     const from = options.pageToken ? all.findIndex((e) => e.id === options.pageToken) + 1 : 0;
     const slice = all.slice(from, from + this.pageSize);
@@ -119,7 +123,11 @@ export class FakeCalendarProvider implements CalendarProvider {
     if (current && target.etag && current.etag !== target.etag) {
       throw new CalendarPreconditionFailedError();
     }
-    this.bucket(target.calendarId).delete(target.eventId);
+    if (this.keepCancelled && current) {
+      this.bucket(target.calendarId).set(target.eventId, { ...current, status: 'cancelled' });
+    } else {
+      this.bucket(target.calendarId).delete(target.eventId);
+    }
     this.writes.push({ op: 'delete', calendarId: target.calendarId, eventId: target.eventId });
   }
 }

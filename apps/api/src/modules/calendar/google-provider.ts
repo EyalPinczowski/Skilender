@@ -144,8 +144,11 @@ function toCalendar(raw: unknown): CalendarInfo {
   };
 }
 
-function eventBody(e: Partial<EventInsert> & { id?: string }): Record<string, unknown> {
+function eventBody(
+  e: Partial<EventInsert> & { id?: string; status?: 'confirmed' },
+): Record<string, unknown> {
   const body: Record<string, unknown> = {};
+  if (e.status !== undefined) body.status = e.status;
   if (e.id !== undefined) body.id = e.id;
   if (e.summary !== undefined) body.summary = e.summary;
   if (e.description !== undefined) body.description = e.description;

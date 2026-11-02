@@ -144,6 +144,52 @@ describe('retried inserts and concurrent changes', () => {
     expect(provider.writes).toEqual([]);
   });
 
+  it('refuses an id taken by an event of ANOTHER task, even though it carries our source tag', async () => {
+    provider.seed(APP_CAL, {
+      ...event(draft.id, { source: APP_EVENT_SOURCE, task_id: 'other-task' }),
+    });
+    expect(await refusal(guard.insertAppEvent(APP_CAL, 'task-9', draft))).toBe('event_id_taken');
+    expect(provider.writes).toEqual([]);
+  });
+
+  it('delete then re-insert of the same task restores the event (cancelled keeps its id)', async () => {
+    provider.keepCancelled = true;
+    const first = await guard.insertAppEvent(APP_CAL, 'task-9', draft);
+    expect(await guard.deleteAppEvent(APP_CAL, first.id)).toBe(true);
+    expect((await provider.getEvent(APP_CAL, first.id))?.status).toBe('cancelled');
+
+    const moved = { ...draft, summary: 'Back again' };
+    const restored = await guard.insertAppEvent(APP_CAL, 'task-9', moved);
+    expect(restored).toMatchObject({ id: first.id, status: 'confirmed', summary: 'Back again' });
+    expect(restored.extendedProperties?.private).toEqual({
+      source: APP_EVENT_SOURCE,
+      task_id: 'task-9',
+    });
+    expect(provider.writes.map((w) => w.op)).toEqual(['insert', 'delete', 'patch']);
+  });
+
+  it("a cancelled event that is not ours, or is another task's, stays refused", async () => {
+    provider.seed(APP_CAL, { ...event(draft.id), status: 'cancelled' });
+    expect(await refusal(guard.insertAppEvent(APP_CAL, 'task-9', draft))).toBe(
+      'not_tagged_as_app_event',
+    );
+    provider.seed(APP_CAL, {
+      ...event(draft.id, { source: APP_EVENT_SOURCE, task_id: 'other' }),
+      status: 'cancelled',
+    });
+    expect(await refusal(guard.insertAppEvent(APP_CAL, 'task-9', draft))).toBe('event_id_taken');
+    expect(provider.writes).toEqual([]);
+  });
+
+  it('refuses event ids that Google would not accept', async () => {
+    for (const id of ['abc', 'UPPER12345', 'has-dash1', 'w'.repeat(10), 'a'.repeat(1025)]) {
+      expect(await refusal(guard.insertAppEvent(APP_CAL, 't', { ...draft, id }))).toBe(
+        'invalid_event_id',
+      );
+    }
+    expect(provider.writes).toEqual([]);
+  });
+
   it('refuses an insert without an event id', async () => {
     const bad = { ...draft, id: '' };
     expect(await refusal(guard.insertAppEvent(APP_CAL, 't', bad))).toBe('invalid_event_id');

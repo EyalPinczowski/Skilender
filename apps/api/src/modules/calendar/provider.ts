@@ -51,6 +51,8 @@ export interface AppEventDraft {
 /** The provider-level payload: a draft plus the private tags (forced by the guard). */
 export type EventInsert = AppEventDraft & { privateTags: Record<string, string> };
 export type EventPatch = Partial<Omit<AppEventDraft, 'id'>> & {
+  /** Only used to restore an app event that was deleted (cancelled). */
+  status?: 'confirmed';
   privateTags: Record<string, string>;
 };
 
