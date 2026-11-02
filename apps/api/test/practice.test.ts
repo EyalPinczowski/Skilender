@@ -430,9 +430,10 @@ describe.skipIf(!dbAvailable)('practice sessions without a model (real Postgres)
       expect(await rows(`select 1 from rnd.practice_sessions`)).toHaveLength(1);
     });
 
-    it('refuses the in-app channel for now', async () => {
+    it('answers 503 for the in-app channel when no model is configured (chat tests: practice-chat)', async () => {
       const res = await callA('POST', sessionsUrl('p1'), { id: S(1), channel: 'in_app' });
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(503);
+      expect(res.json().error.code).toBe('ai_unavailable');
     });
 
     it('shows a session with its feedback', async () => {
