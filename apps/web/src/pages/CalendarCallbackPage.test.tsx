@@ -112,7 +112,13 @@ describe('calendar callback page', () => {
 
   it('explains a link without code and state and does not call the API', async () => {
     const api = open('');
-    expect(await screen.findByRole('alert')).toHaveTextContent('missing');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Sign in, then connect again from Settings.',
+    );
+    expect(screen.getByRole('link', { name: 'Back to Settings' })).toHaveAttribute(
+      'href',
+      '/settings',
+    );
     expect(posts(api)).toHaveLength(0);
   });
 });

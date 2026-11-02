@@ -48,7 +48,10 @@ export function useConnectCalendar() {
     mutationFn: async () => {
       const { authorizationUrl } = await unwrap(api.raw.POST('/api/v1/calendar/connect'));
       // Only ever leave for Google's HTTPS consent page.
-      if (new URL(authorizationUrl).protocol !== 'https:') throw new Error('Unexpected URL.');
+      const target = new URL(authorizationUrl);
+      if (target.protocol !== 'https:' || target.hostname !== 'accounts.google.com') {
+        throw new Error('Unexpected URL.');
+      }
       redirectTo(authorizationUrl);
     },
   });

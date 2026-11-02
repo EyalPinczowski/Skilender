@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router';
 import { useCalendarStatus, useSyncCalendar } from '../api/calendar-hooks';
 import { ConnectButton } from '../pages/settings/CalendarSettings';
 import { AlertIcon } from './icons';
@@ -16,6 +17,7 @@ export function CalendarWatcher() {
   const sync = useSyncCalendar();
   const synced = useRef(false);
   const state = status.data?.status;
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (state !== 'connected' || synced.current) return;
@@ -25,7 +27,14 @@ export function CalendarWatcher() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  if (state !== 'needs_reconnect') return null;
+  // Those two pages carry the same controls themselves.
+  if (
+    state !== 'needs_reconnect' ||
+    pathname === '/calendar/callback' ||
+    pathname === '/settings'
+  ) {
+    return null;
+  }
   return (
     <div
       role="region"

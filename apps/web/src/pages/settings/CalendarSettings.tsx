@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useCalendarStatus,
   useConnectCalendar,
@@ -40,6 +40,16 @@ function Shell({ children }: { children: React.ReactNode }) {
 /** Starts the Google consent flow. Used here and by the reconnect banner. */
 export function ConnectButton({ label, primary = false }: { label: string; primary?: boolean }) {
   const connect = useConnectCalendar();
+  const { reset } = connect;
+  // Coming back with the Back button restores this page from the cache with the button still
+  // showing "Opening Google…": make it usable again.
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) reset();
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [reset]);
   return (
     <>
       <Button

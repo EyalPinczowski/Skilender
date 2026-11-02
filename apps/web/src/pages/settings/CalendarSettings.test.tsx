@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CalendarStatus } from '../../api/calendar-hooks';
@@ -122,6 +122,32 @@ describe('calendar settings', () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  it('does not follow an https URL that is not Google', async () => {
+    open(DISCONNECTED, {
+      'POST /api/v1/calendar/connect': () => json({ authorizationUrl: 'https://evil.example/x' }),
+    });
+    const user = userEvent.setup();
+    const section = within(await region());
+    await user.click(section.getByRole('button', { name: 'Connect Google Calendar' }));
+    expect(await section.findByRole('alert')).toHaveTextContent('couldn’t start the connection');
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it('makes Connect usable again when the page is restored from the back/forward cache', async () => {
+    open(DISCONNECTED, {
+      'POST /api/v1/calendar/connect': () =>
+        json({ authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=s' }),
+    });
+    const user = userEvent.setup();
+    const section = within(await region());
+    await user.click(section.getByRole('button', { name: 'Connect Google Calendar' }));
+    expect(await section.findByRole('button', { name: 'Opening Google…' })).toBeDisabled();
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    });
+    expect(await section.findByRole('button', { name: 'Connect Google Calendar' })).toBeEnabled();
+  });
+
   it('Sync now shows the returned text and the moved-task count', async () => {
     let calls = 0;
     open(CONNECTED, {
@@ -225,6 +251,27 @@ describe('calendar on app open', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('syncs only once per session even when the status changes and comes back', async () => {
+    const answers = [CONNECTED, { ...CONNECTED, status: 'needs_reconnect' as const }, CONNECTED];
+    let n = 0;
+    const api = open(CONNECTED, {
+      'GET /api/v1/calendar': () => json(answers[Math.min(n++, answers.length - 1)]),
+      'DELETE /api/v1/calendar': () => new Response(null, { status: 204 }),
+    });
+    const user = userEvent.setup();
+    const section = within(await region());
+    // The app-open sync refetches the status, which now says needs_reconnect.
+    await section.findByText(/Needs to be reconnected/);
+    await user.click(section.getByRole('button', { name: 'Disconnect' }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Disconnect' }),
+    );
+    // Disconnect refetches the status: connected again.
+    await section.findByText(/Connected\./);
+    expect(api.count('GET /api/v1/calendar')).toBe(3);
+    expect(api.count('POST /api/v1/calendar/sync')).toBe(1);
+  });
+
   it('does not sync when disconnected', async () => {
     const api = open(DISCONNECTED);
     await region();
@@ -273,6 +320,16 @@ describe('reconnect banner', () => {
     renderApp({ auth: fakeAuth(SESSION), path: '/settings' });
     await screen.findByRole('heading', { level: 1, name: 'Settings' });
     await waitFor(() => expect(api.count('GET /api/v1/calendar')).toBe(1));
+    expect(screen.queryByRole('region', { name: 'Calendar connection' })).not.toBeInTheDocument();
+  });
+
+  it('hides on the Settings page, where the section has the same button', async () => {
+    installApi({
+      'GET /api/v1/me': () => json(meBody()),
+      'GET /api/v1/calendar': () => json(NEEDS),
+    });
+    renderApp({ auth: fakeAuth(SESSION), path: '/settings' });
+    await screen.findByText(/Needs to be reconnected/);
     expect(screen.queryByRole('region', { name: 'Calendar connection' })).not.toBeInTheDocument();
   });
 

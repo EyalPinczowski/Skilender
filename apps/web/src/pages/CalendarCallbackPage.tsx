@@ -53,7 +53,7 @@ export function CalendarCallbackPage() {
           }
         />
       ) : invalidLink ? (
-        <Failure text="This page needs the answer from Google, and it is missing. Start the connection again from Settings." />
+        <Failure text="Sign in, then connect again from Settings." />
       ) : finish.isSuccess ? (
         <div role="status" className="space-y-3">
           <p className="font-bold text-ok">Google Calendar is connected.</p>
