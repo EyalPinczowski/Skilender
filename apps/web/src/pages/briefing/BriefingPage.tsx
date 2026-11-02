@@ -133,6 +133,18 @@ function TaskCard({ task }: { task: BriefingTask }) {
           </div>
         ) : null}
 
+        {task.type === 'practice' ? (
+          <p>
+            <Link
+              to={`/practice/${encodeURIComponent(task.taskId)}`}
+              className={`${linkClass} inline-flex min-h-11 items-center`}
+            >
+              Run here
+              <span className="sr-only">: {task.title}</span>
+            </Link>
+          </p>
+        ) : null}
+
         {task.successCriteria ? (
           <div className="space-y-1">
             <h4 className="font-bold">What success looks like</h4>

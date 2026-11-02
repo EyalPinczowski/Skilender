@@ -72,9 +72,13 @@ describe('Day briefing', () => {
     expect(course.getAllByText('Needs check')).toHaveLength(1);
     expect(course.getByText('Select basics').closest('p')).toHaveTextContent('Needs check');
 
-    // The practice has no url and no lessons: no links at all.
+    // The practice has no url and no lessons: no external links, only the in-app "Run here".
     const practice = await taskCard('Mock interview');
-    expect(practice.queryByRole('link')).toBeNull();
+    expect(practice.getAllByRole('link')).toHaveLength(1);
+    expect(practice.getByRole('link', { name: /Run here/ })).toHaveAttribute(
+      'href',
+      '/practice/practice1',
+    );
   });
 
   it('never renders a javascript: url as a link', async () => {
@@ -117,6 +121,38 @@ describe('Day briefing', () => {
     const status = practice.getAllByRole('status').find((el) => el.textContent === 'Copied');
     expect(status).toBeDefined();
     expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('keeps one persistent polite status region and announces each copy once', async () => {
+    const user = userEvent.setup();
+    open();
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn(async () => {}) },
+      configurable: true,
+    });
+    const practice = await taskCard('Mock interview');
+    const regions = practice.getAllByRole('status');
+    expect(regions).toHaveLength(1);
+    const region = regions[0]!;
+    expect(region).toHaveTextContent('');
+    expect(region).toHaveAttribute('aria-atomic', 'true');
+    await user.click(practice.getByRole('button', { name: /Copy prompt/ }));
+    // The same node is reused: nothing is mounted or unmounted to make the announcement.
+    expect(practice.getByRole('status')).toBe(region);
+    expect(region).toHaveTextContent('Copied');
+    // A second copy blanks the message briefly, then says it again once.
+    await user.click(practice.getByRole('button', { name: /Copy prompt/ }));
+    expect(region).toHaveTextContent('');
+    await waitFor(() => expect(region).toHaveTextContent('Copied'));
+  });
+
+  it('links each practice to its practice screen with "Run here"', async () => {
+    open();
+    const practice = await taskCard('Mock interview');
+    const run = practice.getByRole('link', { name: /Run here/ });
+    expect(run).toHaveAttribute('href', '/practice/practice1');
+    const course = await taskCard('Intro to SQL');
+    expect(course.queryByRole('link', { name: /Run here/ })).toBeNull();
   });
 
   it('falls back to selecting the text when the clipboard API is refused', async () => {
