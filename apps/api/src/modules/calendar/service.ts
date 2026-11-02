@@ -104,14 +104,18 @@ export function createCalendarService(options: CalendarServiceOptions) {
   }
 
   /** Turns a failure into a client answer (marking the connection when the credentials are dead). */
-  async function toHttpError(userId: string, error: unknown): Promise<Error> {
+  async function toHttpError(
+    userId: string,
+    error: unknown,
+    markConnection = true,
+  ): Promise<Error> {
     if (error instanceof HttpError) return error;
     if (error instanceof CalendarAuthError) {
-      await markNeedsReconnect(userId, error.code);
+      if (markConnection) await markNeedsReconnect(userId, error.code);
       return reconnectRequired();
     }
     if (error instanceof CalendarCryptoError) {
-      await markNeedsReconnect(userId, 'token_unreadable');
+      if (markConnection) await markNeedsReconnect(userId, 'token_unreadable');
       return reconnectRequired();
     }
     if (error instanceof CalendarRetryableError) return unavailable();
@@ -245,7 +249,8 @@ export function createCalendarService(options: CalendarServiceOptions) {
             'Google did not accept this connection attempt. Start again.',
           );
         }
-        throw await toHttpError(userId, error);
+        // No connection is stored for this token yet: nothing to flag.
+        throw await toHttpError(userId, error, false);
       }
 
       const toRevoke = tokens.refreshToken ?? tokens.accessToken;
@@ -267,10 +272,12 @@ export function createCalendarService(options: CalendarServiceOptions) {
         );
       }
 
+      let previousCiphertext: string | null | undefined;
       try {
         const existing = await db.withUser(userId, (ctx) =>
           calendarRepo.getConnection(ctx, userId),
         );
+        previousCiphertext = existing?.refresh_token_ciphertext ?? null;
         const provider = providerFor(tokens.refreshToken, tokens.accessToken);
         const calendars = await provider.listCalendars();
         // Reuse the stored calendar if the user did not delete it; otherwise make a new one.
@@ -302,7 +309,18 @@ export function createCalendarService(options: CalendarServiceOptions) {
       } catch (error) {
         // Nothing was stored for this token: do not leave a live grant behind.
         await revokeToken(oauth, tokens.refreshToken);
-        throw await toHttpError(userId, error);
+        // The failure belongs to the NEW token: an existing healthy connection stays as it is.
+        throw await toHttpError(userId, error, false);
+      }
+      // Reconnecting replaced the stored token: do not leave the old grant alive at Google.
+      // Best effort; errors are ignored and nothing about the token is logged.
+      if (previousCiphertext) {
+        try {
+          const old = crypto.decrypt(previousCiphertext, userId);
+          if (old !== tokens.refreshToken) await revokeToken(oauth, old);
+        } catch {
+          // Unreadable old token: nothing to revoke.
+        }
       }
       return view(userId);
     },

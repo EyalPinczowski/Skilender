@@ -554,6 +554,46 @@ describe.skipIf(!dbAvailable)(
         ).toHaveLength(1);
       });
 
+      it('revokes the previous refresh token after a successful reconnect', async () => {
+        const h = await asA();
+        await connected(h);
+        stub.codeGrant = () => ({
+          status: 200,
+          body: {
+            access_token: ACCESS,
+            refresh_token: 'refresh-token-plaintext-0002',
+            scope: CALENDAR_SCOPES.join(' '),
+          },
+        });
+        stub.seen.length = 0;
+        await connected(h);
+        const revoked = stub.seen
+          .filter((r) => r.path === '/revoke')
+          .map((r) => r.form.get('token'));
+        expect(revoked).toEqual([REFRESH]);
+      });
+
+      it('does not revoke anything on the first connect', async () => {
+        await connected(await asA());
+        expect(stub.seen.some((r) => r.path === '/revoke')).toBe(false);
+      });
+
+      it('leaves a healthy connection unflagged when a reconnect fails with invalid_grant', async () => {
+        const h = await asA();
+        await connected(h);
+        stub.refreshGrant = () => ({ status: 400, body: { error: 'invalid_grant' } });
+        stub.apiStatus = 401;
+        const { state } = await connect(h);
+        const res = await callback(h, state);
+        expect(res.statusCode).toBe(409);
+        expect((await call('GET', '/calendar', h)).json()).toMatchObject({
+          status: 'connected',
+          lastErrorCode: null,
+        });
+        // The new token was not left alive.
+        expect(stub.seen.some((r) => r.path === '/revoke')).toBe(true);
+      });
+
       it('clears needs_reconnect when the user reconnects', async () => {
         const h = await asA();
         await connected(h);
@@ -766,6 +806,21 @@ describe.skipIf(!dbAvailable)(
         }
         expect((await call('GET', '/calendar', h)).json().status).toBe('disconnected');
         expect(logs.join('\n')).toContain('credentials no longer work');
+      });
+
+      it('does not treat invalid_client as revoked consent: 502, no flag, data kept', async () => {
+        const h = await asA();
+        await connected(h);
+        stub.refreshGrant = () => ({ status: 401, body: { error: 'invalid_client' } });
+        stub.apiStatus = 401; // forces a refresh, which our client credentials fail
+        const res = await call('DELETE', '/calendar', h);
+        expect(res.statusCode).toBe(502);
+        expect(await count('calendar_connections')).toBe(1);
+        expect(await count('calendar_sources')).toBe(2);
+        expect((await call('GET', '/calendar', h)).json()).toMatchObject({
+          status: 'connected',
+          lastErrorCode: null,
+        });
       });
 
       it('still disconnects when the stored token is unreadable', async () => {
