@@ -1,0 +1,1066 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { APP_EVENT_SOURCE, type Block } from '@upversion/shared';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { buildApp } from '../src/app';
+import { CalendarTokenCrypto } from '../src/calendar-crypto';
+import { createDatabase, type Database } from '../src/db/database';
+import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
+import { eventIdFor } from '../src/modules/calendar/event-id';
+import { desiredBlocks } from '../src/modules/calendar/sync';
+import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
+import { testConfig } from './helpers';
+import { ISSUER, makeTestKeys, type TestKeys } from './tokens';
+
+const A = '11111111-1111-4111-8111-111111111111';
+const B = '22222222-2222-4222-8222-222222222222';
+const PLAN_A = 'a0000000-0000-4000-8000-000000000001';
+const PLAN_B = 'b0000000-0000-4000-8000-000000000001';
+const PRIMARY = 'a@example.com';
+const WORK = 'work@example.com';
+const APP_CAL = 'app-cal@group.calendar.example';
+const REFRESH = 'refresh-token-plaintext-0001';
+const APP_KEY = Buffer.alloc(32, 7);
+const crypto = new CalendarTokenCrypto([{ id: 'v1', key: APP_KEY }]);
+
+// ------------------------------------------------------------------ a small stand-in for Google
+
+type Raw = Record<string, unknown> & { id: string };
+interface Seen {
+  method: string;
+  path: string;
+  query: URLSearchParams;
+}
+
+/**
+ * Events per calendar with a change counter, so sync tokens work: a token is `tok-<counter>` and
+ * an incremental listing returns what changed after it (cancelled events included). A deleted
+ * event stays as `cancelled` with its tags, the way Google keeps it.
+ */
+class GoogleStub {
+  server!: Server;
+  base = '';
+  seen: Seen[] = [];
+  cals = new Map<string, Map<string, { raw: Raw; seq: number }>>();
+  seq = 0;
+  /** Every Calendar API call answers with this status. */
+  failWith: number | null = null;
+  /** The refresh-token grant answers invalid_grant. */
+  grantRevoked = false;
+  /** Incremental listings answer 410. */
+  tokensExpired = false;
+  /** A delete removes the event entirely (404 afterwards) instead of cancelling it. */
+  hardDelete = false;
+  pageSize = 3;
+
+  put(cal: string, raw: Raw): void {
+    if (!this.cals.has(cal)) this.cals.set(cal, new Map());
+    this.seq += 1;
+    this.cals.get(cal)!.set(raw.id, { raw: { ...raw, etag: `e${this.seq}` }, seq: this.seq });
+  }
+  get(cal: string, id: string): Raw | undefined {
+    return this.cals.get(cal)?.get(id)?.raw;
+  }
+  /** Simulates the user deleting an event in Google Calendar. */
+  userDelete(cal: string, id: string): void {
+    const cur = this.get(cal, id)!;
+    if (this.hardDelete) this.cals.get(cal)!.delete(id);
+    else this.put(cal, { ...cur, status: 'cancelled' });
+  }
+  /** Live (not cancelled) events of a calendar. */
+  live(cal: string): Raw[] {
+    return [...(this.cals.get(cal)?.values() ?? [])]
+      .map((e) => e.raw)
+      .filter((e) => e.status !== 'cancelled');
+  }
+  writes(): Seen[] {
+    return this.seen.filter(
+      (s) => s.path.includes('/events') && ['POST', 'PATCH', 'DELETE'].includes(s.method),
+    );
+  }
+  eventListings(cal: string): Seen[] {
+    return this.seen.filter(
+      (s) => s.method === 'GET' && s.path.endsWith(`/calendars/${encodeURIComponent(cal)}/events`),
+    );
+  }
+
+  start(): Promise<void> {
+    const send = (res: ServerResponse, status: number, body: unknown, headers = {}) => {
+      res.writeHead(status, { 'content-type': 'application/json', ...headers });
+      res.end(JSON.stringify(body));
+    };
+    this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const url = new URL(req.url ?? '/', 'http://stub');
+        const text = Buffer.concat(chunks).toString();
+        if (url.pathname === '/token') {
+          return this.grantRevoked
+            ? send(res, 400, { error: 'invalid_grant' })
+            : send(res, 200, { access_token: 'access-sync', expires_in: 3600 });
+        }
+        if (url.pathname === '/revoke') return send(res, 200, {});
+        this.seen.push({ method: req.method ?? '', path: url.pathname, query: url.searchParams });
+        if (this.failWith) {
+          return send(
+            res,
+            this.failWith,
+            { error: { errors: [{ reason: 'backendError' }] } },
+            {
+              'retry-after': '30',
+            },
+          );
+        }
+        const m = /^\/calendar\/v3\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/.exec(url.pathname);
+        if (!m) return send(res, 404, {});
+        const cal = decodeURIComponent(m[1]!);
+        const id = m[2] ? decodeURIComponent(m[2]) : undefined;
+        const bucket = this.cals.get(cal) ?? new Map();
+        const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+        if (req.method === 'GET' && !id) {
+          const token = url.searchParams.get('syncToken');
+          let items: { raw: Raw; seq: number }[];
+          if (token) {
+            if (this.tokensExpired) return send(res, 410, { error: { errors: [] } });
+            const after = Number(token.replace('tok-', ''));
+            items = [...bucket.values()].filter((e) => e.seq > after);
+          } else {
+            const showDeleted = url.searchParams.get('showDeleted') === 'true';
+            items = [...bucket.values()].filter((e) => showDeleted || e.raw.status !== 'cancelled');
+          }
+          const from = Number(url.searchParams.get('pageToken') ?? 0);
+          const page = items.slice(from, from + this.pageSize);
+          const more = from + this.pageSize < items.length;
+          return send(res, 200, {
+            items: page.map((e) =>
+              e.raw.status === 'cancelled' && token ? { id: e.raw.id, status: 'cancelled' } : e.raw,
+            ),
+            ...(more ? { nextPageToken: String(from + this.pageSize) } : {}),
+            ...(more ? {} : { nextSyncToken: `tok-${this.seq}` }),
+          });
+        }
+        if (req.method === 'POST' && !id) {
+          const newId = body.id as string;
+          if (bucket.has(newId)) return send(res, 409, { error: { errors: [] } });
+          this.put(cal, { status: 'confirmed', ...body, id: newId } as Raw);
+          return send(res, 200, this.get(cal, newId));
+        }
+        const found = id ? bucket.get(id) : undefined;
+        if (!found) return send(res, 404, {});
+        if (req.method === 'GET') return send(res, 200, found.raw);
+        if (req.method === 'PATCH') {
+          const ifMatch = req.headers['if-match'];
+          if (ifMatch && ifMatch !== found.raw.etag) return send(res, 412, {});
+          const tags = (body.extendedProperties as { private?: object } | undefined)?.private;
+          const prev = (found.raw.extendedProperties as { private?: object } | undefined)?.private;
+          this.put(cal, {
+            ...found.raw,
+            ...body,
+            ...(tags ? { extendedProperties: { private: { ...prev, ...tags } } } : {}),
+          } as Raw);
+          return send(res, 200, this.get(cal, id!));
+        }
+        if (req.method === 'DELETE') {
+          if (this.hardDelete) bucket.delete(id!);
+          else this.put(cal, { ...found.raw, status: 'cancelled' });
+          res.writeHead(204);
+          return res.end();
+        }
+        send(res, 404, {});
+      });
+    });
+    return new Promise((resolve) =>
+      this.server.listen(0, '127.0.0.1', () => {
+        this.base = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`;
+        resolve();
+      }),
+    );
+  }
+}
+
+// ------------------------------------------------------------------ fixtures
+
+// Plan A starts Sunday 2026-11-01, studies Sunday to Thursday, 7 h a day in 09:00-17:00 minus
+// lunch 13:00-14:00, in Jerusalem (UTC+2 in November).
+const SUN = '2026-11-01';
+const MON = '2026-11-02';
+const TUE = '2026-11-03';
+const START_CLOCK = '2026-11-01T05:00:00Z'; // Sunday 07:00 local
+const minutesLater = (d: Date, m: number) => new Date(d.getTime() + m * 60_000);
+/** A wall-clock time in Jerusalem in November, as an RFC 3339 string. */
+const L = (date: string, hhmm: string) => `${date}T${hhmm}:00+02:00`;
+const timed = (id: string, date: string, from: string, to: string, extra: object = {}): Raw => ({
+  id,
+  status: 'confirmed',
+  summary: `Title ${id}`,
+  start: { dateTime: L(date, from) },
+  end: { dateTime: L(date, to) },
+  ...extra,
+});
+
+describe('desiredBlocks', () => {
+  const tasks = new Map([
+    ['a', { title: 'Course A', open: true }],
+    ['b', { title: 'Closed', open: false }],
+  ]);
+  const blk = (taskId: string, date: string, start: string, end: string, kind = 'study'): Block =>
+    ({
+      taskId,
+      date,
+      start,
+      end,
+      minutes: Number(end.slice(0, 2)) * 60 - Number(start.slice(0, 2)) * 60,
+      kind,
+    }) as Block;
+  const base = { tasks, locked: [], today: MON, horizon: '2026-11-15', timeZone: 'Asia/Jerusalem' };
+
+  it('keys blocks as task:date:ordinal and keeps only open tasks inside the window', () => {
+    const out = desiredBlocks({
+      ...base,
+      blocks: [
+        blk('a', MON, '14:00', '17:00'),
+        blk('a', MON, '09:00', '12:00'),
+        blk('b', MON, '12:00', '13:00'),
+        blk('a', SUN, '09:00', '12:00'), // before today
+        blk('a', '2026-11-16', '09:00', '12:00'), // after the horizon
+      ],
+    });
+    expect([...out.keys()]).toEqual([`a:${MON}:0`, `a:${MON}:1`]);
+    expect(out.get(`a:${MON}:0`)!.start.toISOString()).toBe('2026-11-02T07:00:00.000Z');
+    expect(out.get(`a:${MON}:0`)!.summary).toBe('Course A');
+  });
+
+  it('does not reuse the key of a deleted or moved block', () => {
+    const lockedRow = (reason: 'moved' | 'deleted') => ({
+      block_key: `a:${MON}:0`,
+      task_id: 'a',
+      starts_at: new Date('2026-11-02T07:00:00Z'),
+      ends_at: new Date('2026-11-02T08:00:00Z'),
+      reason,
+    });
+    for (const reason of ['deleted', 'moved'] as const) {
+      const out = desiredBlocks({
+        ...base,
+        locked: [lockedRow(reason)],
+        blocks: [blk('a', MON, '14:00', '17:00')],
+      });
+      expect([...out.keys()]).toEqual([`a:${MON}:1`]);
+    }
+  });
+
+  it('gives a locked block the key of its locked row', () => {
+    const out = desiredBlocks({
+      ...base,
+      locked: [
+        {
+          block_key: `a:${MON}:3`,
+          task_id: 'a',
+          starts_at: new Date('2026-11-02T08:00:00Z'),
+          ends_at: new Date('2026-11-02T09:00:00Z'),
+          reason: 'moved',
+        },
+      ],
+      blocks: [blk('a', MON, '09:00', '12:00'), blk('a', MON, '10:00', '11:00', 'locked')],
+    });
+    expect(out.has(`a:${MON}:3`)).toBe(true);
+    expect(out.has(`a:${MON}:0`)).toBe(true);
+  });
+});
+
+describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () => {
+  let testDb: TestDb;
+  let db: Database;
+  let keys: TestKeys;
+  let google: GoogleStub;
+  let app: ReturnType<typeof buildApp>;
+  let clock: Date;
+  let logs: string[];
+
+  beforeAll(async () => {
+    testDb = await prepareDatabase();
+    keys = await makeTestKeys();
+    google = new GoogleStub();
+    await google.start();
+    db = createDatabase({ connectionString: testDb.appUrl('rnd'), appEnv: 'rnd' });
+    logs = [];
+    app = buildApp(
+      testConfig({
+        appEnv: 'rnd',
+        rateLimitPerMinute: 100_000,
+        logLevel: 'trace',
+        calendar: {
+          enabled: true,
+          tokenKeys: [{ id: 'v1', key: APP_KEY }],
+          google: {
+            clientId: 'client-id',
+            clientSecret: 'client-secret-plaintext',
+            redirectUri: 'https://app.example.test/calendar/callback',
+            apiBase: `${google.base}/calendar/v3`,
+            oauthBase: google.base,
+          },
+        },
+      }),
+      {
+        verifier: createSupabaseVerifier({ issuer: ISSUER, keys: keys.keys }),
+        db,
+        now: () => clock,
+        logStream: { write: (line) => logs.push(line) },
+      },
+    );
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await db?.close();
+    await new Promise((r) => google.server.close(r));
+  });
+
+  beforeEach(async () => {
+    clock = new Date(START_CLOCK);
+    logs.length = 0;
+    google.seen = [];
+    google.cals = new Map();
+    google.failWith = null;
+    google.grantRevoked = false;
+    google.tokensExpired = false;
+    google.hardDelete = false;
+    await testDb.admin(async (c) => {
+      await c.query('delete from rnd.app_users');
+      await c.query('delete from rnd.allowed_emails');
+      await c.query(
+        `insert into rnd.allowed_emails (email) values ('a@example.com'), ('b@example.com')`,
+      );
+      await c.query(
+        `insert into rnd.app_users (id, email) values ($1, 'a@example.com'), ($2, 'b@example.com')`,
+        [A, B],
+      );
+      await acceptCurrentLegal(c, [A, B]);
+      for (const [user, plan] of [
+        [A, PLAN_A],
+        [B, PLAN_B],
+      ] as const) {
+        await c.query(
+          `insert into rnd.plans (user_id, id, created_from, name, status, start_date, created_at)
+           values ($1, $2, 'builder', 'Plan', 'active', $3, '2026-10-30T10:00:00Z')`,
+          [user, plan, SUN],
+        );
+        await c.query(
+          `insert into rnd.week_patterns (user_id, plan_id, study_weekdays, default_hours,
+             window_start, window_end, lunch_start, lunch_end, break_minutes, timezone)
+           values ($1, $2, '{0,1,2,3,4}', 7, '09:00', '17:00', '13:00', '14:00', 0, 'Asia/Jerusalem')`,
+          [user, plan],
+        );
+        await c.query(
+          `insert into rnd.tasks (user_id, plan_id, id, title, type, est_hours, sort_order)
+           values ($1, $2, 'big', 'Big course', 'course', 20, 0),
+                  ($1, $2, 'lk', 'Second task', 'course', 3, 1)`,
+          [user, plan],
+        );
+        await c.query(
+          `insert into rnd.calendar_connections (user_id, app_calendar_id, status, refresh_token_ciphertext)
+           values ($1, $2, 'connected', $3)`,
+          [user, APP_CAL, crypto.encrypt(REFRESH, user)],
+        );
+        await c.query(
+          `insert into rnd.calendar_sources (user_id, calendar_id, name, blocks_time)
+           values ($1, $2, 'Personal', true), ($1, $3, 'Work', false)`,
+          [user, PRIMARY, WORK],
+        );
+      }
+    });
+  });
+
+  afterEach(() => {
+    // Whatever happened, no token and no event title may have reached the logs.
+    const all = logs.join('\n');
+    for (const secret of [
+      REFRESH,
+      'access-sync',
+      'client-secret-plaintext',
+      'Title ',
+      'Big course',
+    ]) {
+      expect(all).not.toContain(secret);
+    }
+  });
+
+  const asUser = async (sub: string) => ({
+    authorization: `Bearer ${await keys.sign({ sub, email: sub === A ? 'a@example.com' : 'b@example.com' })}`,
+  });
+  const sync = async (body: object | undefined = {}, user = A) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/v1/calendar/sync',
+      headers: await asUser(user),
+      ...(body ? { payload: body } : {}),
+    });
+  /** Moves the clock past the throttle, then syncs. */
+  const syncAgain = async (body?: object) => {
+    clock = minutesLater(clock, 6);
+    return sync(body);
+  };
+  const rows = <R = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
+    testDb.admin(async (c) => (await c.query(sql, params)).rows as R[]);
+  const schedule = async (): Promise<{ blocks: Block[] }> => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/plans/${PLAN_A}/schedule`,
+      headers: await asUser(A),
+    });
+    expect(res.statusCode).toBe(200);
+    return res.json();
+  };
+  const busy = (user = A) =>
+    rows<{
+      date: string;
+      external_event_id: string;
+      start_minute: number;
+      end_minute: number;
+      title: string;
+      kind: string;
+      blocks_day: boolean;
+      source_calendar_id: string;
+    }>(
+      `select date::text, external_event_id, start_minute, end_minute, title, kind, blocks_day,
+              source_calendar_id from rnd.calendar_busy where user_id = $1
+       order by date, external_event_id`,
+      [user],
+    );
+  const links = (user = A) =>
+    rows<{
+      plan_id: string;
+      block_key: string;
+      task_id: string;
+      event_id: string;
+      last_start: Date;
+      last_end: Date;
+      generation: number;
+    }>(
+      `select plan_id, block_key, task_id, event_id, last_start, last_end, generation
+       from rnd.calendar_event_links where user_id = $1 order by block_key`,
+      [user],
+    );
+  const locked = (user = A) =>
+    rows<{ block_key: string; task_id: string; starts_at: Date; ends_at: Date; reason: string }>(
+      `select block_key, task_id, starts_at, ends_at, reason from rnd.calendar_locked_blocks
+       where user_id = $1 order by block_key`,
+      [user],
+    );
+  const connection = async (user = A) =>
+    (
+      await rows<{
+        status: string;
+        last_synced_at: Date | null;
+        last_error_code: string | null;
+        sync_timezone: string | null;
+      }>(
+        'select status, last_synced_at, last_error_code, sync_timezone from rnd.calendar_connections where user_id = $1',
+        [user],
+      )
+    )[0]!;
+  const sourceRow = async (cal = PRIMARY) =>
+    (
+      await rows<{ sync_token: string | null; window_end: string | null }>(
+        `select sync_token, window_end::text from rnd.calendar_sources where user_id = $1 and calendar_id = $2`,
+        [A, cal],
+      )
+    )[0]!;
+  const startOf = (e: Raw) => Date.parse((e.start as { dateTime: string }).dateTime);
+  const endOf = (e: Raw) => Date.parse((e.end as { dateTime: string }).dateTime);
+  const tagsOf = (e: Raw) => (e.extendedProperties as { private: Record<string, string> }).private;
+
+  // -------------------------------------------------------------------------- read side
+
+  describe('reading busy time', () => {
+    beforeEach(() => {
+      google.put(
+        PRIMARY,
+        timed('meet1', MON, '11:00', '12:00', {
+          description: 'secret-description',
+          location: 'secret-location',
+          attendees: [{ email: 'guest@example.com', self: true, responseStatus: 'accepted' }],
+        }),
+      );
+      google.put(
+        PRIMARY,
+        timed('tent', MON, '15:00', '16:00', {
+          organizer: { self: false },
+          attendees: [{ self: true, responseStatus: 'tentative' }],
+        }),
+      );
+      google.put(PRIMARY, timed('free1', MON, '09:00', '10:00', { transparency: 'transparent' }));
+      google.put(
+        PRIMARY,
+        timed('dec', MON, '10:00', '11:00', {
+          organizer: { self: false },
+          attendees: [{ self: true, responseStatus: 'declined' }],
+        }),
+      );
+      google.put(
+        PRIMARY,
+        timed('own', MON, '14:00', '15:00', {
+          extendedProperties: { private: { source: APP_EVENT_SOURCE, task_id: 'big' } },
+        }),
+      );
+      google.put(PRIMARY, {
+        id: 'bday',
+        status: 'confirmed',
+        summary: 'Holiday',
+        start: { date: TUE },
+        end: { date: '2026-11-04' },
+      });
+      google.put(WORK, timed('work1', MON, '09:00', '10:00'));
+    });
+
+    it('classifies events into calendar_busy and excludes ours, free and declined ones', async () => {
+      const res = await sync();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ status: 'synced', finishChanged: expect.any(Boolean) });
+      const rowsNow = await busy();
+      expect(
+        rowsNow.map((r) => [r.external_event_id, r.kind, r.start_minute, r.end_minute]),
+      ).toEqual([
+        ['meet1', 'busy', 660, 720],
+        ['tent', 'tentative', 900, 960],
+        ['bday', 'all_day', 0, 1440],
+      ]);
+      expect(rowsNow.every((r) => r.source_calendar_id === PRIMARY)).toBe(true);
+      expect(rowsNow.find((r) => r.external_event_id === 'bday')!.blocks_day).toBe(false);
+      // Title and times only: nothing from the description, location or attendees is stored.
+      const dump = JSON.stringify(await rows('select * from rnd.calendar_busy'));
+      for (const secret of ['secret-description', 'secret-location', 'guest@example.com']) {
+        expect(dump).not.toContain(secret);
+      }
+      expect(rowsNow.find((r) => r.external_event_id === 'meet1')!.title).toBe('Title meet1');
+    });
+
+    it('subtracts busy time from the schedule', async () => {
+      await sync();
+      const monday = (await schedule()).blocks.filter((b) => b.date === MON);
+      expect(monday.length).toBeGreaterThan(0);
+      for (const b of monday) {
+        expect(b.start < '12:00' && '11:00' < b.end).toBe(false);
+      }
+    });
+
+    it('reads only sources that block time, and deletes rows when blocks_time is turned off', async () => {
+      await sync();
+      expect(google.eventListings(WORK)).toHaveLength(0);
+      expect((await busy()).some((r) => r.source_calendar_id === WORK)).toBe(false);
+
+      const put = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/calendar/sources',
+        headers: await asUser(A),
+        payload: { sources: [{ calendarId: PRIMARY, blocksTime: false }] },
+      });
+      expect(put.statusCode).toBe(200);
+      await syncAgain();
+      expect(await busy()).toEqual([]);
+      expect((await sourceRow()).sync_token).toBeNull();
+    });
+
+    it('uses the stored sync token afterwards and does a full listing again on 410', async () => {
+      await sync();
+      const token = (await sourceRow()).sync_token;
+      expect(token).toMatch(/^tok-/);
+      const first = google.eventListings(PRIMARY);
+      expect(first.length).toBeGreaterThan(1); // paged
+      expect(first[0]!.query.get('timeMin')).not.toBeNull();
+      expect(first[0]!.query.get('singleEvents')).toBe('true');
+
+      // Changes since the token: one event added, one cancelled.
+      google.put(PRIMARY, timed('meet2', MON, '16:00', '16:30'));
+      google.userDelete(PRIMARY, 'meet1');
+      google.seen = [];
+      await syncAgain();
+      const second = google.eventListings(PRIMARY);
+      expect(second).toHaveLength(1);
+      expect(second[0]!.query.get('syncToken')).toBe(token);
+      expect(second[0]!.query.get('timeMin')).toBeNull();
+      const ids = (await busy()).map((r) => r.external_event_id).sort();
+      expect(ids).toEqual(['bday', 'meet2', 'tent']);
+
+      // The token expires: the next sync falls back to a full listing and the rows stay right.
+      google.tokensExpired = true;
+      google.put(PRIMARY, timed('meet3', MON, '16:30', '17:00'));
+      google.seen = [];
+      await syncAgain();
+      const third = google.eventListings(PRIMARY);
+      expect(third[0]!.query.get('syncToken')).not.toBeNull(); // tried the token first
+      expect(third.slice(1).every((s) => s.query.get('syncToken') === null)).toBe(true);
+      expect(third.length).toBeGreaterThan(1);
+      expect((await busy()).map((r) => r.external_event_id).sort()).toEqual([
+        'bday',
+        'meet2',
+        'meet3',
+        'tent',
+      ]);
+    });
+
+    it('keeps the all-day events the user marked as blocking when rows are replaced', async () => {
+      await sync();
+      await rows(`update rnd.calendar_busy set blocks_day = true where external_event_id = 'bday'`);
+      google.tokensExpired = true; // forces a full replacement
+      await syncAgain();
+      expect((await busy()).find((r) => r.external_event_id === 'bday')!.blocks_day).toBe(true);
+      // And the day is off in the schedule.
+      expect((await schedule()).blocks.some((b) => b.date === TUE)).toBe(false);
+    });
+
+    it('clears busy rows and reads again when the plan time zone changed', async () => {
+      await sync();
+      expect((await busy())[0]!.start_minute).toBe(660);
+      expect((await connection()).sync_timezone).toBe('Asia/Jerusalem');
+      await rows(`update rnd.week_patterns set timezone = 'Asia/Tokyo' where user_id = $1`, [A]);
+      google.seen = [];
+      await syncAgain();
+      const listings = google.eventListings(PRIMARY);
+      expect(listings[0]!.query.get('syncToken')).toBeNull(); // a full listing, not a delta
+      // 11:00 in Jerusalem is 18:00 in Tokyo.
+      const meet = (await busy()).find((r) => r.external_event_id === 'meet1')!;
+      expect(meet.start_minute).toBe(18 * 60);
+      expect((await connection()).sync_timezone).toBe('Asia/Tokyo');
+    });
+  });
+
+  // -------------------------------------------------------------------------- write side
+
+  describe('writing study blocks to the app calendar', () => {
+    it('creates one tagged event per planned block, with no description', async () => {
+      await sync();
+      const sched = (await schedule()).blocks.filter(
+        (b) => b.date >= SUN && b.date <= '2026-11-14',
+      );
+      const events = google.live(APP_CAL);
+      expect(events).toHaveLength(sched.length);
+      expect(events.length).toBeGreaterThan(0);
+      for (const e of events) {
+        expect(tagsOf(e)).toMatchObject({ source: APP_EVENT_SOURCE });
+        expect(['big', 'lk']).toContain(tagsOf(e).task_id);
+        expect(e.description).toBeUndefined();
+        expect(['Big course', 'Second task']).toContain(e.summary);
+      }
+      const l = await links();
+      expect(l).toHaveLength(events.length);
+      const first = l.find((x) => x.block_key === `big:${SUN}:0`)!;
+      expect(first.event_id).toBe(eventIdFor(`${PLAN_A}:big:${SUN}:0:1`));
+      expect(google.get(APP_CAL, first.event_id)).toBeDefined();
+    });
+
+    it('makes no duplicates and no writes on later syncs', async () => {
+      await sync();
+      const before = google.live(APP_CAL).length;
+      google.seen = [];
+      await syncAgain();
+      await syncAgain();
+      expect(google.live(APP_CAL)).toHaveLength(before);
+      expect(google.writes()).toEqual([]);
+      expect(await links()).toHaveLength(before);
+    });
+
+    it('finishes a retried insert (the event landed, the link did not): same task, no duplicate', async () => {
+      const key = `big:${SUN}:0`;
+      const id = eventIdFor(`${PLAN_A}:${key}:1`);
+      google.put(
+        APP_CAL,
+        timed(id, SUN, '08:00', '08:30', {
+          extendedProperties: { private: { source: APP_EVENT_SOURCE, task_id: 'big' } },
+        }),
+      );
+      const res = await sync();
+      expect(res.statusCode).toBe(200);
+      expect(google.live(APP_CAL).filter((e) => e.id === id)).toHaveLength(1);
+      const ev = google.get(APP_CAL, id)!;
+      expect(startOf(ev)).toBe(Date.parse(L(SUN, '09:00'))); // brought to the planned time
+      expect((await links()).find((x) => x.block_key === key)!.event_id).toBe(id);
+    });
+
+    it('never writes events in the past', async () => {
+      clock = new Date('2026-11-01T11:00:00Z'); // Sunday 13:00 local
+      await sync();
+      expect(google.live(APP_CAL).length).toBeGreaterThan(0);
+      for (const e of google.live(APP_CAL)) expect(endOf(e)).toBeGreaterThan(clock.getTime());
+    });
+
+    it('patches an event only when its time or title changed', async () => {
+      await sync();
+      google.seen = [];
+      await rows(`update rnd.tasks set title = 'Renamed' where id = 'big'`);
+      await syncAgain();
+      const writes = google.writes();
+      expect(writes.length).toBeGreaterThan(0);
+      expect(writes.every((w) => w.method === 'PATCH')).toBe(true);
+      expect(google.live(APP_CAL).filter((e) => e.summary === 'Renamed').length).toBe(
+        (await links()).filter((x) => x.task_id === 'big').length,
+      );
+    });
+
+    it('deletes events whose block no longer exists', async () => {
+      await sync();
+      const bigBefore = (await links()).filter((x) => x.task_id === 'big');
+      expect(bigBefore.length).toBeGreaterThan(0);
+      await rows(`update rnd.tasks set status = 'done' where id = 'big'`);
+      await syncAgain();
+      expect((await links()).filter((x) => x.task_id === 'big')).toEqual([]);
+      expect(google.live(APP_CAL).some((e) => tagsOf(e).task_id === 'big')).toBe(false);
+    });
+
+    it('never modifies or deletes a foreign event', async () => {
+      // A foreign (untagged) event sits where one of our ids would go, and a stale link points at
+      // another foreign event.
+      const taken = eventIdFor(`${PLAN_A}:big:${SUN}:0:1`);
+      google.put(APP_CAL, timed(taken, SUN, '09:00', '10:00', { summary: 'Not ours' }));
+      google.put(APP_CAL, timed('foreignevent1', MON, '09:00', '10:00', { summary: 'Not ours 2' }));
+      await rows(
+        `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+         values ($1, $2, 'gone:2026-11-02:0', 'gone', 'foreignevent1', $3, $4)`,
+        [A, PLAN_A, L(MON, '09:00'), L(MON, '10:00')],
+      );
+      const res = await sync();
+      expect(res.statusCode).toBe(200);
+      expect(google.get(APP_CAL, taken)!.summary).toBe('Not ours');
+      expect(google.get(APP_CAL, 'foreignevent1')!.summary).toBe('Not ours 2');
+      expect(google.get(APP_CAL, 'foreignevent1')!.status).toBe('confirmed');
+      const touched = google
+        .writes()
+        .filter(
+          (w) => w.path.endsWith(`/events/${taken}`) || w.path.endsWith('/events/foreignevent1'),
+        );
+      expect(touched).toEqual([]);
+      // Our block still got an event, under the next generation of its id.
+      const l = (await links()).find((x) => x.block_key === `big:${SUN}:0`)!;
+      expect(l.generation).toBe(2);
+      expect(l.event_id).toBe(eventIdFor(`${PLAN_A}:big:${SUN}:0:2`));
+    });
+  });
+
+  // -------------------------------------------------------------------------- user edits
+
+  describe('edits made in Google Calendar', () => {
+    const firstMondayEvent = async () => {
+      const l = (await links()).filter((x) => x.block_key.startsWith(`big:${MON}:`));
+      return l[0]!;
+    };
+
+    it('locks a block the user moved and plans around it', async () => {
+      await sync();
+      const link = await firstMondayEvent();
+      const ev = google.get(APP_CAL, link.event_id)!;
+      const shifted = 60 * 60_000;
+      google.put(APP_CAL, {
+        ...ev,
+        start: { dateTime: new Date(startOf(ev) + shifted).toISOString() },
+        end: { dateTime: new Date(endOf(ev) + shifted).toISOString() },
+      });
+      const moved = { start: startOf(ev) + shifted, end: endOf(ev) + shifted };
+
+      expect((await syncAgain()).statusCode).toBe(200);
+      const [lock] = await locked();
+      expect(lock).toMatchObject({ reason: 'moved', task_id: 'big', block_key: link.block_key });
+      expect(lock!.starts_at.getTime()).toBe(moved.start);
+      expect(lock!.ends_at.getTime()).toBe(moved.end);
+      // The link follows the user's time, and Google's event stays where the user put it.
+      expect(
+        (await links()).find((x) => x.block_key === link.block_key)!.last_start.getTime(),
+      ).toBe(moved.start);
+      expect(startOf(google.get(APP_CAL, link.event_id)!)).toBe(moved.start);
+      // The scheduler now holds a locked block at the user's time.
+      const lockedBlocks = (await schedule()).blocks.filter((b) => b.kind === 'locked');
+      expect(lockedBlocks).toHaveLength(1);
+      expect(lockedBlocks[0]).toMatchObject({ taskId: 'big', date: MON, start: '10:00' });
+
+      // Stable afterwards: nothing is written, nothing new is locked.
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
+      expect(await locked()).toHaveLength(1);
+    });
+
+    for (const hard of [false, true]) {
+      it(`treats a deleted block (${hard ? 'gone' : 'cancelled'}) as unavailable time and reschedules around it`, async () => {
+        await sync();
+        const link = (await links()).filter((x) => x.block_key.startsWith(`big:${TUE}:`))[0]!;
+        const slot = { start: link.last_start.getTime(), end: link.last_end.getTime() };
+        const hoursBefore = (await schedule()).blocks
+          .filter((b) => b.taskId === 'big')
+          .reduce((s, b) => s + b.minutes, 0);
+        google.hardDelete = hard;
+        google.userDelete(APP_CAL, link.event_id);
+
+        expect((await syncAgain()).statusCode).toBe(200);
+        const [lock] = await locked();
+        expect(lock).toMatchObject({
+          reason: 'deleted',
+          task_id: 'big',
+          block_key: link.block_key,
+        });
+        expect(lock!.starts_at.getTime()).toBe(slot.start);
+        expect((await links()).some((x) => x.block_key === link.block_key)).toBe(false);
+
+        // No block of any task in that slot, and the task still gets all its hours.
+        const after = (await schedule()).blocks;
+        const startMin = new Date(slot.start).getUTCHours() * 60 + 120; // local = UTC+2
+        const endMin = startMin + (slot.end - slot.start) / 60_000;
+        const clash = after.filter(
+          (b) =>
+            b.date === TUE &&
+            Number(b.start.slice(0, 2)) * 60 + Number(b.start.slice(3)) < endMin &&
+            startMin < Number(b.end.slice(0, 2)) * 60 + Number(b.end.slice(3)),
+        );
+        expect(clash).toEqual([]);
+        expect(after.filter((b) => b.taskId === 'big').reduce((s, b) => s + b.minutes, 0)).toBe(
+          hoursBefore,
+        );
+        // The deleted event is not recreated in its old slot.
+        expect(
+          google.live(APP_CAL).some((e) => startOf(e) === slot.start && endOf(e) === slot.end),
+        ).toBe(false);
+      });
+    }
+
+    it('removes a deleted-block lock when its task is done', async () => {
+      await sync();
+      const link = (await links()).filter((x) => x.block_key.startsWith(`big:${TUE}:`))[0]!;
+      google.userDelete(APP_CAL, link.event_id);
+      await syncAgain();
+      expect(await locked()).toHaveLength(1);
+      await rows(`update rnd.tasks set status = 'done' where id = 'big'`);
+      await syncAgain();
+      expect(await locked()).toEqual([]);
+    });
+  });
+
+  // -------------------------------------------------------------------------- triggers
+
+  describe('triggers and the throttle', () => {
+    it('answers within five minutes from stored data without calling Google', async () => {
+      const first = await sync();
+      expect(first.json().status).toBe('synced');
+      const syncedAt = first.json().syncedAt;
+      google.seen = [];
+
+      clock = minutesLater(clock, 2);
+      const second = await sync();
+      expect(second.statusCode).toBe(200);
+      expect(second.json()).toMatchObject({ status: 'cached', syncedAt });
+      expect(second.json()).toHaveProperty('movedTaskIds');
+      expect(second.json()).toHaveProperty('finishChanged');
+      expect(typeof second.json().text).toBe('string');
+      expect(google.seen).toEqual([]);
+
+      // force works after a minute, not before.
+      clock = minutesLater(new Date(syncedAt), 0.5);
+      expect((await sync({ force: true })).json().status).toBe('cached');
+      clock = minutesLater(new Date(syncedAt), 2);
+      expect((await sync({ force: true })).json().status).toBe('synced');
+      expect(google.seen.length).toBeGreaterThan(0);
+    });
+
+    it('accepts a request with no body at all', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/calendar/sync',
+        headers: await asUser(A),
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('rejects unknown body fields (never a user id) and needs a signed-in user', async () => {
+      expect((await sync({ userId: B })).statusCode).toBe(400);
+      expect((await sync({ force: 'yes' })).statusCode).toBe(400);
+      const anon = await app.inject({ method: 'POST', url: '/api/v1/calendar/sync' });
+      expect(anon.statusCode).toBe(401);
+    });
+
+    it('answers 409 calendar_not_connected without a connection', async () => {
+      await rows('delete from rnd.calendar_connections where user_id = $1', [A]);
+      const res = await sync();
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('calendar_not_connected');
+    });
+
+    it('answers 409 sync_in_progress when a sync is already running for the user', async () => {
+      google.pageSize = 1;
+      google.put(PRIMARY, timed('m1', MON, '11:00', '12:00'));
+      const [a, b] = await Promise.all([sync(), sync()]);
+      google.pageSize = 3;
+      const codes = [a.statusCode, b.statusCode].sort();
+      // The second request either finds the first still running (409) or, if the first finished
+      // already, is answered from the throttle (200).
+      expect(codes[0]).toBe(200);
+      if (codes[1] === 409) {
+        const loser = a.statusCode === 409 ? a : b;
+        expect(loser.json().error.code).toBe('sync_in_progress');
+      }
+      expect(google.live(APP_CAL).length).toBe((await links()).length); // never doubled
+    });
+
+    it('syncs in the background after a saved reschedule, which commits first', async () => {
+      await sync();
+      const before = google.live(APP_CAL).length;
+      google.seen = [];
+      clock = minutesLater(clock, 1);
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/day-overrides/${MON}`,
+        headers: await asUser(A),
+        payload: { isStudyDay: false },
+      });
+      expect(res.statusCode).toBe(200);
+      // Saved already; the events catch up in the background: none is left on the day off.
+      const onMonday = () =>
+        google.live(APP_CAL).filter((e) => new Date(startOf(e)).toISOString().startsWith(MON));
+      expect(before).toBeGreaterThan(0);
+      await waitFor(async () => expect(onMonday()).toEqual([]));
+      // Reads were not repeated for a reschedule.
+      expect(google.eventListings(PRIMARY)).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------- errors
+
+  describe('errors', () => {
+    it('flags the connection when Google rejects the credentials and leaves all data alone', async () => {
+      google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
+      await sync();
+      const busyBefore = await busy();
+      const linksBefore = await links();
+      expect(busyBefore.length).toBeGreaterThan(0);
+
+      google.grantRevoked = true;
+      const res = await syncAgain();
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('calendar_reconnect_required');
+      expect((await connection()).status).toBe('needs_reconnect');
+      expect(await busy()).toEqual(busyBefore);
+      expect(await links()).toEqual(linksBefore);
+
+      // A later call answers the same without calling Google.
+      google.seen = [];
+      const again = await syncAgain();
+      expect(again.statusCode).toBe(409);
+      expect(google.seen).toEqual([]);
+    });
+
+    it('answers 503 with Retry-After when Google cannot be reached, keeps data, and the schedule still works', async () => {
+      google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
+      await sync();
+      const busyBefore = await busy();
+      const linksBefore = await links();
+
+      google.failWith = 503;
+      const res = await syncAgain();
+      expect(res.statusCode).toBe(503);
+      expect(res.headers['retry-after']).toBeDefined();
+      expect(res.json().error.code).toBe('calendar_unavailable');
+      expect((await connection()).last_error_code).toBe('unavailable');
+      expect(await busy()).toEqual(busyBefore);
+      expect(await links()).toEqual(linksBefore);
+
+      // A reschedule still saves and the schedule still reads, with Google down.
+      const save = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/day-overrides/${TUE}`,
+        headers: await asUser(A),
+        payload: { isStudyDay: true, capacityHours: 2 },
+      });
+      expect(save.statusCode).toBe(200);
+      expect((await schedule()).blocks.length).toBeGreaterThan(0);
+      // The failed background sync was logged without any event data.
+      await new Promise((r) => setTimeout(r, 100));
+      expect(logs.join('\n')).not.toContain('Title ');
+    });
+
+    it('records a short code and changes nothing on an unexpected Google answer', async () => {
+      await sync();
+      const linksBefore = await links();
+      google.failWith = 400;
+      const res = await syncAgain();
+      expect(res.statusCode).toBe(502);
+      expect((await connection()).last_error_code).toBe('google_error');
+      expect(await links()).toEqual(linksBefore);
+    });
+  });
+
+  // -------------------------------------------------------------------------- plan delete
+
+  describe('deleting a plan', () => {
+    it('removes the plan’s events from Google first', async () => {
+      await sync();
+      expect(google.live(APP_CAL).length).toBeGreaterThan(0);
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/plans/${PLAN_A}`,
+        headers: await asUser(A),
+      });
+      expect(res.statusCode).toBe(204);
+      expect(google.live(APP_CAL)).toEqual([]);
+      expect(await links()).toEqual([]);
+    });
+
+    it('still deletes the plan when Google is down', async () => {
+      await sync();
+      google.failWith = 503;
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/plans/${PLAN_A}`,
+        headers: await asUser(A),
+      });
+      expect(res.statusCode).toBe(204);
+      expect(await rows('select 1 from rnd.plans where id = $1', [PLAN_A])).toEqual([]);
+    });
+  });
+
+  // -------------------------------------------------------------------------- isolation
+
+  describe('isolation between users', () => {
+    it('never touches another user’s calendar rows', async () => {
+      google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
+      // User B has rows of every kind.
+      await rows(
+        `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, title, kind)
+         values ($1, '2026-11-02', 'b-event', $2, 600, 660, 'B private', 'busy')`,
+        [B, PRIMARY],
+      );
+      await rows(
+        `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
+         values ($1, $2, 'big:2026-11-02:0', 'big', '2026-11-02T08:00:00Z', '2026-11-02T09:00:00Z', 'moved')`,
+        [B, PLAN_B],
+      );
+      const snapshot = async () => ({
+        busy: await busy(B),
+        links: await links(B),
+        locked: await locked(B),
+        conn: await connection(B),
+        source: await rows(
+          'select * from rnd.calendar_sources where user_id = $1 order by calendar_id',
+          [B],
+        ),
+      });
+      const before = await snapshot();
+      expect((await sync()).statusCode).toBe(200);
+      expect(await snapshot()).toEqual(before);
+      // A's own data did get written.
+      expect((await busy(A)).length).toBeGreaterThan(0);
+      expect((await links(A)).every((l) => l.plan_id === PLAN_A)).toBe(true);
+    });
+  });
+});
+
+/** Polls until the assertion passes (the background sync has no completion signal). */
+async function waitFor(check: () => Promise<void>, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await check();
+      return;
+    } catch (error) {
+      if (Date.now() > deadline) throw error;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+}

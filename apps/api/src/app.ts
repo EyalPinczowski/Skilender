@@ -36,6 +36,9 @@ import {
 } from './modules/accounts/token-verifier';
 import { calendarRoutes } from './modules/calendar/routes';
 import { createCalendarService } from './modules/calendar/service';
+import { createCalendarSync, type CalendarSync } from './modules/calendar/sync';
+import { createDaysService } from './modules/days/service';
+import { createSchedulingService } from './modules/scheduling/service';
 import { createDatabaseProbe } from './modules/health/probe';
 import { healthRoutes } from './modules/health/routes';
 import { planRoutes } from './modules/plans/routes';
@@ -66,6 +69,14 @@ const unavailableAIUsage: AIUsageStore = {
 };
 
 const HEALTH_URL = '/api/v1/health';
+
+/**
+ * Routes whose success changes the schedule (and so the events in the app calendar): week
+ * pattern, day overrides, task edits, logs, completion, skips, day start/end and accepted
+ * adjustments. Everything else (reads, practice, reviews' notes) leaves the calendar alone.
+ */
+const RESCHEDULING_ROUTE =
+  /^\/api\/v1\/plans\/:(?:id|planId)\/(?:week-pattern$|day-overrides\/|tasks\/|days\/:date\/end$|suggestions\/:id\/accept$|practice\/sessions\/:sessionId\/finish$)/;
 
 /** A plugin that shares the root scope, so its hooks apply to every route (like fastify-plugin). */
 const sharedScope = (fn: (instance: FastifyInstance) => void) =>
@@ -237,6 +248,34 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
         })
       : null;
 
+  // The sync engine reuses the scheduling service, so the schedule it mirrors is the one the
+  // user sees (calendar inputs included). It is a separate instance; both are stateless.
+  const calendarSync: CalendarSync | null =
+    calendarService && db
+      ? createCalendarSync({
+          db,
+          crypto: new CalendarTokenCrypto(config.calendar.tokenKeys),
+          providerFor: (token) => calendarService.providerFor(token),
+          markNeedsReconnect: (userId, code) => calendarService.markNeedsReconnect(userId, code),
+          scheduling: createSchedulingService(db, createDaysService(db, deps.now)),
+          log: app.log,
+          now: deps.now,
+        })
+      : null;
+
+  if (calendarSync) {
+    // After every saved reschedule (plan settings, day overrides, task edits and progress, day
+    // end, accepted adjustments): the response has been sent and the change committed, so the
+    // sync runs after it, in the background, and can never fail or delay the save.
+    app.addHook('onResponse', async (request, reply) => {
+      if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')
+        return;
+      if (reply.statusCode < 200 || reply.statusCode >= 300) return;
+      if (!request.accountId || !RESCHEDULING_ROUTE.test(request.routeOptions.url ?? '')) return;
+      calendarSync.afterReschedule(request.accountId);
+    });
+  }
+
   app.register(
     async (v1) => {
       v1.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
@@ -250,12 +289,20 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
           : undefined,
       });
       if (config.calendar.enabled) {
-        v1.register(calendarRoutes, { verifier, db, service: calendarService });
+        v1.register(calendarRoutes, {
+          verifier,
+          db,
+          service: calendarService,
+          sync: calendarSync,
+        });
       }
       v1.register(planRoutes, {
         verifier,
         db,
         now: deps.now,
+        beforePlanDelete: calendarSync
+          ? (userId, planId) => calendarSync.deletePlanEvents(userId, planId)
+          : undefined,
         chat: {
           gateway: aiGateway,
           usage: aiUsage,

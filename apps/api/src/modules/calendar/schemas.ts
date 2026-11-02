@@ -40,3 +40,22 @@ export const updateSourcesBody = noNulCharacters(
       .max(200),
   }),
 );
+
+/** Strict and optional: an empty body (or none) is a normal sync; `userId` or anything else is rejected. */
+export const syncBody = noNulCharacters(
+  z.strictObject({
+    /** Skip the five-minute throttle (still at most once a minute). */
+    force: z.boolean().optional(),
+  }),
+);
+
+export const syncView = z.object({
+  /** `cached`: synced within the last five minutes, so Google was not called. */
+  status: z.enum(['synced', 'cached']),
+  syncedAt: z.iso.datetime().nullable(),
+  /** Tasks whose blocks moved because of the calendar (busy events, day-offs, locked blocks). */
+  movedTaskIds: z.array(z.string()),
+  finishChanged: z.boolean(),
+  /** Plain-English change summary to show the user. */
+  text: z.string(),
+});

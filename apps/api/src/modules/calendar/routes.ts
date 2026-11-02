@@ -6,8 +6,16 @@ import { errorResponseSchema } from '../../errors';
 import { installAccountGuard } from '../accounts/guard';
 import { createAccountService } from '../accounts/service';
 import type { TokenVerifier } from '../accounts/token-verifier';
-import { callbackBody, calendarView, connectView, updateSourcesBody } from './schemas';
+import {
+  callbackBody,
+  calendarView,
+  connectView,
+  syncBody,
+  syncView,
+  updateSourcesBody,
+} from './schemas';
 import type { CalendarService } from './service';
+import type { CalendarSync } from './sync';
 
 export interface CalendarRoutesOptions {
   verifier: TokenVerifier;
@@ -15,6 +23,8 @@ export interface CalendarRoutesOptions {
   db: Database | null;
   /** Null together with `db`. */
   service: CalendarService | null;
+  /** Null together with `db`. */
+  sync: CalendarSync | null;
 }
 
 const errors = {
@@ -35,7 +45,7 @@ const tags = ['calendar'];
  */
 export const calendarRoutes: FastifyPluginAsyncZod<CalendarRoutesOptions> = async (
   app,
-  { verifier, db, service },
+  { verifier, db, service, sync },
 ) => {
   installAccountGuard(app, verifier, db ? createAccountService(db) : null);
   const user = (request: FastifyRequest) => request.accountId!;
@@ -97,6 +107,22 @@ export const calendarRoutes: FastifyPluginAsyncZod<CalendarRoutesOptions> = asyn
       },
     },
     async (request) => service!.setSources(user(request), request.body.sources),
+  );
+
+  app.post(
+    '/calendar/sync',
+    {
+      schema: {
+        tags,
+        summary: 'Sync the calendar now (also called when the app opens)',
+        description:
+          'Reads busy time from the calendars that block time, mirrors the next 14 days of planned blocks into the app calendar, picks up blocks the user moved or deleted there (they become fixed decisions the schedule plans around) and returns what the calendar changed in the plan. Within 5 minutes of the last sync the stored result is returned without calling Google (`status: cached`); `force` skips that but is honoured at most once a minute. 409 `sync_in_progress` when a sync is already running, 409 `calendar_reconnect_required` when Google no longer accepts the connection (nothing is changed), 503 with `Retry-After` when Google cannot be reached (nothing is changed). The schedule works without any of this.',
+        security,
+        body: syncBody.nullish(),
+        response: { 200: syncView, 503: errorResponseSchema, ...errors },
+      },
+    },
+    async (request) => sync!.syncNow(user(request), { force: request.body?.force === true }),
   );
 
   app.delete(

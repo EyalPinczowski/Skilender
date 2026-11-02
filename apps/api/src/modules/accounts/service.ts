@@ -79,7 +79,12 @@ export const EXPORT_SECTIONS = {
   calendarEventLinks: { table: 'calendar_event_links', order: 'plan_id, block_key' },
   calendarLockedBlocks: { table: 'calendar_locked_blocks', order: 'plan_id, block_key' },
   calendarBusy: { table: 'calendar_busy', order: 'date, external_event_id' },
-  calendarSources: { table: 'calendar_sources', order: 'calendar_id' },
+  // The sync token is bookkeeping, not the user's data.
+  calendarSources: {
+    table: 'calendar_sources',
+    order: 'calendar_id',
+    columns: 'user_id, calendar_id, name, blocks_time',
+  },
 } as const;
 
 /**
