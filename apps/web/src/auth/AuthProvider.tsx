@@ -1,3 +1,4 @@
+import { clearStoredSessions } from '../pages/practice/session-store';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
@@ -43,6 +44,7 @@ export function AuthProvider({ service, children }: { service: AuthService; chil
       // A different person (or nobody) now: nothing cached for the previous one may stay.
       if (lastUserId.current !== null && lastUserId.current !== (session?.userId ?? null)) {
         queryClient.clear();
+        clearStoredSessions();
       }
       lastUserId.current = session?.userId ?? null;
       if (session) setNotice(null);
@@ -60,6 +62,7 @@ export function AuthProvider({ service, children }: { service: AuthService; chil
     async (scope: SignOutScope = 'local', next?: AuthNotice) => {
       await service.signOut(scope);
       queryClient.clear();
+      clearStoredSessions();
       setNotice(next ?? null);
       lastUserId.current = null;
       setState({ status: 'signedOut' });

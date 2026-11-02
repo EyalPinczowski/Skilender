@@ -101,16 +101,76 @@ describe('Practice page: starting', () => {
     expect(screen.getByRole('checkbox', { name: 'Answer out loud' })).toBeInTheDocument();
   });
 
-  it('carries on with the running session the API names on a 409', async () => {
+  it('carries on with the running session named in the 409 body', async () => {
     const user = userEvent.setup();
     open({
+      // The real API shape: the id is its own field, the message is only for people.
       [START]: () =>
-        apiError(409, 'practice_session_active', `Session ${SESSION_ID} is already running.`),
+        json(
+          {
+            error: {
+              code: 'practice_session_active',
+              message: 'This task already has an active practice session.',
+              requestId: 'req-1',
+              sessionId: SESSION_ID,
+            },
+          },
+          409,
+        ),
       [GET_SESSION]: () => json(sessionBody()),
     });
     await user.click(await screen.findByRole('button', { name: 'Start practice' }));
     expect(await screen.findByRole('timer')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(window.localStorage.getItem(STORE_KEY)).toBe(SESSION_ID);
+  });
+
+  it('shows the error when a 409 names no usable session, and the button still works', async () => {
+    const user = userEvent.setup();
+    const api = open({
+      [START]: () =>
+        apiError(
+          409,
+          'practice_session_active',
+          `This task already has a session (${SESSION_ID}).`,
+        ),
+    });
+    const button = await screen.findByRole('button', { name: 'Start practice' });
+    await user.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/already has a session/);
+    // The id in the message is not trusted: only the body field is read.
+    expect(requests(api, GET_SESSION)).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Start practice' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Start practice' }));
+    expect(requests(api, START)).toHaveLength(2);
+  });
+
+  it('ignores a remembered id that is not a UUID, without asking the API', async () => {
+    window.localStorage.setItem(STORE_KEY, '../../etc/passwd');
+    const api = open();
+    expect(await screen.findByRole('button', { name: 'Start practice' })).toBeInTheDocument();
+    expect(api.calls.some((c) => c.url.includes('passwd'))).toBe(false);
+    expect(requests(api, GET_SESSION)).toHaveLength(0);
+  });
+
+  it.each([
+    ['is gone (404)', () => apiError(404, 'not_found', 'Resource not found.')],
+    ['is finished', () => json(sessionBody({ status: 'finished' }))],
+    ['is abandoned', () => json(sessionBody({ status: 'abandoned' }))],
+    ['cannot be read (500)', () => apiError(500, 'internal', 'boom')],
+  ])('forgets a remembered session that %s and shows the start panel', async (_name, answer) => {
+    window.localStorage.setItem(STORE_KEY, SESSION_ID);
+    open({ [GET_SESSION]: answer });
+    expect(await screen.findByRole('button', { name: 'Start practice' })).toBeInTheDocument();
+    await waitFor(() => expect(window.localStorage.getItem(STORE_KEY)).toBeNull());
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('forgets remembered sessions on sign-out', async () => {
+    window.localStorage.setItem(STORE_KEY, SESSION_ID);
+    installApi(practiceRoutes());
+    renderApp({ auth: fakeAuth(SESSION), path: '/settings' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(window.localStorage.getItem(STORE_KEY)).toBeNull());
   });
 
   it('resumes a remembered active session after a reload', async () => {
@@ -403,6 +463,48 @@ describe('Practice page: job description and storage', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Practice prompt')).toHaveTextContent('WITH job description'),
     );
+  });
+});
+
+describe('Practice page: finish dialog details', () => {
+  async function startSelf(user: ReturnType<typeof userEvent.setup>, startedAt?: string) {
+    open({
+      ...serveSession(sessionBody({ channel: 'self', ...(startedAt ? { startedAt } : {}) })),
+      [FINISH]: () => json(finishedBody(), 201),
+    });
+    await user.click(await screen.findByRole('radio', { name: /Practise on my own/ }));
+    await user.click(screen.getByRole('button', { name: 'Start practice' }));
+    await screen.findByRole('timer');
+  }
+
+  it('leaves the hours empty when almost no time has passed', async () => {
+    const user = userEvent.setup();
+    await startSelf(user);
+    await user.click(screen.getByRole('button', { name: 'Finish without feedback' }));
+    expect(await screen.findByLabelText('Hours to log')).toHaveValue('');
+  });
+
+  it('prefills the time spent, rounded to a quarter hour', async () => {
+    const user = userEvent.setup();
+    await startSelf(user, new Date(Date.now() - 31 * 60_000).toISOString());
+    await user.click(screen.getByRole('button', { name: 'Finish without feedback' }));
+    expect(await screen.findByLabelText('Hours to log')).toHaveValue('0.5');
+  });
+
+  it('hides the page from assistive technology while open, then lands on the result', async () => {
+    const user = userEvent.setup();
+    await startSelf(user);
+    await user.click(screen.getByRole('button', { name: 'Finish without feedback' }));
+    const dialog = await screen.findByRole('dialog');
+    const root = document.getElementById('root') ?? document.body.firstElementChild!;
+    expect(root).toHaveAttribute('inert');
+    expect(root).not.toContainElement(dialog);
+    await user.click(within(dialog).getByRole('button', { name: 'Finish practice' }));
+    const heading = await screen.findByRole('heading', { name: 'Practice finished' });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(root).not.toHaveAttribute('inert');
+    // One way back, not two.
+    expect(screen.getAllByRole('link', { name: 'Back to Today' })).toHaveLength(1);
   });
 });
 

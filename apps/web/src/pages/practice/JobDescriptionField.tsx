@@ -1,11 +1,9 @@
+import { MAX_JOB_DESCRIPTION_LENGTH } from '@skillstack/shared';
 import { useState, type FormEvent } from 'react';
 import { useJobDescription, useSaveJobDescription } from '../../api/practice-hooks';
 import { QueryView } from '../../components/QueryView';
 import { Button, ErrorText, TextAreaField } from '../../components/ui';
 import { describeError } from '../../lib/messages';
-
-/** The API's limit for the job description, used only to stop typing past it. */
-const MAX_LENGTH = 8000;
 
 function Editor({ planId, stored }: { planId: string; stored: string }) {
   const save = useSaveJobDescription(planId);
@@ -41,7 +39,7 @@ function Editor({ planId, stored }: { planId: string; stored: string }) {
         hint="Optional. Paste the posting for your next interview and the practice prompt uses it. Emails, phone numbers and links are removed before any AI model could see it. It is saved to your account, not to this browser."
         value={value}
         rows={6}
-        maxLength={MAX_LENGTH}
+        maxLength={MAX_JOB_DESCRIPTION_LENGTH}
         autoComplete="off"
         spellCheck={false}
         onChange={(event) => {

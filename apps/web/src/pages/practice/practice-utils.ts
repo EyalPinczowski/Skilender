@@ -16,10 +16,22 @@ export function clock(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
 }
 
-/** The steps the self-check lists: the task's own, or the generic ones when it has none. */
-export function rubricSteps(howToSteps: readonly string[]): readonly string[] {
-  const own = howToSteps.filter((s) => s.trim() !== '');
-  return own.length > 0 ? howToSteps : GENERIC_RUBRIC_STEPS;
+/** One step of the self-check; `index` is its position in the task's own steps (what the API takes). */
+export interface RubricStep {
+  text: string;
+  index: number;
+}
+
+/**
+ * The steps the self-check lists: the task's own (blank ones left out, positions kept), or the
+ * generic ones when it has none.
+ */
+export function rubricSteps(howToSteps: readonly string[]): RubricStep[] {
+  const own = howToSteps
+    .map((text, index) => ({ text, index }))
+    .filter((step) => step.text.trim() !== '');
+  if (own.length > 0) return own;
+  return GENERIC_RUBRIC_STEPS.map((text, index) => ({ text, index }));
 }
 
 export function describeChoice(choice: FinishChoice): string {

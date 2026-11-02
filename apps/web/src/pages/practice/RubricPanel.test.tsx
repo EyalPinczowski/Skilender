@@ -6,17 +6,52 @@ import { expectNoAxeViolations } from '../../test/axe';
 import { rubricSteps } from './practice-utils';
 import { RubricPanel } from './RubricPanel';
 
-const STEPS = ['Set a timer', 'Answer out loud', 'Write down one lesson'];
+const TEXTS = ['Set a timer', 'Answer out loud', 'Write down one lesson'];
+const STEPS = TEXTS.map((text, index) => ({ text, index }));
 
 describe('rubricSteps', () => {
   it('uses the generic steps when the task has none', () => {
-    expect(rubricSteps([])).toEqual(GENERIC_RUBRIC_STEPS);
-    expect(rubricSteps(['  '])).toEqual(GENERIC_RUBRIC_STEPS);
-    expect(rubricSteps(STEPS)).toEqual(STEPS);
+    expect(rubricSteps([]).map((s) => s.text)).toEqual(GENERIC_RUBRIC_STEPS);
+    expect(rubricSteps(['  ']).map((s) => s.text)).toEqual(GENERIC_RUBRIC_STEPS);
+    expect(rubricSteps(TEXTS)).toEqual(STEPS);
+  });
+
+  it('leaves blank steps out but keeps the positions the API expects', () => {
+    expect(rubricSteps(['One', '  ', 'Three'])).toEqual([
+      { text: 'One', index: 0 },
+      { text: 'Three', index: 2 },
+    ]);
   });
 });
 
 describe('RubricPanel', () => {
+  it('sends the original positions when blank steps were left out', async () => {
+    const user = userEvent.setup();
+    const onFinish = vi.fn();
+    render(<RubricPanel steps={rubricSteps(['One', ' ', 'Three'])} onFinish={onFinish} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Three' }));
+    await user.click(screen.getByRole('button', { name: 'Finish with this self-check' }));
+    expect(onFinish).toHaveBeenCalledWith({ kind: 'rubric', checkedSteps: [2], total: 2 });
+  });
+
+  it('disables the mode choice too when disabled', () => {
+    render(<RubricPanel steps={STEPS} onFinish={() => {}} disabled />);
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
+  });
+
+  it('marks both score fields invalid and linked to the error', async () => {
+    const user = userEvent.setup();
+    render(<RubricPanel steps={STEPS} onFinish={() => {}} />);
+    await user.click(screen.getByRole('radio', { name: 'Entering a score I got elsewhere' }));
+    await user.click(screen.getByRole('button', { name: 'Finish with this self-check' }));
+    const alert = await screen.findByRole('alert');
+    for (const name of ['My score', 'Maximum score']) {
+      const field = screen.getByLabelText(name);
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      expect(field).toHaveAttribute('aria-describedby', alert.id);
+    }
+  });
+
   it('sends the indexes of the ticked steps and computes no score itself', async () => {
     const user = userEvent.setup();
     const onFinish = vi.fn();

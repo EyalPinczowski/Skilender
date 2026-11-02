@@ -120,6 +120,15 @@ describe('Timer', () => {
     stop();
   });
 
+  it('never shows more than the planned time when the browser clock is behind the server', () => {
+    vi.setSystemTime(new Date(START.getTime() - 5 * 60_000)); // five minutes behind
+    render(<Timer startedAt={START.toISOString()} plannedMinutes={30} />);
+    expect(screen.getByRole('timer')).toHaveTextContent('30:00');
+    tick(60); // still behind the start
+    expect(screen.getByRole('timer')).toHaveTextContent('30:00');
+    expect(screen.queryByText('Over time')).toBeNull();
+  });
+
   it('has no accessibility violations', async () => {
     vi.useRealTimers();
     const { container } = render(

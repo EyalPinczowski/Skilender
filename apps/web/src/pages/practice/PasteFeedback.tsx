@@ -1,9 +1,7 @@
+import { MAX_PASTED_FEEDBACK_LENGTH } from '@skillstack/shared';
 import { useState, type FormEvent } from 'react';
 import { Button, TextAreaField } from '../../components/ui';
 import type { FinishChoice } from './FinishDialog';
-
-/** The API's limit for pasted feedback, used only to stop typing past it. */
-const MAX_LENGTH = 20_000;
 
 /**
  * Where the reply of the other assistant is pasted back. A reply with the ===FEEDBACK=== block is
@@ -38,7 +36,7 @@ export function PasteFeedback({
         hint="Paste the whole reply or only the block from ===FEEDBACK=== to ===END===. Text without a block is saved as plain text."
         value={text}
         rows={8}
-        maxLength={MAX_LENGTH}
+        maxLength={MAX_PASTED_FEEDBACK_LENGTH}
         autoComplete="off"
         error={error}
         disabled={disabled}

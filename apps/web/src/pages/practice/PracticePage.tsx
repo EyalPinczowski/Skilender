@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { MAX_LOG_HOURS } from '@skillstack/shared';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Task } from '../../api/client';
 import { isApiError } from '../../api/errors';
@@ -20,6 +21,7 @@ import { TaskTypeChip } from '../../components/TaskChips';
 import { Button, ErrorText, linkClass } from '../../components/ui';
 import { describeError, newId } from '../../lib/messages';
 import { PlanGate } from '../../plan/PlanGate';
+import { isSessionId, readStoredSession, writeStoredSession } from './session-store';
 import { formatMinutes } from '../briefing/day-utils';
 import { FinishDialog, type FinishChoice, type FinishDecision } from './FinishDialog';
 import { FinishedSummary } from './FinishedSummary';
@@ -29,31 +31,6 @@ import { PromptPanel } from './PromptPanel';
 import { rubricSteps } from './practice-utils';
 import { RubricPanel } from './RubricPanel';
 import { Timer } from './Timer';
-
-/**
- * The id of the running session is remembered so a reload picks it up again. It is only an id: no
- * prompt, job description or feedback is ever stored in the browser.
- */
-const storeKey = (planId: string, taskId: string) => `skillstack.practice.${planId}.${taskId}`;
-
-function readStored(planId: string, taskId: string): string | null {
-  try {
-    return window.localStorage.getItem(storeKey(planId, taskId));
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(planId: string, taskId: string, sessionId: string | null) {
-  try {
-    if (sessionId) window.localStorage.setItem(storeKey(planId, taskId), sessionId);
-    else window.localStorage.removeItem(storeKey(planId, taskId));
-  } catch {
-    // Without storage the page still works; a reload just starts from the start panel.
-  }
-}
-
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 function Panel({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-border bg-surface p-4">{children}</div>;
@@ -99,9 +76,13 @@ function StartPanel({
       },
       onError: (error) => {
         // The task already has a running session: the API names it, so carry on with that one.
-        if (isApiError(error) && error.code === 'practice_session_active') {
-          const existing = UUID.exec(error.message)?.[0];
-          if (existing) onStarted(existing);
+        // Without a usable id the error stays on screen: the button is never a dead end.
+        if (
+          isApiError(error) &&
+          error.code === 'practice_session_active' &&
+          isSessionId(error.sessionId)
+        ) {
+          onStarted(error.sessionId);
         }
       },
     });
@@ -138,8 +119,7 @@ function StartPanel({
           <Button variant="primary" disabled={start.isPending} onClick={begin}>
             {start.isPending ? 'Starting…' : 'Start practice'}
           </Button>
-          {start.isError &&
-          !(isApiError(start.error) && start.error.code === 'practice_session_active') ? (
+          {start.isError ? (
             <ErrorText>
               {describeError(start.error, 'The practice could not be started.')}
             </ErrorText>
@@ -161,8 +141,10 @@ function StartPanel({
 /** Hours spent so far, rounded to a quarter hour, as a starting value for the log field. */
 function suggestedHours(startedAt: string): number | null {
   const minutes = (Date.now() - Date.parse(startedAt)) / 60000;
-  if (!Number.isFinite(minutes) || minutes <= 0) return null;
-  return Math.min(12, Math.max(0.25, Math.round(minutes / 15) / 4));
+  const quarters = Math.round(minutes / 15);
+  // Under about 7 minutes rounds to nothing: leave the field empty rather than log time not spent.
+  if (!Number.isFinite(quarters) || quarters <= 0) return null;
+  return Math.min(MAX_LOG_HOURS, quarters / 4);
 }
 
 function ActiveSession({
@@ -255,10 +237,14 @@ function ActiveSession({
             </QueryView>
           </Panel>
           <Panel>
-            <section aria-labelledby="jd-heading" className="space-y-3">
-              <h2 id="jd-heading">About the role</h2>
-              <JobDescriptionField planId={planId} />
-            </section>
+            <details>
+              <summary className="min-h-11 cursor-pointer py-2 font-bold">
+                About the role (job description)
+              </summary>
+              <div className="pt-3">
+                <JobDescriptionField planId={planId} />
+              </div>
+            </details>
           </Panel>
           <Panel>
             <PasteFeedback onFinish={open} />
@@ -275,9 +261,6 @@ function ActiveSession({
         <Button variant="danger" onClick={() => setConfirmStop(true)}>
           Stop without saving
         </Button>
-        <Link to="/" className={`${linkClass} inline-flex min-h-11 items-center`}>
-          Back to Today
-        </Link>
       </div>
       {abandon.isError ? (
         <ErrorText>{describeError(abandon.error, 'The practice could not be stopped.')}</ErrorText>
@@ -319,13 +302,15 @@ function ActiveSession({
 }
 
 function TaskPractice({ planId, task }: { planId: string; task: Task }) {
-  const [sessionId, setSessionId] = useState<string | null>(() => readStored(planId, task.id));
+  const [sessionId, setSessionId] = useState<string | null>(() =>
+    readStoredSession(planId, task.id),
+  );
   const [result, setResult] = useState<FinishedSession | null>(null);
   const [stopped, setStopped] = useState(false);
   const detail = usePracticeSession(planId, sessionId);
 
   function setId(id: string | null) {
-    writeStored(planId, task.id, id);
+    writeStoredSession(planId, task.id, id);
     setSessionId(id);
   }
 
@@ -334,6 +319,18 @@ function TaskPractice({ planId, task }: { planId: string; task: Task }) {
     setStopped(false);
     setId(null);
   }
+
+  // A remembered id that leads nowhere (gone, not running any more, or unreadable) is forgotten, and
+  // the start panel takes over: the person is never stuck on a dead session.
+  const unusable =
+    sessionId !== null &&
+    !result &&
+    (detail.isError ||
+      detail.data === null ||
+      (!!detail.data && detail.data.session.status !== 'active'));
+  useEffect(() => {
+    if (unusable) writeStoredSession(planId, task.id, null);
+  }, [unusable, planId, task.id]);
 
   let body: ReactNode;
   if (result) {
@@ -349,20 +346,20 @@ function TaskPractice({ planId, task }: { planId: string; task: Task }) {
         onAgain={again}
       />
     );
-  } else if (sessionId && detail.data === undefined) {
+  } else if (sessionId && detail.isPending) {
     body = (
       <QueryView query={detail} label="Loading your practice…">
         {() => null}
       </QueryView>
     );
-  } else if (detail.data && detail.data.session.status === 'active') {
+  } else if (!unusable && detail.data && detail.data.session.status === 'active') {
     body = (
       <ActiveSession
         planId={planId}
         task={task}
         detail={detail.data}
         onFinished={(r) => {
-          writeStored(planId, task.id, null);
+          writeStoredSession(planId, task.id, null);
           setResult(r);
         }}
         onAbandoned={() => {
@@ -371,8 +368,6 @@ function TaskPractice({ planId, task }: { planId: string; task: Task }) {
         }}
       />
     );
-  } else if (detail.data && detail.data.session.status === 'finished') {
-    body = <FinishedSummary feedback={detail.data.feedback} onAgain={again} />;
   } else {
     body = (
       <StartPanel
@@ -404,7 +399,7 @@ function PracticeContent({ planId, taskId }: { planId: string; taskId: string })
         if (!task) return <p>This task is not in your plan.</p>;
         return (
           <>
-            <p className="text-h2 font-bold">{task.title}</p>
+            <h2 className="text-h2">{task.title}</h2>
             {task.type !== 'practice' ? (
               <p>This task is not a practice, so it has no practice screen.</p>
             ) : (

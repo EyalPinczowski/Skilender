@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { useEffect, useRef } from 'react';
 import type { PracticeFeedback } from '../../api/practice-hooks';
 import { CheckIcon } from '../../components/icons';
 import { linkClass } from '../../components/ui';
@@ -44,10 +44,13 @@ export function FinishedSummary({
   extras?: FinishedExtras;
   onAgain: () => void;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  // The dialog is gone: put focus on the result so a keyboard or screen reader user lands on it.
+  useEffect(() => heading.current?.focus(), []);
   const plainText = feedback?.source === 'free_text';
   return (
     <section aria-labelledby="finished-heading" className="space-y-4">
-      <h2 id="finished-heading" className="flex items-center gap-2">
+      <h2 id="finished-heading" ref={heading} tabIndex={-1} className="flex items-center gap-2">
         <span className="text-ok">
           <CheckIcon />
         </span>
@@ -98,9 +101,6 @@ export function FinishedSummary({
       ) : null}
 
       <p className="flex flex-wrap items-center gap-4">
-        <Link to="/" className={`${linkClass} inline-flex min-h-11 items-center`}>
-          Back to Today
-        </Link>
         <button
           type="button"
           onClick={onAgain}

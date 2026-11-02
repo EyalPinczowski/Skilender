@@ -100,12 +100,67 @@ describe('FinishDialog', () => {
   it('shows an error from the server and disables the buttons while saving', () => {
     setup({ error: 'This task was skipped. Reopen it first.', busy: true });
     expect(screen.getByRole('alert')).toHaveTextContent('This task was skipped. Reopen it first.');
-    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Saving…' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('keeps focus on the pressed button while saving, and ignores presses', async () => {
+    const user = userEvent.setup();
+    const { onSubmit, onCancel, rerender } = setup();
+    const finish = screen.getByRole('button', { name: 'Finish practice' });
+    finish.focus();
+    rerender(
+      <FinishDialog
+        choice={{ kind: 'none' }}
+        defaultHours={0.5}
+        busy
+        error={null}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+      />,
+    );
+    const saving = screen.getByRole('button', { name: 'Saving…' });
+    expect(saving).toHaveFocus();
+    await user.click(saving);
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it('moves focus to the error when the save fails', () => {
+    const { rerender, onSubmit, onCancel } = setup();
+    screen.getByRole('button', { name: 'Finish practice' }).focus();
+    rerender(
+      <FinishDialog
+        choice={{ kind: 'none' }}
+        defaultHours={0.5}
+        busy={false}
+        error="Could not save."
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+      />,
+    );
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
+    expect(document.activeElement).toHaveTextContent('Could not save.');
+  });
+
+  it('makes the rest of the page inert while open and restores it on close', () => {
+    const page = document.createElement('div');
+    page.id = 'page';
+    document.body.appendChild(page);
+    const { unmount } = setup();
+    expect(page).toHaveAttribute('inert');
+    unmount();
+    expect(page).not.toHaveAttribute('inert');
+    page.remove();
   });
 
   it('has no accessibility violations', async () => {
-    const { container } = setup();
-    await expectNoAxeViolations(container);
+    setup();
+    await expectNoAxeViolations(document.body);
   });
 });

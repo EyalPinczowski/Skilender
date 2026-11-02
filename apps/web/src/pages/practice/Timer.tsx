@@ -2,6 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ClockIcon } from '../../components/icons';
 import { clock, FIVE_MINUTES, FIVE_MINUTES_LEFT, TIME_IS_UP } from './practice-utils';
 
+/** Seconds left. Never more than the planned time: a browser clock behind the server's must not add any. */
+function remainingSeconds(now: number, startMs: number, totalSeconds: number): number {
+  return Math.min(totalSeconds, totalSeconds - Math.floor((now - startMs) / 1000));
+}
+
 /**
  * Counts down from the planned minutes and keeps going past zero, marked "over time". The visible
  * clock changes every second but is not a live region. A separate polite status region speaks only
@@ -18,7 +23,7 @@ export function Timer({
   const labelId = useId();
   const startMs = Date.parse(startedAt);
   const totalSeconds = plannedMinutes * 60;
-  const remainingAt = (now: number) => totalSeconds - Math.floor((now - startMs) / 1000);
+  const remainingAt = (now: number) => remainingSeconds(now, startMs, totalSeconds);
 
   const [remaining, setRemaining] = useState(() => remainingAt(Date.now()));
   const [announcement, setAnnouncement] = useState('');
@@ -26,7 +31,7 @@ export function Timer({
 
   useEffect(() => {
     const id = setInterval(() => {
-      const next = totalSeconds - Math.floor((Date.now() - startMs) / 1000);
+      const next = remainingSeconds(Date.now(), startMs, totalSeconds);
       const before = previous.current;
       previous.current = next;
       setRemaining(next);

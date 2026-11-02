@@ -41,8 +41,8 @@ export function PromptPanel({ prompt }: { prompt: PracticePrompt }) {
     <section aria-labelledby="prompt-heading" className="space-y-3">
       <h2 id="prompt-heading">Prompt</h2>
       <p className="text-muted">
-        Paste this into Claude or another assistant. {prompt.persona.label}. It asks for a feedback
-        block at the end; paste that block back below.
+        Paste this into Claude or another assistant. Role it plays: {prompt.persona.label}. It ends
+        by asking for a feedback block; paste that block back below.
       </p>
       <InputsSummary inputs={prompt.inputs} />
       <pre

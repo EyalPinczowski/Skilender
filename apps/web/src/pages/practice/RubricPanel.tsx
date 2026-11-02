@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Button, ErrorText, TextField } from '../../components/ui';
 import type { FinishChoice } from './FinishDialog';
+import type { RubricStep } from './practice-utils';
 
 type Mode = 'steps' | 'score';
 
@@ -13,11 +14,12 @@ export function RubricPanel({
   onFinish,
   disabled = false,
 }: {
-  steps: readonly string[];
+  steps: readonly RubricStep[];
   onFinish: (choice: FinishChoice) => void;
   disabled?: boolean;
 }) {
   const modeName = useId();
+  const errorId = useId();
   const [mode, setMode] = useState<Mode>('steps');
   const [checked, setChecked] = useState<boolean[]>(() => steps.map(() => false));
   const [score, setScore] = useState('');
@@ -28,7 +30,7 @@ export function RubricPanel({
     event.preventDefault();
     if (mode === 'steps') {
       setError(null);
-      const checkedSteps = checked.flatMap((on, index) => (on ? [index] : []));
+      const checkedSteps = steps.flatMap((step, i) => (checked[i] ? [step.index] : []));
       onFinish({ kind: 'rubric', checkedSteps, total: steps.length });
       return;
     }
@@ -58,6 +60,7 @@ export function RubricPanel({
             type="radio"
             name={modeName}
             checked={mode === 'steps'}
+            disabled={disabled}
             onChange={() => setMode('steps')}
             className="size-6"
           />
@@ -68,6 +71,7 @@ export function RubricPanel({
             type="radio"
             name={modeName}
             checked={mode === 'score'}
+            disabled={disabled}
             onChange={() => setMode('score')}
             className="size-6"
           />
@@ -79,7 +83,7 @@ export function RubricPanel({
         <fieldset className="space-y-1">
           <legend className="font-bold">Steps I completed</legend>
           {steps.map((step, index) => (
-            <label key={index} className="flex min-h-11 items-start gap-3 py-1">
+            <label key={step.index} className="flex min-h-11 items-start gap-3 py-1">
               <input
                 type="checkbox"
                 checked={checked[index] ?? false}
@@ -89,7 +93,7 @@ export function RubricPanel({
                 }
                 className="mt-0.5 size-6"
               />
-              <span>{step}</span>
+              <span>{step.text}</span>
             </label>
           ))}
         </fieldset>
@@ -97,6 +101,8 @@ export function RubricPanel({
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
             label="My score"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             inputMode="decimal"
             autoComplete="off"
             value={score}
@@ -105,6 +111,8 @@ export function RubricPanel({
           />
           <TextField
             label="Maximum score"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             inputMode="decimal"
             autoComplete="off"
             value={max}
@@ -114,7 +122,7 @@ export function RubricPanel({
         </div>
       )}
 
-      {error ? <ErrorText>{error}</ErrorText> : null}
+      {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
       <Button type="submit" variant="primary" disabled={disabled}>
         Finish with this self-check
       </Button>
