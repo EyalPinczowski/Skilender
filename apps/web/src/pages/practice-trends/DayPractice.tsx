@@ -2,7 +2,7 @@ import { usePracticeHistory } from '../../api/practice-hooks';
 import { kindLabel, scoreText, sourceLabel } from './practice-labels';
 
 /** Practice finished on one day, read-only, for the end-of-day review. */
-export function TodaysPractice({
+export function DayPractice({
   planId,
   date,
   titleOf,
@@ -17,7 +17,7 @@ export function TodaysPractice({
       <h2 id="todays-practice-heading">Practice on this day</h2>
       {query.data ? (
         query.data.sessions.length === 0 ? (
-          <p className="text-muted">No practice was finished on this day.</p>
+          <p className="text-muted">No practice on this day.</p>
         ) : (
           <ul className="space-y-3">
             {query.data.sessions.map((s) => (

@@ -6,7 +6,7 @@ import { deltaText, kindLabel, scoreText, sourceLabel } from './practice-labels'
 
 const W = 480;
 const H = 250;
-const M = { left: 44, right: 30, top: 16, bottom: 56 };
+const M = { left: 44, right: 30, top: 30, bottom: 56 };
 const plotW = W - M.left - M.right;
 const plotH = H - M.top - M.bottom;
 const yOf = (score: number) => M.top + plotH - (score / 10) * plotH;
@@ -34,6 +34,7 @@ export function PracticeTrendChart({ trend }: { trend: KindTrendData }) {
   const lastPoint = points[points.length - 1];
   const last = lastPoint?.date ?? first;
   const span = first && last ? diffDays(first, last) : 0;
+  // Several practices on one day share an x position and overlap; the table lists each of them.
   const xOf = (date: string) =>
     span === 0 ? M.left + plotW / 2 : M.left + (diffDays(first, date) / span) * plotW;
   const hasSelf = points.some((p) => p.source === 'self_rubric');

@@ -92,6 +92,37 @@ describe('Practice scores page', () => {
     await expectNoAxeViolations(document.body);
   });
 
+  it('draws a square for a self-check and a circle for other sources, and fits a score of 10', async () => {
+    open('/practice-history', {
+      [TRENDS]: () =>
+        json({
+          kinds: [
+            {
+              kind: 'mock_interview',
+              points: [
+                { date: '2026-11-03', score: 5, source: 'self_rubric' },
+                { date: '2026-11-09', score: 10, source: 'model_json' },
+              ],
+              last: 10,
+              average: 7.5,
+              delta: 5,
+            },
+          ],
+        }),
+    });
+    const chart = await screen.findByRole('img');
+    expect(chart.querySelectorAll('rect')).toHaveLength(1);
+    expect(chart.querySelectorAll('circle')).toHaveLength(1);
+    // The label of a score of 10 stays inside the drawing (the viewBox starts at 0).
+    const label = [...chart.querySelectorAll('text')].find(
+      (t) =>
+        t.textContent === '10' &&
+        t.getAttribute('text-anchor') === 'end' &&
+        t.getAttribute('font-weight') === '700',
+    );
+    expect(Number(label?.getAttribute('y'))).toBeGreaterThanOrEqual(14);
+  });
+
   it('says so when there are no scores yet', async () => {
     open('/practice-history', { [TRENDS]: () => json({ kinds: [] }) });
     expect(await screen.findByText(/No practice scores yet/)).toBeVisible();
@@ -119,7 +150,7 @@ describe('Last practice score on Week', () => {
     );
   });
 
-  it('has an empty state and does not break when the scores fail', async () => {
+  it('has an empty state when there are no scores', async () => {
     open('/week', { [TRENDS]: () => json({ kinds: [] }) });
     expect(await screen.findByText('No practice scores yet.')).toBeVisible();
   });
@@ -158,8 +189,14 @@ describe('Practice results on the day review', () => {
     expect(url.searchParams.get('to')).toBe(DATE);
   });
 
+  it('keeps the review form when the practice results cannot be loaded', async () => {
+    open(`/review/${DATE}`, { [HISTORY]: () => apiError(500, 'internal', 'Boom.') });
+    expect(await screen.findByText('Practice results could not be loaded.')).toBeVisible();
+    expect(await screen.findByRole('form', { name: 'End-of-day review' })).toBeVisible();
+  });
+
   it('has an empty state', async () => {
     open(`/review/${DATE}`, { [HISTORY]: () => json({ sessions: [] }) });
-    expect(await screen.findByText('No practice was finished on this day.')).toBeVisible();
+    expect(await screen.findByText('No practice on this day.')).toBeVisible();
   });
 });
