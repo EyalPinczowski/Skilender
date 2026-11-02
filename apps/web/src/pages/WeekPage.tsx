@@ -236,7 +236,7 @@ export function WeekPage() {
       <PlanSwitcher />
       <PlanGate
         empty={
-          <p className="text-muted">
+          <p className="max-w-3xl text-muted">
             No plan yet. Import one from{' '}
             <Link to="/" className={linkClass}>
               Today

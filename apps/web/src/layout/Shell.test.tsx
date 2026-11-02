@@ -33,7 +33,7 @@ describe('app shell navigation', () => {
     for (const c of ['lg:sticky', 'lg:top-0', 'lg:w-64']) expect(classes).toContain(c);
   });
 
-  it('offers the same destinations at every width, reachable with the keyboard', async () => {
+  it('offers the same four destinations, reachable with the keyboard', async () => {
     const nav = await openApp();
     expect(nav.getAllByRole('link').map((l) => l.textContent)).toEqual([
       'Today',

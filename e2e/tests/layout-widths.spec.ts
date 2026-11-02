@@ -6,7 +6,7 @@ import { loadDemoPlan } from '../support/ui';
  * scrolls sideways from 320 px up, and Today and Week use two columns from 1024 px. Screenshots go
  * to the test output folder (git-ignored); they are not stored in the repository.
  */
-const WIDTHS = [390, 820, 1280, 1600] as const;
+const WIDTHS = [390, 700, 820, 1280, 1600] as const;
 
 for (const width of WIDTHS) {
   test(`layout at ${width} px: navigation, no sideways scroll, no clipped page`, async ({
