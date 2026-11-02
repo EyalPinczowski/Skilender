@@ -203,6 +203,20 @@ describe('Practice page: starting', () => {
     expect(await screen.findByRole('log', { name: 'Conversation' })).toBeInTheDocument();
   });
 
+  it('after a 503 at start: start-screen wording, back to the external channel, usage reread', async () => {
+    const user = userEvent.setup();
+    const api = open({
+      'GET /api/v1/ai/usage': () => json(USAGE_ON),
+      [START]: () => json({ error: { code: 'ai_unavailable', message: 'x', requestId: 'r' } }, 503),
+    });
+    await user.click(await screen.findByRole('radio', { name: /Chat with the in-app assistant/ }));
+    await user.click(screen.getByRole('button', { name: 'Start practice' }));
+    expect(await screen.findByText(/Choose another way to practise/)).toBeInTheDocument();
+    expect(screen.queryByText(/copy the prompt below/)).toBeNull();
+    expect(screen.getByRole('radio', { name: /Use Claude or another assistant/ })).toBeChecked();
+    await waitFor(() => expect(requests(api, 'GET /api/v1/ai/usage').length).toBeGreaterThan(1));
+  });
+
   it('shows AI unavailable when starting a chat answers 503', async () => {
     const user = userEvent.setup();
     open({

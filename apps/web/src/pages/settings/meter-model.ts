@@ -18,9 +18,12 @@ export function meterModel(usage: AiUsage) {
   const used = rows.reduce((sum, row) => sum + row.used, 0);
   const cap = rows.reduce((sum, row) => sum + row.cap, 0);
   if (cap <= 0) return null;
-  const nearLimit =
-    used / cap >= METER_THRESHOLD || rows.some((row) => row.used / row.cap >= METER_THRESHOLD);
-  if (!nearLimit) return null;
+  // This environment's own budget per provider (SPEC 3.3: requests used today against the quota).
+  const providers = usage.providers
+    .filter((p) => p.configured && p.budget !== null && p.budget > 0)
+    .map((p) => ({ label: p.label, used: p.usedToday, cap: p.budget as number }));
+  const near = (x: { used: number; cap: number }) => x.used / x.cap >= METER_THRESHOLD;
+  if (!(near({ used, cap }) || rows.some(near) || providers.some(near))) return null;
   const active = usage.providers.find((p) => p.configured && p.available);
-  return { rows, used, cap, provider: active?.label ?? null };
+  return { rows, providers, used, cap, provider: active?.label ?? null };
 }

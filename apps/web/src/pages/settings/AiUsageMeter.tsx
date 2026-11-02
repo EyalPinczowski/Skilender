@@ -38,6 +38,15 @@ export function AiUsageMeter() {
           </li>
         ))}
       </ul>
+      {model.providers.length > 0 ? (
+        <ul aria-label="Provider requests today" className="space-y-1 text-muted">
+          {model.providers.map((p) => (
+            <li key={p.label} className="tabular-nums">
+              {p.label}: {p.used} of {p.cap} requests
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <p>
         {model.provider
           ? `Active provider: ${model.provider}.`

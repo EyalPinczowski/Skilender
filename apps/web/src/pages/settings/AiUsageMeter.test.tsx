@@ -49,7 +49,31 @@ describe('meterModel', () => {
   });
 });
 
+const provider = (usedToday: number) => ({
+  id: 'groq',
+  label: 'Groq',
+  configured: true,
+  available: true,
+  cooldownUntil: null,
+  usedToday,
+  budget: 100,
+});
+
+describe('meterModel and providers', () => {
+  it('counts a provider budget at 80% in the show rule', () => {
+    expect(meterModel(usage(1, { providers: [provider(79)] }))).toBeNull();
+    expect(meterModel(usage(1, { providers: [provider(80)] }))?.providers).toEqual([
+      { label: 'Groq', used: 80, cap: 100 },
+    ]);
+  });
+});
+
 describe('Settings: AI usage meter', () => {
+  it('lists provider requests against the budget when only the provider is near its limit', async () => {
+    openSettings(usage(1, { providers: [provider(85)] }));
+    expect(await screen.findByText('Groq: 85 of 100 requests')).toBeInTheDocument();
+  });
+
   it('is not on the page while usage is under 80%', async () => {
     openSettings(usage(5));
     await screen.findByRole('heading', { name: 'Appearance' });

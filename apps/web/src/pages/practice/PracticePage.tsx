@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Task } from '../../api/client';
 import { isAiUnavailable, isApiError } from '../../api/errors';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAiUsage } from '../../api/ai-hooks';
 import { useTasks } from '../../api/hooks';
 import {
@@ -25,7 +26,7 @@ import { PlanGate } from '../../plan/PlanGate';
 import { isSessionId, readStoredSession, writeStoredSession } from './session-store';
 import { formatMinutes } from '../briefing/day-utils';
 import { aiDownReason, type AiDown } from './ai-state';
-import { AiUnavailableNotice, ChatPanel } from './ChatPanel';
+import { AiUnavailableNotice, ChatPanel, RATE_LIMITED_TEXT } from './ChatPanel';
 import { FinishDialog, type FinishChoice, type FinishDecision } from './FinishDialog';
 import { FinishedSummary } from './FinishedSummary';
 import { JobDescriptionField } from './JobDescriptionField';
@@ -70,6 +71,7 @@ function StartPanel({
   onStarted: (sessionId: string) => void;
 }) {
   const start = useStartSession(planId, task.id);
+  const queryClient = useQueryClient();
   const usage = useAiUsage();
   const options = usage.data?.configured ? [IN_APP_CHANNEL, ...CHANNELS] : CHANNELS;
   const [chosen, setChannel] = useState<PracticeChannel>('external');
@@ -87,6 +89,12 @@ function StartPanel({
         onStarted(detail.session.id);
       },
       onError: (error) => {
+        if (isAiUnavailable(error)) {
+          // Back to a way that needs no AI, and look at the allowance again.
+          setChannel('external');
+          attempt.current = null;
+          void queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+        }
         // The task already has a running session: the API names it, so carry on with that one.
         // Without a usable id the error stays on screen: the button is never a dead end.
         if (
@@ -132,7 +140,10 @@ function StartPanel({
             {start.isPending ? 'Starting…' : 'Start practice'}
           </Button>
           {start.isError && isAiUnavailable(start.error) ? (
-            <AiUnavailableNotice reason={aiDownReason(start.error) ?? 'unavailable'} />
+            <AiUnavailableNotice
+              reason={aiDownReason(start.error) ?? 'unavailable'}
+              where="start"
+            />
           ) : start.isError ? (
             <ErrorText>
               {describeError(start.error, 'The practice could not be started.')}
@@ -305,7 +316,13 @@ function ActiveSession({
           choice={choice}
           defaultHours={defaultHours}
           busy={busy}
-          error={failure ? describeError(failure, 'The practice could not be finished.') : null}
+          error={
+            failure
+              ? isApiError(failure) && failure.code === 'rate_limited'
+                ? RATE_LIMITED_TEXT
+                : describeError(failure, 'The practice could not be finished.')
+              : null
+          }
           onSubmit={submit}
           onCancel={() => setChoice(null)}
         />

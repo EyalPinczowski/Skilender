@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '../../api/errors';
 import { useSendMessage, type PracticeSession, type SessionDetail } from '../../api/practice-hooks';
 import { Button, ErrorText } from '../../components/ui';
@@ -13,7 +13,16 @@ type Message = SessionDetail['messages'][number];
  * The notice for a missing AI. It names the two ways to go on without it, which the practice screen
  * shows right below (the copy-prompt and paste flow, and the self-check): practice is never blocked.
  */
-export function AiUnavailableNotice({ reason, onRetry }: { reason: AiDown; onRetry?: () => void }) {
+export function AiUnavailableNotice({
+  reason,
+  onRetry,
+  where = 'chat',
+}: {
+  reason: AiDown;
+  onRetry?: () => void;
+  /** `start`: before a session exists, so the choice is between the other ways to start. */
+  where?: 'chat' | 'start';
+}) {
   return (
     <div role="alert" className="space-y-2 border-l-4 border-warn pl-3">
       <p className="font-bold">AI unavailable</p>
@@ -21,8 +30,9 @@ export function AiUnavailableNotice({ reason, onRetry }: { reason: AiDown; onRet
         {reason === 'cap'
           ? 'Today’s AI limit is used up. It starts again tomorrow.'
           : 'The AI can’t answer right now.'}{' '}
-        You can still practise: copy the prompt below into another assistant and paste its feedback
-        back, or score yourself with the self-check.
+        {where === 'start'
+          ? 'Choose another way to practise: use another assistant with a copied prompt, or practise on your own and score yourself with the self-check.'
+          : 'You can still practise: copy the prompt below into another assistant and paste its feedback back, or score yourself with the self-check.'}
       </p>
       {reason === 'unavailable' && onRetry ? (
         <Button onClick={onRetry}>Try the AI again</Button>
@@ -40,10 +50,23 @@ function sendProblem(error: unknown): string {
       return 'This message was replaced by a newer one, so it was not sent again. Check the conversation above.';
     }
     if (error.code === 'rate_limited') {
-      return 'Too many messages in a minute. Wait a moment, then send again.';
+      return RATE_LIMITED_TEXT;
     }
   }
   return describeError(error, 'The message could not be sent.');
+}
+
+/** One sentence for a rate-limited turn or AI finish. */
+export const RATE_LIMITED_TEXT = 'Too many requests in a minute. Wait a moment, then try again.';
+
+/**
+ * Notes are keyed by their place among the notes, not by id: the note added when a reply arrives has
+ * a made-up id until the stored transcript replaces it, and a new key would announce it twice.
+ */
+function lineKey(messages: SessionDetail['messages'], index: number): string {
+  const message = messages[index]!;
+  if (message.role !== 'note') return message.id;
+  return `note-${messages.slice(0, index).filter((m) => m.role === 'note').length}`;
 }
 
 function Line({ message }: { message: Message }) {
@@ -88,7 +111,14 @@ export function ChatPanel({
   const attempt = useRef<{ id: string; content: string } | null>(null);
   const textareaId = useId();
   const hintId = useId();
+  const logRef = useRef<HTMLDivElement>(null);
   const spoke = messages.some((m) => m.role === 'user');
+
+  // Keep the newest message in view.
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [messages.length]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -103,6 +133,13 @@ export function ChatPanel({
       onError: (error) => {
         const reason = aiDownReason(error);
         if (reason) onAiDown(reason);
+        // A replaced message must not be sent again under its old id: the next send is a new one.
+        if (
+          isApiError(error) &&
+          (error.code === 'turn_superseded' || error.code === 'message_superseded')
+        ) {
+          attempt.current = null;
+        }
       },
     });
   }
@@ -114,13 +151,14 @@ export function ChatPanel({
     <section aria-labelledby="chat-heading" className="space-y-3">
       <h2 id="chat-heading">Practice chat</h2>
       <div
+        ref={logRef}
         role="log"
         aria-label="Conversation"
         className="max-h-96 space-y-3 overflow-auto py-1"
         tabIndex={0}
       >
-        {messages.map((message) => (
-          <Line key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <Line key={lineKey(messages, index)} message={message} />
         ))}
       </div>
 
@@ -141,6 +179,7 @@ export function ChatPanel({
           maxLength={MAX_LENGTH}
           rows={4}
           disabled={!!aiDown}
+          readOnly={send.isPending}
           onChange={(e) => setDraft(e.target.value)}
           className="min-h-11 w-full rounded-sm border border-border bg-surface px-3 py-2 text-text disabled:opacity-60"
         />
@@ -152,6 +191,9 @@ export function ChatPanel({
             Get AI feedback
           </Button>
         </div>
+        <p role="status" className="text-muted">
+          {send.isPending ? 'Reply on its way' : ''}
+        </p>
         {problem ? <ErrorText>{problem}</ErrorText> : null}
       </form>
       <p className="text-muted">{AI_CAN_BE_WRONG}</p>

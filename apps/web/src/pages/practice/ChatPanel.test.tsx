@@ -223,6 +223,80 @@ describe('Practice chat', () => {
     expect(ids[0]).toBe(ids[1]);
   });
 
+  it('sends a new id after a superseded answer, never the replaced one', async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    const { api } = open({
+      [MESSAGES]: () => {
+        calls += 1;
+        return calls === 1
+          ? apiError(409, 'turn_superseded', 'replaced')
+          : json(reply('Fresh start.'), 201);
+      },
+    });
+    await user.type(await screen.findByLabelText('Your answer'), 'My answer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/replaced by a newer one/);
+    await user.click(screen.getByRole('button', { name: 'Send again' }));
+    expect(await screen.findByText('Fresh start.')).toBeInTheDocument();
+    const ids = await Promise.all(
+      api.calls
+        .filter((c) => c.method === 'POST' && c.url.endsWith('/messages'))
+        .map(async (c) => ((await bodyOf(c)) as { id: string }).id),
+    );
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('says a reply is still being written on 409 turn_in_progress', async () => {
+    const user = userEvent.setup();
+    open({ [MESSAGES]: () => apiError(409, 'turn_in_progress', 'busy') });
+    await user.type(await screen.findByLabelText('Your answer'), 'My answer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/still being written/);
+    expect(screen.getByLabelText('Your answer')).toHaveValue('My answer');
+  });
+
+  it('says to wait on 429 rate_limited, for a message and for AI feedback', async () => {
+    const user = userEvent.setup();
+    const { setDetail } = open({
+      [MESSAGES]: () => apiError(429, 'rate_limited', 'slow down'),
+      [FINISH]: () => apiError(429, 'rate_limited', 'slow down'),
+    });
+    setDetail(chatSession([OPENER, msg(2, 'user', 'Earlier'), msg(3, 'assistant', 'Okay.')]));
+    await user.type(await screen.findByLabelText('Your answer'), 'My answer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Too many requests in a minute/);
+    // Not treated as the AI being unavailable.
+    expect(screen.queryByText('AI unavailable')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Get AI feedback' }));
+    await user.click(await screen.findByRole('button', { name: 'Finish practice' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      /Too many requests in a minute/,
+    );
+  });
+
+  it('shows the switch note once, even after the stored transcript replaces it', async () => {
+    const user = userEvent.setup();
+    open({
+      [MESSAGES]: () =>
+        json(
+          reply('Next.', {
+            switched: { from: 'a', fromLabel: 'A', to: 'b', toLabel: 'Bee', reason: 'error' },
+          }),
+          201,
+        ),
+    });
+    await user.type(await screen.findByLabelText('Your answer'), 'My answer');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    const note = await screen.findByText('Continuing on Bee.');
+    await waitFor(() => expect(screen.getByText('Next.')).toBeInTheDocument());
+    // The same DOM node stays: it is not removed and added again (which would announce twice).
+    expect(screen.getByText('Continuing on Bee.')).toBe(note);
+  });
+
   it('explains a superseded message instead of failing silently', async () => {
     const user = userEvent.setup();
     open({ [MESSAGES]: () => apiError(409, 'message_superseded', 'newer message exists') });
@@ -307,7 +381,7 @@ describe('Practice chat', () => {
     >;
     expect(sent.aiFeedback).toBe(true);
     expect(sent.markDone).toBe(false);
-    expect(screen.getByText(/AI feedback can be wrong\. Check it yourself/)).toBeInTheDocument();
+    expect(screen.getByText(/AI feedback can be wrong\. Check facts/)).toBeInTheDocument();
   });
 
   it('closes the dialog and offers fallbacks when AI feedback is unavailable', async () => {
