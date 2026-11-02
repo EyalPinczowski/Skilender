@@ -4,7 +4,7 @@ import { buildApp } from '../src/app';
 import { createDatabase, type Database } from '../src/db/database';
 import { errorResponseSchema } from '../src/errors';
 import { createSupabaseAuthAdmin } from '../src/modules/accounts/auth-admin';
-import { EXPORT_SECTIONS } from '../src/modules/accounts/service';
+import { EXPORT_EXCLUDED_TABLES, EXPORT_SECTIONS } from '../src/modules/accounts/service';
 import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
 import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
 import { FAKE_SERVICE_KEY, startFakeSupabase, type FakeSupabase } from './fake-supabase';
@@ -179,6 +179,34 @@ describe.skipIf(!dbAvailable)('accounts (real Postgres, locally signed tokens)',
          values ($1, $2, 'day_overview', 'cached', now() + interval '1 day')`,
         [userId, createHash('sha256').update(userId).digest('hex')],
       );
+      await c.query(
+        `insert into rnd.calendar_connections (user_id, refresh_token_ciphertext)
+         values ($1, 'secret-ciphertext')`,
+        [userId],
+      );
+      await c.query(
+        `insert into rnd.calendar_oauth_states (user_id, state_hash, pkce_verifier_ciphertext, expires_at)
+         values ($1, $2, 'ct', now() + interval '10 minutes')`,
+        [userId, createHash('sha256').update(`state${userId}`).digest('hex')],
+      );
+      await c.query(
+        `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+         values ($1, $2, 'k1', 't1', 'ev1', '2026-11-03 09:00+00', '2026-11-03 10:00+00')`,
+        [userId, planId],
+      );
+      await c.query(
+        `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
+         values ($1, $2, 'k2', 't1', '2026-11-03 11:00+00', '2026-11-03 12:00+00', 'moved')`,
+        [userId, planId],
+      );
+      await c.query(
+        `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, kind)
+         values ($1, '2026-11-03', 'x1', 'cal', 60, 120, 'busy')`,
+        [userId],
+      );
+      await c.query(`insert into rnd.calendar_sources (user_id, calendar_id) values ($1, 'cal')`, [
+        userId,
+      ]);
     });
   }
 
@@ -484,9 +512,7 @@ describe.skipIf(!dbAvailable)('accounts (real Postgres, locally signed tokens)',
       const tables = await userTables();
       expect(tables.length).toBeGreaterThanOrEqual(17);
       expect(tables).toEqual(
-        Object.values(EXPORT_SECTIONS)
-          .map((s) => s.table)
-          .sort(),
+        [...Object.values(EXPORT_SECTIONS).map((s) => s.table), ...EXPORT_EXCLUDED_TABLES].sort(),
       );
 
       // And the response really carries a non-empty section for each of them, A's rows only.
@@ -497,6 +523,9 @@ describe.skipIf(!dbAvailable)('accounts (real Postgres, locally signed tokens)',
         for (const row of body[key]) expect(row.user_id, key).toBe(A);
       }
       expect(JSON.stringify(body)).not.toContain('Plan of B');
+      // Secrets stay out of the export.
+      expect(JSON.stringify(body)).not.toContain('secret-ciphertext');
+      expect(body.calendarConnections[0]).not.toHaveProperty('refresh_token_ciphertext');
     });
 
     it('does not let a second user read the first user data, even by asking for it', async () => {

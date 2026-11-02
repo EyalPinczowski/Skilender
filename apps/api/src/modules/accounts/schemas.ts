@@ -57,4 +57,9 @@ export const exportSchema = z.object({
   practiceFeedback: rows,
   aiUsageDaily: rows,
   aiCache: rows,
+  calendarConnections: rows,
+  calendarEventLinks: rows,
+  calendarLockedBlocks: rows,
+  calendarBusy: rows,
+  calendarSources: rows,
 });
