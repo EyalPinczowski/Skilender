@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AIPurpose, AISettings } from './ai/provider';
+import { parseCalendarTokenKeys, type CalendarKey } from './calendar-crypto';
 import { booleanString, featureEnvShape, toFeatures, type Features } from './features';
 
 const isBareOrigin = (value: string) => {
@@ -113,6 +114,10 @@ const envSchema = z.object({
   AI_USER_DAILY_PRACTICE_MESSAGES: intBetween(0, 1000, 40),
   AI_USER_DAILY_PRACTICE_FEEDBACK: intBetween(0, 1000, 6),
   AI_USER_DAILY_OVERVIEW: intBetween(0, 1000, 1),
+  // Google Calendar (v0.3b). Off unless the owner sets it; needs token keys when on.
+  FEATURE_CALENDAR: booleanString('false'),
+  // Newest first, "v2:<base64>,v1:<base64>", each key 32 bytes. Server-only secret: never logged.
+  CALENDAR_TOKEN_KEYS: z.string().optional(),
   ...featureEnvShape,
 });
 
@@ -154,6 +159,8 @@ export interface Config {
   rateLimitPerMinute: number;
   trustProxy: number;
   features: Features;
+  /** Holds key material: never log or serialise `tokenKeys`. */
+  calendar: { enabled: boolean; tokenKeys: CalendarKey[] };
   ai: AIConfig;
 }
 
@@ -205,6 +212,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (Boolean(e.SUPABASE_JWKS_URL) !== Boolean(e.SUPABASE_JWT_ISSUER)) {
     throw new ConfigError(['SUPABASE_JWKS_URL and SUPABASE_JWT_ISSUER: set both or neither']);
   }
+  const calendarKeys = loadCalendarKeys(e);
   const ai = loadAIConfig(e, env);
   return {
     nodeEnv: e.NODE_ENV,
@@ -225,8 +233,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     trustProxy: e.TRUST_PROXY,
     features: toFeatures(e),
+    calendar: { enabled: e.FEATURE_CALENDAR, tokenKeys: calendarKeys },
     ai,
   };
+}
+
+function loadCalendarKeys(e: z.infer<typeof envSchema>): CalendarKey[] {
+  const raw = e.CALENDAR_TOKEN_KEYS?.trim();
+  if (!raw) {
+    if (e.FEATURE_CALENDAR) {
+      throw new ConfigError(['CALENDAR_TOKEN_KEYS: required when FEATURE_CALENDAR=true']);
+    }
+    return [];
+  }
+  // Validated whenever set, so a bad key is caught before the flag is turned on.
+  const result = parseCalendarTokenKeys(raw);
+  if (result.problems.length > 0) {
+    throw new ConfigError(result.problems.map((p) => `CALENDAR_TOKEN_KEYS: ${p}`));
+  }
+  return result.keys;
 }
 
 function loadAIConfig(e: z.infer<typeof envSchema>, env: NodeJS.ProcessEnv): AIConfig {
