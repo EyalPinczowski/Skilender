@@ -54,6 +54,18 @@ describe('CalendarTokenCrypto', () => {
     expect(() => c.decrypt('', 'user-1')).toThrow(CalendarCryptoError);
   });
 
+  it('refuses to encrypt an empty token', () => {
+    expect(() => rotated().encrypt('', 'user-1')).toThrow(CalendarCryptoError);
+  });
+
+  it('binds the key id: same key material under two ids, relabelled token fails', () => {
+    const c = new CalendarTokenCrypto(keysOf(`a:${k1},b:${k1}`));
+    const value = c.encrypt(TOKEN, 'user-1');
+    expect(c.decrypt(value, 'user-1')).toBe(TOKEN);
+    const [, iv, ct, tag] = value.split('.');
+    expect(() => c.decrypt(['b', iv, ct, tag].join('.'), 'user-1')).toThrow(CalendarCryptoError);
+  });
+
   it('fails for a different user id', () => {
     const c = rotated();
     expect(() => c.decrypt(c.encrypt(TOKEN, 'user-1'), 'user-2')).toThrow(CalendarCryptoError);

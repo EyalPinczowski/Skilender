@@ -90,6 +90,8 @@ export class CalendarTokenCrypto {
   }
 
   encrypt(plaintext: string, userId: string): string {
+    // An empty value would produce a token decrypt() rejects, so refuse it up front.
+    if (plaintext.length === 0) throw new CalendarCryptoError('cannot encrypt an empty token');
     const current = this.keys[0]!;
     const iv = randomBytes(IV_BYTES);
     const cipher = createCipheriv('aes-256-gcm', current.key, iv, { authTagLength: TAG_BYTES });
