@@ -51,6 +51,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** The AI gateway: the only way to call a model (plan 3.2). */
     aiGateway: AIGateway;
+    /** Resolves when no background calendar sync (after a saved reschedule) is running. */
+    calendarSyncIdle: () => Promise<void>;
   }
 }
 
@@ -262,6 +264,8 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
           now: deps.now,
         })
       : null;
+
+  app.decorate('calendarSyncIdle', () => calendarSync?.idle() ?? Promise.resolve());
 
   if (calendarSync) {
     // After every saved reschedule (plan settings, day overrides, task edits and progress, day

@@ -283,6 +283,10 @@ export function createAIGateway(deps: GatewayDeps): AIGateway {
           continue;
         }
 
+        // When the turn deadline (not the provider's own timeout) is what limits this attempt,
+        // its timeout ends the turn. Timers and the wall clock are separate clocks, so asking
+        // the clock again could say a millisecond is left and start one more doomed attempt.
+        const cappedByTurn = remaining <= config.timeoutMs;
         try {
           const response = await attempt(
             provider,
@@ -338,6 +342,7 @@ export function createAIGateway(deps: GatewayDeps): AIGateway {
           warn({ providerId: provider.id, reason }, 'ai provider failed');
           attempts.push({ providerId: provider.id, outcome: reason });
           problem = { id: provider.id, reason };
+          if (cappedByTurn && error instanceof TimedOut) break;
         }
       }
       throw new AIUnavailableError('exhausted', attempts);

@@ -179,6 +179,8 @@ export function createCalendarSync(options: CalendarSyncOptions) {
   const now = options.now ?? (() => new Date());
   /** Users with a sync in progress in this process. See the note on `acquire`. */
   const running = new Map<string, Running>();
+  /** Background runs started by `afterReschedule`, so a caller (or a test) can wait for them. */
+  const background = new Set<Promise<void>>();
 
   // ---------------------------------------------------------------------------------- errors
 
@@ -893,7 +895,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       }
       const state: Running = { rerun: false };
       running.set(userId, state);
-      void (async () => {
+      const run = (async () => {
         try {
           do {
             state.rerun = false;
@@ -912,6 +914,13 @@ export function createCalendarSync(options: CalendarSyncOptions) {
           running.delete(userId);
         }
       })();
+      background.add(run);
+      void run.finally(() => background.delete(run));
+    },
+
+    /** Resolves when no background run started by `afterReschedule` is left. Never rejects. */
+    async idle(): Promise<void> {
+      while (background.size > 0) await Promise.allSettled([...background]);
     },
 
     /**
