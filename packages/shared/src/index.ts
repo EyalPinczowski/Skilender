@@ -14,6 +14,7 @@ export * from './scheduling/cv';
 export * from './scheduling/adjustments';
 export * from './calendar/event';
 export * from './calendar/busy';
+export * from './calendar/colors';
 export * from './export/ics';
 export * from './export/printable';
 export * from './practice/redact';

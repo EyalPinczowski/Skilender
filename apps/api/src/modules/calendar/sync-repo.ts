@@ -30,6 +30,7 @@ export interface LinkRow {
   last_end: Date;
   etag: string | null;
   last_summary: string | null;
+  last_color: string | null;
 }
 
 export interface LockedRow {
@@ -226,22 +227,36 @@ export const syncRepo = {
     ctx: UserContext,
     userId: string,
     planId: string,
-  ): Promise<Map<string, { title: string; open: boolean }>> {
-    const { rows } = await ctx.client.query<{ id: string; title: string; status: string }>(
-      `select id, title, status from ${ctx.schema}.tasks where user_id = $1 and plan_id = $2`,
+  ): Promise<Map<string, { title: string; open: boolean; orderIndex: number }>> {
+    // orderIndex is the task's position among ALL the plan's tasks (done ones included), so a
+    // task keeps its colour when its neighbours are finished.
+    const { rows } = await ctx.client.query<{
+      id: string;
+      title: string;
+      status: string;
+      order_index: string;
+    }>(
+      `select id, title, status,
+              (row_number() over (order by sort_order, id) - 1)::text as order_index
+       from ${ctx.schema}.tasks where user_id = $1 and plan_id = $2`,
       [userId, planId],
     );
     return new Map(
       rows.map((r) => [
         r.id,
-        { title: r.title, open: r.status === 'pending' || r.status === 'in_progress' },
+        {
+          title: r.title,
+          open: r.status === 'pending' || r.status === 'in_progress',
+          orderIndex: Number(r.order_index),
+        },
       ]),
     );
   },
 
   async links(ctx: UserContext, userId: string, planId: string): Promise<LinkRow[]> {
     const { rows } = await ctx.client.query<LinkRow>(
-      `select block_key, task_id, event_id, generation, last_start, last_end, etag, last_summary
+      `select block_key, task_id, event_id, generation, last_start, last_end, etag, last_summary,
+              last_color
        from ${ctx.schema}.calendar_event_links where user_id = $1 and plan_id = $2
        order by block_key`,
       [userId, planId],
@@ -253,12 +268,13 @@ export const syncRepo = {
     await ctx.client.query(
       `insert into ${ctx.schema}.calendar_event_links
          (user_id, plan_id, block_key, task_id, event_id, generation, last_start, last_end, etag,
-          last_summary)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          last_summary, last_color)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        on conflict (user_id, plan_id, block_key) do update set
          task_id = excluded.task_id, event_id = excluded.event_id, generation = excluded.generation,
          last_start = excluded.last_start, last_end = excluded.last_end, etag = excluded.etag,
-         last_summary = excluded.last_summary, updated_at = now()`,
+         last_summary = excluded.last_summary, last_color = excluded.last_color,
+         updated_at = now()`,
       [
         userId,
         planId,
@@ -270,6 +286,7 @@ export const syncRepo = {
         link.last_end,
         link.etag,
         link.last_summary,
+        link.last_color,
       ],
     );
   },

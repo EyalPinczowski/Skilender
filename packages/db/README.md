@@ -25,6 +25,8 @@ Migration 0011 (calendar, spec 3.8): `calendar_connections` (one per user; the r
 
 Migration 0013 (calendar sync, additive): `calendar_sources.sync_token`, `window_start`, `window_end` (Google's incremental-sync token and the dates it covers), `calendar_connections.sync_timezone` (the zone the busy rows were computed in) and `calendar_event_links.last_summary`. All nullable; the app login may update them.
 
+Migration 0014 (calendar event colours, additive): `calendar_event_links.last_color` (the Google `colorId` '1'..'11' last written to the event; nullable, the app login may update it). A null or different value makes the next sync patch the event.
+
 SQL tokens: `{{schema}} {{owner}} {{app}} {{app_user}} {{backup}}`. Anything else in `{{ }}` is an error.
 
 ## How the roles fit together (per schema `s`)

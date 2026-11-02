@@ -163,6 +163,7 @@ describe('GoogleCalendarProvider', () => {
     await p.insertEvent(calTarget, {
       id: 'abc12',
       summary: 'S',
+      colorId: '7',
       start: time,
       end: time,
       privateTags: tags,
@@ -174,16 +175,18 @@ describe('GoogleCalendarProvider', () => {
     expect(JSON.parse(seen[1]!.body)).toEqual({
       id: 'abc12',
       summary: 'S',
+      colorId: '7',
       start: time,
       end: time,
       extendedProperties: { private: tags },
     });
 
-    await p.patchEvent(evTarget, { summary: 'M', privateTags: tags });
+    await p.patchEvent(evTarget, { summary: 'M', colorId: '4', privateTags: tags });
     expect(seen[2]).toMatchObject({
       method: 'PATCH',
       url: '/calendar/v3/calendars/app%40group/events/e%2F1',
     });
+    expect(JSON.parse(seen[2]!.body)).toMatchObject({ summary: 'M', colorId: '4' });
 
     await p.deleteEvent(evTarget);
     expect(seen[3]).toMatchObject({ method: 'DELETE' });

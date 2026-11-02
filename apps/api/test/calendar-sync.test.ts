@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { APP_EVENT_SOURCE, type Block } from '@upversion/shared';
+import { APP_EVENT_SOURCE, colorIdForTask, type Block } from '@upversion/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { CalendarTokenCrypto } from '../src/calendar-crypto';
@@ -269,8 +269,8 @@ describe('a failed reconnect flag', () => {
 
 describe('desiredBlocks', () => {
   const tasks = new Map([
-    ['a', { title: 'Course A', open: true }],
-    ['b', { title: 'Closed', open: false }],
+    ['a', { title: 'Course A', open: true, orderIndex: 0 }],
+    ['b', { title: 'Closed', open: false, orderIndex: 1 }],
   ]);
   const blk = (taskId: string, date: string, start: string, end: string, kind = 'study'): Block =>
     ({
@@ -297,6 +297,7 @@ describe('desiredBlocks', () => {
     expect([...out.keys()]).toEqual([`a:${MON}:0`, `a:${MON}:1`]);
     expect(out.get(`a:${MON}:0`)!.start.toISOString()).toBe('2026-11-02T07:00:00.000Z');
     expect(out.get(`a:${MON}:0`)!.summary).toBe('Course A');
+    expect(out.get(`a:${MON}:0`)!.colorId).toBe(colorIdForTask(0));
   });
 
   it('does not reuse the key of a deleted or moved block', () => {
@@ -537,8 +538,9 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       last_start: Date;
       last_end: Date;
       generation: number;
+      last_color: string | null;
     }>(
-      `select plan_id, block_key, task_id, event_id, last_start, last_end, generation
+      `select plan_id, block_key, task_id, event_id, last_start, last_end, generation, last_color
        from rnd.calendar_event_links where user_id = $1 order by block_key`,
       [user],
     );
@@ -796,6 +798,44 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(google.live(APP_CAL).filter((e) => e.summary === 'Renamed').length).toBe(
         (await links()).filter((x) => x.task_id === 'big').length,
       );
+    });
+
+    it('colours each event by its task position: new events carry the colour, neighbours differ', async () => {
+      await sync();
+      const events = google.live(APP_CAL);
+      const byTask = new Map(events.map((e) => [tagsOf(e).task_id, e.colorId]));
+      expect(byTask.get('big')).toBe(colorIdForTask(0));
+      expect(byTask.get('lk')).toBe(colorIdForTask(1));
+      expect(byTask.get('big')).not.toBe(byTask.get('lk'));
+      expect(
+        (await links()).every((l) => l.last_color === colorIdForTask(l.task_id === 'big' ? 0 : 1)),
+      ).toBe(true);
+    });
+
+    it('patches an event with no stored or a different colour once, and not again', async () => {
+      await sync();
+      const l = await links();
+      await rows(`update rnd.calendar_event_links set last_color = null where user_id = '${A}'`);
+      google.seen = [];
+      await syncAgain();
+      const writes = google.writes();
+      expect(writes).toHaveLength(l.length);
+      expect(writes.every((w) => w.method === 'PATCH')).toBe(true);
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
+
+      // A changed task order recolours the existing events (one patch each, once).
+      await rows(`update rnd.tasks set sort_order = 5 where id = 'big' and plan_id = '${PLAN_A}'`);
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes().length).toBeGreaterThan(0);
+      const colours = new Map(google.live(APP_CAL).map((e) => [tagsOf(e).task_id, e.colorId]));
+      expect(colours.get('big')).toBe(colorIdForTask(1));
+      expect(colours.get('lk')).toBe(colorIdForTask(0));
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
     });
 
     it('deletes events whose block no longer exists', async () => {
