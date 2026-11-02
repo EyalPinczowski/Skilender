@@ -42,6 +42,8 @@ export function describeChoice(choice: FinishChoice): string {
       return `Your score: ${choice.score} out of ${choice.max}.`;
     case 'paste':
       return `Pasted feedback (${choice.text.trim().length} characters).`;
+    case 'ai':
+      return 'The AI will write feedback from your chat. It can be wrong.';
     case 'none':
       return 'No feedback will be saved.';
   }

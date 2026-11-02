@@ -22,6 +22,7 @@ const START = '/api/v1/plans/{planId}/tasks/{taskId}/practice/sessions' as const
 const SESSION = '/api/v1/plans/{planId}/practice/sessions/{sessionId}' as const;
 const FEEDBACK = '/api/v1/plans/{planId}/practice/sessions/{sessionId}/feedback' as const;
 const FINISH = '/api/v1/plans/{planId}/practice/sessions/{sessionId}/finish' as const;
+const MESSAGES = '/api/v1/plans/{planId}/practice/sessions/{sessionId}/messages' as const;
 const ABANDON = '/api/v1/plans/{planId}/practice/sessions/{sessionId}/abandon' as const;
 
 export type JobDescription = JsonOf<paths[typeof CONTEXT]['get']>;
@@ -34,6 +35,7 @@ export type FinishInput = BodyOf<paths[typeof FINISH]['post']>;
 export type FinishResult = JsonOf<paths[typeof FINISH]['post']>;
 export type PasteInput = BodyOf<paths[typeof FEEDBACK]['post']>;
 export type PasteResult = JsonOf<paths[typeof FEEDBACK]['post']>;
+export type SendMessageResult = JsonOf<paths[typeof MESSAGES]['post']>;
 export type PracticeChannel = BodyOf<paths[typeof START]['post']>['channel'];
 /** What a finished session reports back, whichever route finished it. */
 export type FinishedSession = FinishResult & { parsed?: boolean };
@@ -192,6 +194,61 @@ export function useAbandonSession(planId: string, sessionId: string) {
         messages: old?.messages ?? [],
         feedback: null,
       }));
+    },
+  });
+}
+
+/**
+ * One chat turn. The caller picks the message id and keeps it for a retry of the same text: the API
+ * then answers with the stored pair instead of calling a model again.
+ */
+export function useSendMessage(planId: string, sessionId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: (input: { id: string; content: string }) =>
+      unwrap(api.raw.POST(MESSAGES, { params: { path: { planId, sessionId } }, body: input })),
+    onSuccess: (result) => {
+      queryClient.setQueryData<SessionDetail | null>(sessionKey(planId, sessionId), (old) => {
+        if (!old) return old;
+        const known = new Set(old.messages.map((m) => m.id));
+        const added: SessionDetail['messages'] = [];
+        const seq = result.userMessage.seq;
+        if (!known.has(result.userMessage.id)) added.push(result.userMessage);
+        if (result.switched && !result.replayed) {
+          added.push({
+            id: `note-${result.reply.id}`,
+            seq: seq + 1,
+            role: 'note',
+            content: `Continuing on ${result.switched.toLabel}.`,
+            providerId: result.switched.to,
+            model: null,
+            redacted: false,
+            createdAt: result.userMessage.createdAt,
+          });
+        }
+        if (!known.has(result.reply.id)) {
+          added.push({
+            id: result.reply.id,
+            seq: seq + added.length + 1,
+            role: 'assistant',
+            content: result.reply.content,
+            providerId: result.reply.providerId,
+            model: result.reply.model,
+            redacted: false,
+            createdAt: result.userMessage.createdAt,
+          });
+        }
+        return { ...old, messages: [...old.messages, ...added] };
+      });
+      // The stored transcript is the truth (real note and reply ids and order).
+      void queryClient.invalidateQueries({ queryKey: sessionKey(planId, sessionId) });
+      void queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+    },
+    onError: () => {
+      // A superseded or in-progress turn: show what the server really holds.
+      void queryClient.invalidateQueries({ queryKey: sessionKey(planId, sessionId) });
     },
   });
 }

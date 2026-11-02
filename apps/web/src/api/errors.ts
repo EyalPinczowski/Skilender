@@ -7,6 +7,7 @@ const errorBodySchema = z.object({
     message: z.string(),
     requestId: z.string().optional(),
     sessionId: z.string().optional(),
+    fallbacks: z.array(z.string()).optional(),
   }),
 });
 
@@ -23,6 +24,8 @@ export class ApiError extends Error {
     public readonly requestId?: string,
     /** The running practice session, on 409 `practice_session_active`. */
     public readonly sessionId?: string,
+    /** What still works when the AI cannot answer (429 `ai_user_cap`, 503 `ai_unavailable`). */
+    public readonly fallbacks?: readonly string[],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -31,8 +34,8 @@ export class ApiError extends Error {
   static fromBody(status: number, body: unknown): ApiError {
     const parsed = errorBodySchema.safeParse(body);
     if (parsed.success) {
-      const { code, message, requestId, sessionId } = parsed.data.error;
-      return new ApiError('http', status, code, message, requestId, sessionId);
+      const { code, message, requestId, sessionId, fallbacks } = parsed.data.error;
+      return new ApiError('http', status, code, message, requestId, sessionId, fallbacks);
     }
     return new ApiError('http', status, 'unknown', `The server answered with status ${status}.`);
   }
@@ -47,3 +50,10 @@ export class ApiError extends Error {
 }
 
 export const isApiError = (error: unknown): error is ApiError => error instanceof ApiError;
+
+/** The AI cannot answer now: its daily cap is used or no provider is available. Practice goes on without it. */
+export const isAiUnavailable = (error: unknown): boolean =>
+  isApiError(error) &&
+  error.kind === 'http' &&
+  ((error.status === 503 && error.code === 'ai_unavailable') ||
+    (error.status === 429 && error.code === 'ai_user_cap'));

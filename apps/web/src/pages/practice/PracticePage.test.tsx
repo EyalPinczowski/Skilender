@@ -16,6 +16,18 @@ import {
 } from '../../test/practice-fixtures';
 import { bodyOf } from '../../test/day-fixtures';
 
+const USAGE_ON = {
+  day: '2026-11-10',
+  resetsAt: '2026-11-11T00:00:00.000Z',
+  configured: true,
+  user: {
+    practiceMessages: { used: 0, cap: 30 },
+    practiceFeedback: { used: 0, cap: 10 },
+    dayOverview: { used: 0, cap: 5 },
+  },
+  avoidedToday: 0,
+  providers: [],
+};
 const START = `POST ${BASE}/tasks/${TASK_ID}/practice/sessions`;
 const GET_SESSION = `GET ${BASE}/practice/sessions/${SESSION_ID}`;
 const FINISH = `POST ${BASE}/practice/sessions/${SESSION_ID}/finish`;
@@ -180,13 +192,40 @@ describe('Practice page: starting', () => {
     expect(requests(api, START)).toHaveLength(0);
   });
 
-  it('treats an in-app session as unsupported: a notice, the self-check, no chat', async () => {
-    window.localStorage.setItem(STORE_KEY, SESSION_ID);
-    open({ [GET_SESSION]: () => json(sessionBody({ channel: 'in_app' })) });
-    expect(await screen.findByRole('note')).toHaveTextContent(/not available here yet/);
-    expect(screen.getByRole('heading', { name: 'Score yourself' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Practice prompt')).toBeNull();
-    expect(screen.queryByLabelText('Reply from your assistant')).toBeNull();
+  it('offers the in-app chat only when an AI provider is configured', async () => {
+    const user = userEvent.setup();
+    open({
+      'GET /api/v1/ai/usage': () => json(USAGE_ON),
+      ...serveSession(sessionBody({ channel: 'in_app' })),
+    });
+    await user.click(await screen.findByRole('radio', { name: /Chat with the in-app assistant/ }));
+    await user.click(screen.getByRole('button', { name: 'Start practice' }));
+    expect(await screen.findByRole('log', { name: 'Conversation' })).toBeInTheDocument();
+  });
+
+  it('shows AI unavailable when starting a chat answers 503', async () => {
+    const user = userEvent.setup();
+    open({
+      'GET /api/v1/ai/usage': () => json(USAGE_ON),
+      [START]: () =>
+        json(
+          {
+            error: {
+              code: 'ai_unavailable',
+              message: 'x',
+              requestId: 'r',
+              fallbacks: ['copy_prompt'],
+            },
+          },
+          503,
+        ),
+    });
+    await user.click(await screen.findByRole('radio', { name: /Chat with the in-app assistant/ }));
+    await user.click(screen.getByRole('button', { name: 'Start practice' }));
+    expect(await screen.findByText('AI unavailable')).toBeInTheDocument();
+    // The other channels are still there.
+    await user.click(screen.getByRole('radio', { name: /Practise on my own/ }));
+    expect(screen.getByRole('button', { name: 'Start practice' })).toBeEnabled();
   });
 
   it('shows a server problem when the start fails, in words', async () => {

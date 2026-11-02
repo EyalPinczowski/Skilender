@@ -65,6 +65,9 @@ export function FinishedSummary({
           ) : (
             <p className="font-bold">No score: this feedback had no number.</p>
           )}
+          {feedback.source === 'model_json' || feedback.source === 'model_repaired' ? (
+            <p className="text-muted">AI feedback can be wrong. Check it yourself.</p>
+          ) : null}
           {plainText || extras?.parsed === false ? (
             <p className="text-muted">
               No feedback block was found, so the text is saved as plain text.
