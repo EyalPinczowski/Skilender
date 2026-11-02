@@ -1,4 +1,4 @@
-import { APP_CALENDAR_NAME } from '@skillstack/shared';
+import { APP_CALENDAR_NAME } from '@upversion/shared';
 import { CalendarCryptoError, type CalendarTokenCrypto } from '../../calendar-crypto';
 import type { GoogleCalendarConfig } from '../../config';
 import type { Database } from '../../db/database';

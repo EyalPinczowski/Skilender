@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { APP_CALENDAR_NAME, APP_EVENT_SOURCE } from '@skillstack/shared';
+import { APP_CALENDAR_NAME, APP_EVENT_SOURCE } from '@upversion/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { CalendarTokenCrypto } from '../src/calendar-crypto';
