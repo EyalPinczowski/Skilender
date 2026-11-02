@@ -54,13 +54,19 @@ export async function loadCalendarInputs(
   userId: string,
   planId: string,
   timeZone: string,
+  /** `fromDate`: rows before it are not read (nothing earlier can be planned or frozen). */
+  options: { fromDate?: string } = {},
 ): Promise<CalendarInputs> {
+  // Rows are written only by the calendar sync, and only for calendars with blocks_time set
+  // (the sync work package enforces that); this read trusts the table and does not filter
+  // by calendar.
   const busyRows = await ctx.client.query<BusyRow>(
     `select date::text as date, start_minute, end_minute, kind, blocks_day
      from ${ctx.schema}.calendar_busy
      where user_id = $1 and (kind = 'busy' or (kind = 'all_day' and blocks_day))
+       and ($2::date is null or date >= $2::date)
      order by date, start_minute, external_event_id`,
-    [userId],
+    [userId, options.fromDate ?? null],
   );
   const lockedRows = await ctx.client.query<LockedRow>(
     `select task_id, reason, starts_at, ends_at from ${ctx.schema}.calendar_locked_blocks

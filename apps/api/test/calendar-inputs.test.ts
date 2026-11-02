@@ -59,6 +59,65 @@ describe('calendarInputsFromRows', () => {
     expect(r.busy).toEqual([{ date: '2026-11-03', start: '09:00', end: '10:30' }]);
   });
 
+  it('splits a locked block that crosses local midnight into one block per day', () => {
+    const r = calendarInputsFromRows(
+      [],
+      [
+        {
+          reason: 'moved',
+          task_id: 't',
+          // 23:30 to 00:30 in Jerusalem (UTC+2 in November).
+          starts_at: new Date('2026-11-02T21:30:00Z'),
+          ends_at: new Date('2026-11-02T22:30:00Z'),
+        },
+      ],
+      TZ,
+    );
+    expect(r.lockedBlocks).toEqual([
+      {
+        taskId: 't',
+        date: '2026-11-02',
+        start: '23:30',
+        end: '23:59',
+        minutes: 29,
+        kind: 'locked',
+      },
+      {
+        taskId: 't',
+        date: '2026-11-03',
+        start: '00:00',
+        end: '00:30',
+        minutes: 30,
+        kind: 'locked',
+      },
+    ]);
+  });
+
+  it('reads times in local wall-clock time on a daylight-saving change day (Europe/London)', () => {
+    // Clocks go back at 02:00 BST on 2026-10-25: 15:00Z is 15:00 local (GMT), 10:00Z too.
+    const r = calendarInputsFromRows(
+      [],
+      [
+        {
+          reason: 'moved',
+          task_id: 't',
+          starts_at: new Date('2026-10-25T15:00:00Z'),
+          ends_at: new Date('2026-10-25T16:00:00Z'),
+        },
+        {
+          reason: 'deleted',
+          task_id: 't',
+          // 00:30Z is 01:30 BST, the day's first 01:30.
+          starts_at: new Date('2026-10-24T23:30:00Z'),
+          ends_at: new Date('2026-10-25T00:30:00Z'),
+        },
+      ],
+      'Europe/London',
+    );
+    expect(r.lockedBlocks).toMatchObject([{ date: '2026-10-25', start: '15:00', end: '16:00' }]);
+    expect(r.busy).toEqual([{ date: '2026-10-25', start: '00:30', end: '01:30' }]);
+  });
+
   it('is empty for no rows', () => {
     expect(calendarInputsFromRows([], [], TZ)).toEqual({
       busy: [],

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { createDatabase, type Database } from '../src/db/database';
 import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
+import { loadCalendarInputs } from '../src/modules/calendar/inputs';
 import { createDaysService } from '../src/modules/days/service';
 import { createSchedulingService } from '../src/modules/scheduling/service';
 import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
@@ -198,6 +199,67 @@ describe.skipIf(!dbAvailable)('calendar rows in the schedule (real Postgres)', (
     const after = await schedule();
     expect(after.blocks).toEqual(before.blocks);
     expect(await scheduling.calendarImpact(A, PLAN_A)).toMatchObject({ movedTaskIds: [] });
+    // The same scenario with one real busy row: only that row changes the schedule.
+    await busyRow(A, WED, 11 * 60, 13 * 60, 'busy');
+    const withBusy = await schedule();
+    expect(minutesOn(withBusy.blocks, WED)).toBe(5 * 60);
+    for (const d of [SUN, MON, TUE]) expect(on(withBusy.blocks, d)).toEqual(on(before.blocks, d));
+  });
+
+  it('busy rows before the earliest day a read can freeze are not read', async () => {
+    await busyRow(A, '2026-10-28', 11 * 60, 13 * 60, 'busy');
+    await busyRow(A, MON, 11 * 60, 13 * 60, 'busy');
+    const read = (fromDate?: string) =>
+      db.withUser(A, (ctx) =>
+        loadCalendarInputs(ctx, A, PLAN_A, 'Asia/Jerusalem', fromDate ? { fromDate } : {}),
+      );
+    expect((await read()).busy.map((b) => b.date)).toEqual(['2026-10-28', MON]);
+    expect((await read(SUN)).busy.map((b) => b.date)).toEqual([MON]);
+    // The days service passes the plan's first day (here 2026-11-01), so the old row is skipped
+    // and the schedule is unchanged by it.
+    expect(minutesOn((await schedule()).blocks, MON)).toBe(5 * 60);
+  });
+
+  it('a busy event on a daylight-saving change day (Europe/London, 2026-10-25) counts as local time', async () => {
+    const PLAN_C = 'a0000000-0000-4000-8000-000000000003';
+    const DST = '2026-10-25';
+    await testDb.admin(async (c) => {
+      await c.query(
+        `insert into rnd.plans (user_id, id, created_from, name, status, start_date, created_at)
+         values ($1, $2, 'builder', 'London', 'active', $3, '2026-10-20T10:00:00Z')`,
+        [A, PLAN_C, DST],
+      );
+      await c.query(
+        `insert into rnd.week_patterns (user_id, plan_id, study_weekdays, default_hours,
+           window_start, window_end, lunch_start, lunch_end, break_minutes, timezone)
+         values ($1, $2, '{0,1,2,3,4}', 7, '09:00', '17:00', '13:00', '14:00', 0, 'Europe/London')`,
+        [A, PLAN_C],
+      );
+      await c.query(
+        `insert into rnd.tasks (user_id, plan_id, id, title, type, est_hours, sort_order)
+         values ($1, $2, 'big', 'Big', 'course', 34, 0)`,
+        [A, PLAN_C],
+      );
+    });
+    clock = new Date(`${DST}T09:00:00Z`);
+    const get = async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/plans/${PLAN_C}/schedule`,
+        headers: await asA(),
+      });
+      expect(res.statusCode).toBe(200);
+      return (res.json() as Schedule).blocks;
+    };
+    expect(minutesOn(await get(), DST)).toBe(7 * 60);
+    await busyRow(A, DST, 11 * 60, 13 * 60, 'busy');
+    const blocks = await get();
+    expect(minutesOn(blocks, DST)).toBe(5 * 60);
+    expect(on(blocks, DST).some((b) => overlaps(b, '11:00', '13:00'))).toBe(false);
+    // A locked block at 15:00 local on that day (UTC+0 after the change) stays at 15:00.
+    await lockRow(A, PLAN_C, 'big', `${DST}T15:00:00Z`, `${DST}T16:00:00Z`);
+    const locked = (await get()).filter((b) => b.kind === 'locked');
+    expect(locked).toMatchObject([{ date: DST, start: '15:00', end: '16:00' }]);
   });
 
   it('(c) an all-day event with blocks_day=true empties that day', async () => {

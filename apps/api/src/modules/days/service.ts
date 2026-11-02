@@ -19,6 +19,14 @@ import type { Snapshot } from './repository';
 /** Never freeze more than this many missed days in one read (a plan older than that is not replayed). */
 const MAX_ROLLOVER_DAYS = 400;
 
+/** The earliest day a read may freeze (and so plan): the plan's first day, or 400 days back. */
+export function earliestFreezableDay(firstDay: string, today: string): string {
+  const lastPast = addDays(today, -1);
+  return diffDays(firstDay, lastPast) >= MAX_ROLLOVER_DAYS
+    ? addDays(lastPast, 1 - MAX_ROLLOVER_DAYS)
+    : firstDay;
+}
+
 export type DayStatus = 'not_started' | 'started' | 'ended';
 
 export interface DayState {
@@ -105,12 +113,16 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
     if (!plan) throw new HttpError(404, 'not_found', 'Resource not found.');
     if (!plan.weekPattern) throw unprocessable('The plan has no week pattern yet.');
     const pattern = plan.weekPattern;
+    const today = localDateOf(now(), pattern.timezone);
+    const firstDay = firstPlanDay(plan, pattern.timezone);
     return {
       plan,
       pattern,
-      today: localDateOf(now(), pattern.timezone),
-      firstDay: firstPlanDay(plan, pattern.timezone),
-      calendar: await loadCalendarInputs(ctx, userId, planId, pattern.timezone),
+      today,
+      firstDay,
+      calendar: await loadCalendarInputs(ctx, userId, planId, pattern.timezone, {
+        fromDate: earliestFreezableDay(firstDay, today),
+      }),
     };
   }
 
@@ -147,10 +159,7 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
     c: Omit<DayContext, 'snapshots'>,
   ): Promise<Snapshot[]> {
     const lastPast = addDays(c.today, -1);
-    const from =
-      diffDays(c.firstDay, lastPast) >= MAX_ROLLOVER_DAYS
-        ? addDays(lastPast, 1 - MAX_ROLLOVER_DAYS)
-        : c.firstDay;
+    const from = earliestFreezableDay(c.firstDay, c.today);
     const missing = (have: Snapshot[]): string[] => {
       const known = new Set(have.map((s) => s.date));
       const dates: string[] = [];
@@ -241,12 +250,16 @@ export function createDaysService(db: Database, now: () => Date = () => new Date
         // A missing plan is left to the caller to report.
         if (!plan?.weekPattern) return;
         const tz = plan.weekPattern.timezone;
+        const today = localDateOf(now(), tz);
+        const firstDay = firstPlanDay(plan, tz);
         await rollover(ctx, userId, {
           plan,
           pattern: plan.weekPattern,
-          today: localDateOf(now(), tz),
-          firstDay: firstPlanDay(plan, tz),
-          calendar: await loadCalendarInputs(ctx, userId, planId, tz),
+          today,
+          firstDay,
+          calendar: await loadCalendarInputs(ctx, userId, planId, tz, {
+            fromDate: earliestFreezableDay(firstDay, today),
+          }),
         });
       });
     },
