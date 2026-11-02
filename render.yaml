@@ -45,6 +45,8 @@ services:
         sync: false
       - key: CLOUDFLARE_API_TOKEN
         sync: false
+      - key: CLOUDFLARE_FREE_PLAN_CONFIRMED
+        sync: false
       - key: AI_BUDGET_GROQ_DAILY
         sync: false
       - key: GROQ_API_KEY
@@ -94,6 +96,8 @@ services:
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
       - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_FREE_PLAN_CONFIRMED
         sync: false
       - key: AI_BUDGET_GROQ_DAILY
         sync: false

@@ -2,7 +2,7 @@
 
 AI is optional. With no provider configured the whole app works with templates and rules. This page records what is known about each free provider. Each claim has the official page it came from and the date it was read. Anything not read on an official page is **needs check**. Limits change, so re-check before relying on them.
 
-**GitHub Models is retired** and is no longer a provider (see [ADR 013](../decisions/013-free-ai-providers-after-github-models.md)).
+GitHub Models is no longer a provider. That it is retired is the owner's plan decision; no official page confirming it was read (**needs check**). See [ADR 013](../decisions/013-free-ai-providers-after-github-models.md).
 
 Never add a payment method to any of these accounts. If a sign-up screen asks for one, stop and ask the owner.
 
@@ -19,7 +19,7 @@ Never add a payment method to any of these accounts. If a sign-up screen asks fo
 | Customer content is not used to train models; inputs and outputs are not retained beyond processing (AI Gateway logging would retain them, so it is not used) | Verified | developers.cloudflare.com/workers-ai/platform/data-usage/ | 2026-11-01 |
 | OpenAI-compatible base `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1` with `/chat/completions` | Verified | developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/ | 2026-11-01 |
 | JSON mode needs `response_format: json_schema`, lists llama-3.3-70b-instruct-fp8-fast among supported models, and can fail with "JSON Mode couldn't be met" | Verified | developers.cloudflare.com/workers-ai/features/json-mode/ | 2026-11-01 |
-| A card is needed to sign up for the free plan | **Needs check** (pages are silent) | | |
+| A card is needed to sign up for the free plan | **Needs check** (pages are silent). Cloudflare therefore stays off until the owner sets `CLOUDFLARE_FREE_PLAN_CONFIRMED=true` | | |
 | HTTP status returned when the daily allocation is exhausted | **Needs check** (pages say "error" only). A non-429 4xx is treated as a request-specific failure with no cooldown, so the per-day budget in Neurons (`AI_BUDGET_CLOUDFLARE_AI_DAILY`) is the real guard | | |
 | Commercial-use, age and region terms for the free plan | **Needs check** (read cloudflare.com/legal/terms) | | |
 | Whether the chosen models carry a beta or deprecation badge; answer quality | **Needs check** | | |
@@ -27,7 +27,7 @@ Never add a payment method to any of these accounts. If a sign-up screen asks fo
 
 Code: `apps/api/src/ai/providers/cloudflare-ai.ts`. Chat turns use the 8B model; the JSON feedback uses the 70B model. The code does not send `response_format` (JSON mode needs a schema and its errors are unverified); it asks for JSON in the system prompt and the practice pipeline repairs or retries the output.
 
-Set the budget in the same unit the gateway counts. The gateway counts calls, so derive a call budget from the Neuron arithmetic above, for example about 70 percent of 10,000 Neurons at about 13 to 81 Neurons per call.
+The gateway counts **calls**, not Neurons, so `AI_BUDGET_CLOUDFLARE_AI_DAILY` is a number of calls. Derive it from the Neuron arithmetic: 70 percent of 10,000 is 7,000 Neurons. At about 13 Neurons per 8B chat turn that is about 540 calls; at about 81 Neurons per 70B feedback call it is about 85 calls (7,000 / 81). A mix of chat turns and feedback calls lands in between, so size the budget for the mix (for example 40 chat turns and 6 feedback calls per active user costs about 1,000 Neurons a day, so 7 active users use the whole allocation). The per-user caps and the fallbacks do the rest.
 
 ## Groq (fallback, `groq`)
 
@@ -44,19 +44,23 @@ Set the budget in the same unit the gateway counts. The gateway counts calls, so
 | Commercial use on the free plan | **Needs check** | | |
 | Endpoint, model id, `max_completion_tokens` name and the `x-ratelimit-remaining-requests` header | **Needs check** until the first real call | | |
 
-Code: `apps/api/src/ai/providers/groq.ts`. **Groq is off by default.** It declares `costTier: 'paid'` (so the guard refuses it) and the factory skips it unless `GROQ_NO_CARD_CONFIRMED=true`. The owner sets that only after confirming and recording that the free plan needs no card and Zero Data Retention is on.
+Code: `apps/api/src/ai/providers/groq.ts`. **Groq is off by default**, and so is Cloudflare until `CLOUDFLARE_FREE_PLAN_CONFIRMED=true`. It declares `costTier: 'paid'` (so the guard refuses it) and the factory skips it unless `GROQ_NO_CARD_CONFIRMED=true`. The owner sets that only after confirming and recording that the free plan needs no card and Zero Data Retention is on.
 
 ## Not used
 
 | Provider | Reason | Page | Read |
 | --- | --- | --- | --- |
-| GitHub Models | Retired | n/a | n/a |
-| Gemini free tier | Free-tier content is used to improve products and read by human reviewers; not for personal data | ai.google.dev/gemini-api/terms | 2026-11-01 |
-| Cerebras | Free credits need a verified payment method | inference-docs.cerebras.ai/support/rate-limits | 2026-11-01 |
-| OpenRouter `:free` | 50 requests per day unless credits are bought | openrouter.ai/docs/api-reference/limits | 2026-11-01 |
-| Hugging Face Inference Providers | No free credits for free users | huggingface.co/docs/inference-providers/pricing | 2026-11-01 |
-| SambaNova | No-card free tier, but 20 requests per day per model; kept as a possible emergency fallback, data terms not read (needs check) | docs.sambanova.ai/docs/en/models/rate-limits | 2026-11-01 |
-| Mistral, Together, Fireworks, Cohere, NVIDIA NIM | Terms or limits could not be verified, or a card or purchase is needed | various | 2026-11-01 |
+| GitHub Models | Owner's plan decision that it is retired; no official page read (needs check) | n/a | n/a |
+| Gemini free tier | Free-tier content is used to improve products and may be read by human reviewers; not for personal data | ai.google.dev/gemini-api/terms | 2026-11-01 |
+| Cerebras | Free credits need a verified payment method; API inactive until then | inference-docs.cerebras.ai/support/rate-limits | 2026-11-01 |
+| OpenRouter `:free` | 20 requests per minute and 50 per day unless credits are bought | openrouter.ai/docs/api-reference/limits | 2026-11-01 |
+| Hugging Face Inference Providers | "Free Users: None" for monthly credits | huggingface.co/docs/inference-providers/pricing | 2026-11-01 |
+| SambaNova | No-card free tier, but 20 requests per day per model; a possible emergency fallback, data terms not read (needs check) | docs.sambanova.ai/docs/en/models/rate-limits | 2026-11-01 |
+| Cohere trial | 1,000 API calls per month, 20 requests per minute for chat; under one day of expected demand; commercial use not stated (needs check) | Cohere trial-key limits (page as recorded in the research notes) | 2026-11-01 |
+| Fireworks | 10 requests per minute with no payment method or no credits; real quota needs a payment method | Fireworks rate-limit page (as recorded in the research notes) | 2026-11-01 |
+| Mistral Experiment | Official pages said nothing on the plan; a search snippet (not an official page) said free requests may train models, which is **unverified** (needs check). Excluded until the data terms are read | help.mistral.ai (article URLs returned 404) | 2026-11-01 |
+| Together AI | Rate-limit and pricing pages give no free-tier terms (could not verify) | together.ai docs | 2026-11-01 |
+| NVIDIA NIM | Quickstart page silent on credits, limits and card (could not verify) | NVIDIA NIM quickstart | 2026-11-01 |
 
 ## Environment variables
 
@@ -68,10 +72,11 @@ Names only; values are entered in the Render dashboard (`render.yaml` uses `sync
 | `AI_BUDGET_CLOUDFLARE_AI_DAILY`, `AI_BUDGET_GROQ_DAILY` | gateway | Calls per UTC day. No budget means the provider is skipped |
 | `CLOUDFLARE_ACCOUNT_ID` | `cloudflare-ai` | 32 hexadecimal characters |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare-ai` | Token limited to Workers AI only |
+| `CLOUDFLARE_FREE_PLAN_CONFIRMED` | `cloudflare-ai` | `true` only after the owner confirms no card was asked and the account shows Workers Free |
 | `GROQ_API_KEY` | `groq` | |
 | `GROQ_NO_CARD_CONFIRMED` | `groq` | `true` only after the owner's check above |
 
-A provider whose credentials are missing is left out and reported as not configured.
+A provider whose credentials or confirmation are missing, or whose `CLOUDFLARE_ACCOUNT_ID` is malformed, is left out; startup logs `<id> listed but not configured` (the id only, no values).
 
 ## Owner checks before turning a provider on
 

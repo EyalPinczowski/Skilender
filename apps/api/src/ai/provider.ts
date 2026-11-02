@@ -52,7 +52,7 @@ export class ProviderQuotaError extends Error {
 export class ProviderUnavailableError extends Error {
   /**
    * `requestSpecific` is true when this one request caused the failure (a 400 or other 4xx except
-   * 429), so the provider itself is fine. The gateway then tries the next provider but sets no
+   * 429, 401, 403 and 404, which are provider-wide), so the provider itself is fine. The gateway then tries the next provider but sets no
    * cooldown, because a cooldown is shared by every user. Leave false for 5xx and network errors.
    */
   constructor(public readonly requestSpecific = false) {

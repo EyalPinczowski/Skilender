@@ -65,8 +65,8 @@ async function readCapped(response: Response): Promise<string> {
 /**
  * POSTs a JSON body over HTTPS and returns the parsed JSON reply. Maps failures to the gateway
  * contract: 429 -> `ProviderQuotaError` (with `retry-after`), 5xx, network, timeout, an oversized
- * or malformed body -> `ProviderUnavailableError`, any other 4xx -> `ProviderUnavailableError`
- * with `requestSpecific: true`. No error carries the provider's text, the URL or the key.
+ * or malformed body and 401/403/404 -> `ProviderUnavailableError`, any other 4xx ->
+ * `ProviderUnavailableError` with `requestSpecific: true`. No error carries the provider's text, the URL or the key.
  */
 export async function postJson(options: PostJsonOptions): Promise<JsonReply> {
   if (!options.url.startsWith('https://')) throw new ProviderUnavailableError();
@@ -95,7 +95,10 @@ export async function postJson(options: PostJsonOptions): Promise<JsonReply> {
   }
   if (response.status >= 400) {
     await response.body?.cancel().catch(() => undefined);
-    throw new ProviderUnavailableError(response.status < 500);
+    // 401, 403 and 404 mean the key, the account or the endpoint is wrong for every user, so they
+    // count as provider-wide (a cooldown). Any other 4xx is about this one request.
+    const providerWide = [401, 403, 404].includes(response.status);
+    throw new ProviderUnavailableError(response.status < 500 && !providerWide);
   }
   let text: string;
   try {

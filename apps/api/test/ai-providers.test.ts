@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildApp } from '../src/app';
+import { testConfig } from './helpers';
 import { ProviderQuotaError, ProviderUnavailableError, type AIProvider } from '../src/ai/provider';
 import { buildSafeRequest, type SafeAIRequest } from '../src/ai/safe-request';
 import { createCloudflareAIProvider } from '../src/ai/providers/cloudflare-ai';
@@ -59,7 +61,13 @@ const makers: Record<string, (fetch: FetchLike) => AIProvider> = {
   groq: (fetch) =>
     createGroqProvider({ apiKey: KEY, noCardConfirmed: true, fetch, now: () => NOW }),
   'cloudflare-ai': (fetch) =>
-    createCloudflareAIProvider({ accountId: ACCOUNT, apiToken: KEY, fetch, now: () => NOW }),
+    createCloudflareAIProvider({
+      accountId: ACCOUNT,
+      apiToken: KEY,
+      freePlanConfirmed: true,
+      fetch,
+      now: () => NOW,
+    }),
 };
 
 describe.each(Object.entries(makers))('%s provider contract', (id, make) => {
@@ -115,12 +123,34 @@ describe.each(Object.entries(makers))('%s provider contract', (id, make) => {
   });
 
   it('maps other 4xx to a request-specific ProviderUnavailableError', async () => {
-    for (const status of [400, 401, 404, 422]) {
+    for (const status of [400, 413, 422]) {
       const { fetch } = recorder(() => new Response('bad', { status }));
       const error = await run(fetch).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ProviderUnavailableError);
       expect((error as ProviderUnavailableError).requestSpecific).toBe(true);
     }
+  });
+
+  it('maps 401, 403 and 404 to a provider-wide failure (not request specific)', async () => {
+    for (const status of [401, 403, 404]) {
+      const { fetch } = recorder(() => new Response('nope', { status }));
+      const error = await run(fetch).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ProviderUnavailableError);
+      expect((error as ProviderUnavailableError).requestSpecific).toBe(false);
+    }
+  });
+
+  it('stops when the signal fires while the body is being read', async () => {
+    const controller = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        c.enqueue(new TextEncoder().encode('{"choices":'));
+        controller.abort();
+        c.error(new DOMException('aborted', 'AbortError'));
+      },
+    });
+    const { fetch } = recorder(() => new Response(stream, { status: 200 }));
+    await expect(run(fetch, controller.signal)).rejects.toBeInstanceOf(ProviderUnavailableError);
   });
 
   it('maps a network failure to ProviderUnavailableError without its message', async () => {
@@ -351,16 +381,56 @@ describe('Cloudflare specifics', () => {
 
 describe('registration', () => {
   const ai = { providerOrder: ['cloudflare-ai', 'groq'] };
-  it('skips providers without credentials', () => {
-    expect(createConfiguredProviders(ai, 'rnd', {})).toEqual([]);
+  const creds = { CLOUDFLARE_ACCOUNT_ID: ACCOUNT, CLOUDFLARE_API_TOKEN: KEY, GROQ_API_KEY: KEY };
+  const ids = (env: Record<string, string>, missing: string[] = []) =>
+    createConfiguredProviders(ai, 'rnd', env, (id) => missing.push(id)).map((p) => p.id);
+
+  it('skips providers without credentials and reports them', () => {
+    const missing: string[] = [];
+    expect(ids({}, missing)).toEqual([]);
+    expect(missing).toEqual(['cloudflare-ai', 'groq']);
   });
-  it('registers cloudflare-ai with its credentials, and groq only once confirmed', () => {
-    const env = { CLOUDFLARE_ACCOUNT_ID: ACCOUNT, CLOUDFLARE_API_TOKEN: KEY, GROQ_API_KEY: KEY };
-    expect(createConfiguredProviders(ai, 'rnd', env).map((p) => p.id)).toEqual(['cloudflare-ai']);
+  it('leaves both providers off until their no-card confirmation is set', () => {
+    const missing: string[] = [];
+    expect(ids(creds, missing)).toEqual([]);
+    expect(missing).toEqual(['cloudflare-ai', 'groq']);
+    expect(ids({ ...creds, CLOUDFLARE_FREE_PLAN_CONFIRMED: 'true' })).toEqual(['cloudflare-ai']);
     expect(
-      createConfiguredProviders(ai, 'rnd', { ...env, GROQ_NO_CARD_CONFIRMED: 'true' }).map(
-        (p) => p.id,
-      ),
+      ids({ ...creds, CLOUDFLARE_FREE_PLAN_CONFIRMED: 'true', GROQ_NO_CARD_CONFIRMED: 'true' }),
     ).toEqual(['cloudflare-ai', 'groq']);
+  });
+  it('leaves out a malformed Cloudflare account id instead of throwing', () => {
+    const missing: string[] = [];
+    const env = { ...creds, CLOUDFLARE_FREE_PLAN_CONFIRMED: 'true', CLOUDFLARE_ACCOUNT_ID: '../x' };
+    expect(ids(env, missing)).toEqual([]);
+    expect(missing).toEqual(['cloudflare-ai', 'groq']);
+  });
+  it('is paid until confirmed', () => {
+    expect(createCloudflareAIProvider({ accountId: ACCOUNT, apiToken: KEY }).costTier).toBe('paid');
+  });
+});
+
+describe('startup path', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('builds the app with a bad account id and logs only the provider id', async () => {
+    vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', 'not-an-id/../secret-value');
+    vi.stubEnv('CLOUDFLARE_API_TOKEN', KEY);
+    vi.stubEnv('CLOUDFLARE_FREE_PLAN_CONFIRMED', 'true');
+    vi.stubEnv('GROQ_API_KEY', KEY);
+    const lines: string[] = [];
+    const config = testConfig({ appEnv: 'rnd', logLevel: 'info' });
+    config.ai = { ...config.ai, providerOrder: ['cloudflare-ai', 'groq'] };
+    const app = buildApp(config, {
+      db: null,
+      logStream: { write: (line) => void lines.push(line) },
+    });
+    await app.ready();
+    await app.close();
+    const logged = lines.join('\n');
+    expect(logged).toContain('cloudflare-ai listed but not configured');
+    expect(logged).toContain('groq listed but not configured');
+    expect(logged).not.toContain('secret-value');
+    expect(logged).not.toContain(KEY);
   });
 });

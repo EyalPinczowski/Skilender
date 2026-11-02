@@ -6,7 +6,7 @@ import { postJson, systemWithJsonHint, type FetchLike } from './http';
 // Base: https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1 (OpenAI-compatible).
 const CF_HOST = 'https://api.cloudflare.com/client/v4/accounts'; // needs check
 const CHAT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8-fast'; // needs check (about 13 neurons per turn)
-// A model the JSON-mode page lists; used for the final feedback only (about 81 neurons per turn).
+// A larger model for the final feedback, where answer quality matters (about 81 neurons per turn).
 const JSON_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'; // needs check
 
 /** Cloudflare account ids are 32 hex characters. Anything else could rewrite the URL path. */
@@ -23,6 +23,11 @@ export interface CloudflareAIOptions {
   accountId: string;
   /** A token limited to Workers AI. */
   apiToken: string;
+  /**
+   * True only after the owner has confirmed that no card was asked at sign-up and the account
+   * shows Workers Free. Until then the tier is `paid`, which the guard refuses.
+   */
+  freePlanConfirmed?: boolean;
   fetch?: FetchLike;
   now?: () => Date;
   chatModel?: string;
@@ -59,8 +64,8 @@ export function createCloudflareAIProvider(options: CloudflareAIOptions): AIProv
     id: 'cloudflare-ai',
     label: 'Cloudflare Workers AI',
     // Workers Free fails with an error at 10,000 Neurons/day instead of charging (pricing page,
-    // 2026-11-01). Card at signup is still needs check (docs/setup/ai-providers.md).
-    costTier: 'free',
+    // 2026-11-01). Card at signup is needs check, so `free` only once the owner confirms it.
+    costTier: options.freePlanConfirmed === true ? 'free' : 'paid',
     maxContextChars: 12_000,
     async generate(request, { signal }): Promise<AIResponse> {
       const { json } = await postJson({
