@@ -326,4 +326,18 @@ export const syncRepo = {
       [userId, planId, blockKey],
     );
   },
+
+  async deleteLockedMany(
+    ctx: UserContext,
+    userId: string,
+    planId: string,
+    blockKeys: string[],
+  ): Promise<void> {
+    if (blockKeys.length === 0) return;
+    await ctx.client.query(
+      `delete from ${ctx.schema}.calendar_locked_blocks
+       where user_id = $1 and plan_id = $2 and block_key = any($3::text[])`,
+      [userId, planId, blockKeys],
+    );
+  },
 };

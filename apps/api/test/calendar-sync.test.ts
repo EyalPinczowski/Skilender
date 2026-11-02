@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { APP_EVENT_SOURCE, type Block } from '@upversion/shared';
@@ -7,7 +9,8 @@ import { CalendarTokenCrypto } from '../src/calendar-crypto';
 import { createDatabase, type Database } from '../src/db/database';
 import { createSupabaseVerifier } from '../src/modules/accounts/token-verifier';
 import { eventIdFor } from '../src/modules/calendar/event-id';
-import { desiredBlocks } from '../src/modules/calendar/sync';
+import { syncRepo } from '../src/modules/calendar/sync-repo';
+import { createCalendarSync, desiredBlocks } from '../src/modules/calendar/sync';
 import { acceptCurrentLegal, dbAvailable, prepareDatabase, type TestDb } from './db-helpers';
 import { testConfig } from './helpers';
 import { ISSUER, makeTestKeys, type TestKeys } from './tokens';
@@ -52,6 +55,18 @@ class GoogleStub {
   /** A delete removes the event entirely (404 afterwards) instead of cancelling it. */
   hardDelete = false;
   pageSize = 3;
+  /** Calendar ids whose requests answer 503 (the others work). */
+  failCals = new Set<string>();
+  /** Holds the first event insert until released; see `holdInserts`. */
+  hold: { mark: () => void; gate: Promise<void> } | null = null;
+  holdInserts(): { reached: Promise<void>; release: () => void } {
+    let mark!: () => void;
+    let release!: () => void;
+    const reached = new Promise<void>((r) => (mark = r));
+    const gate = new Promise<void>((r) => (release = r));
+    this.hold = { mark, gate };
+    return { reached, release };
+  }
 
   put(cal: string, raw: Raw): void {
     if (!this.cals.has(cal)) this.cals.set(cal, new Map());
@@ -92,7 +107,7 @@ class GoogleStub {
     this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const chunks: Buffer[] = [];
       req.on('data', (c: Buffer) => chunks.push(c));
-      req.on('end', () => {
+      req.on('end', async () => {
         const url = new URL(req.url ?? '/', 'http://stub');
         const text = Buffer.concat(chunks).toString();
         if (url.pathname === '/token') {
@@ -115,6 +130,15 @@ class GoogleStub {
         const m = /^\/calendar\/v3\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/.exec(url.pathname);
         if (!m) return send(res, 404, {});
         const cal = decodeURIComponent(m[1]!);
+        if (this.failCals.has(cal)) {
+          return send(res, 503, { error: { errors: [{ reason: 'backendError' }] } });
+        }
+        if (this.hold && req.method === 'POST' && !m[2]) {
+          const held = this.hold;
+          this.hold = null; // only the first insert waits
+          held.mark();
+          await held.gate;
+        }
         const id = m[2] ? decodeURIComponent(m[2]) : undefined;
         const bucket = this.cals.get(cal) ?? new Map();
         const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
@@ -200,6 +224,49 @@ const timed = (id: string, date: string, from: string, to: string, extra: object
   ...extra,
 });
 
+describe('a failed reconnect flag', () => {
+  it('cannot replace the answer with a database error that echoes data', async () => {
+    const leak = 'Failing row contains (secret-event-title)';
+    const ctx = {
+      schema: 'rnd',
+      client: {
+        query: async (sql: string) => {
+          if (sql.includes('last_synced_at'))
+            return { rows: [{ status: 'connected', last_synced_at: null }] };
+          if (sql.includes('refresh_token_ciphertext'))
+            return {
+              rows: [
+                {
+                  status: 'connected',
+                  app_calendar_id: 'c',
+                  refresh_token_ciphertext: 'garbage',
+                  sync_timezone: null,
+                },
+              ],
+            };
+          return { rows: [] };
+        },
+      },
+    };
+    const warnings: string[] = [];
+    const sync = createCalendarSync({
+      db: { withUser: (_u: string, fn: (c: never) => unknown) => fn(ctx as never) } as never,
+      crypto,
+      providerFor: () => {
+        throw new Error('not reached');
+      },
+      markNeedsReconnect: async () => {
+        throw new Error(leak);
+      },
+      scheduling: {} as never,
+      log: { warn: (o) => warnings.push(JSON.stringify(o)) },
+    });
+    const error = await sync.syncNow(A).catch((e: unknown) => e);
+    expect(error).toMatchObject({ statusCode: 409, code: 'calendar_reconnect_required' });
+    expect(warnings.join()).not.toContain('secret-event-title');
+  });
+});
+
 describe('desiredBlocks', () => {
   const tasks = new Map([
     ['a', { title: 'Course A', open: true }],
@@ -272,6 +339,9 @@ describe('desiredBlocks', () => {
 describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () => {
   let testDb: TestDb;
   let db: Database;
+  let realDb: Database;
+  /** Every statement the app ran, for the tests that count them. */
+  let statements: string[];
   let keys: TestKeys;
   let google: GoogleStub;
   let app: ReturnType<typeof buildApp>;
@@ -283,7 +353,23 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     keys = await makeTestKeys();
     google = new GoogleStub();
     await google.start();
-    db = createDatabase({ connectionString: testDb.appUrl('rnd'), appEnv: 'rnd' });
+    realDb = createDatabase({ connectionString: testDb.appUrl('rnd'), appEnv: 'rnd' });
+    statements = [];
+    db = {
+      ...realDb,
+      withUser: (userId, fn) =>
+        realDb.withUser(userId, (ctx) =>
+          fn({
+            ...ctx,
+            client: {
+              query: ((sql: unknown, ...rest: unknown[]) => {
+                if (typeof sql === 'string') statements.push(sql);
+                return (ctx.client.query as (...a: unknown[]) => unknown)(sql, ...rest);
+              }) as typeof ctx.client.query,
+            },
+          }),
+        ),
+    };
     logs = [];
     app = buildApp(
       testConfig({
@@ -314,16 +400,19 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
 
   afterAll(async () => {
     await app?.close();
-    await db?.close();
+    await realDb?.close();
     await new Promise((r) => google.server.close(r));
   });
 
   beforeEach(async () => {
     clock = new Date(START_CLOCK);
     logs.length = 0;
+    statements.length = 0;
     google.seen = [];
     google.cals = new Map();
     google.failWith = null;
+    google.failCals = new Set();
+    google.hold = null;
     google.grantRevoked = false;
     google.tokensExpired = false;
     google.hardDelete = false;
@@ -883,20 +972,37 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(res.json().error.code).toBe('calendar_not_connected');
     });
 
-    it('answers 409 sync_in_progress when a sync is already running for the user', async () => {
-      google.pageSize = 1;
-      google.put(PRIMARY, timed('m1', MON, '11:00', '12:00'));
-      const [a, b] = await Promise.all([sync(), sync()]);
-      google.pageSize = 3;
-      const codes = [a.statusCode, b.statusCode].sort();
-      // The second request either finds the first still running (409) or, if the first finished
-      // already, is answered from the throttle (200).
-      expect(codes[0]).toBe(200);
-      if (codes[1] === 409) {
-        const loser = a.statusCode === 409 ? a : b;
-        expect(loser.json().error.code).toBe('sync_in_progress');
-      }
+    it('answers 409 sync_in_progress while a sync is held mid-run, and finishes the first', async () => {
+      const held = google.holdInserts();
+      const first = sync(); // stops at its first event insert
+      await held.reached;
+      const second = await sync();
+      expect(second.statusCode).toBe(409);
+      expect(second.json().error.code).toBe('sync_in_progress');
+      held.release();
+      expect((await first).statusCode).toBe(200);
       expect(google.live(APP_CAL).length).toBe((await links()).length); // never doubled
+    });
+
+    it('runs another write pass when a reschedule was saved during the sync', async () => {
+      const held = google.holdInserts();
+      const first = sync();
+      await held.reached;
+      // Monday becomes a day off while the first sync is still creating events for it.
+      const save = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/day-overrides/${MON}`,
+        headers: await asUser(A),
+        payload: { isStudyDay: false },
+      });
+      expect(save.statusCode).toBe(200);
+      held.release();
+      expect((await first).statusCode).toBe(200);
+      // No polling: the same request already made the extra pass.
+      const onMonday = google
+        .live(APP_CAL)
+        .filter((e) => new Date(startOf(e)).toISOString().startsWith(MON));
+      expect(onMonday).toEqual([]);
     });
 
     it('syncs in the background after a saved reschedule, which commits first', async () => {
@@ -918,6 +1024,125 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       await waitFor(async () => expect(onMonday()).toEqual([]));
       // Reads were not repeated for a reschedule.
       expect(google.eventListings(PRIMARY)).toHaveLength(0);
+    });
+  });
+
+  describe('review fixes', () => {
+    it('keeps the event of a block the user moved beyond the 14-day window', async () => {
+      await sync();
+      const link = (await links()).find((x) => x.block_key.startsWith(`big:${MON}:`))!;
+      const ev = google.get(APP_CAL, link.event_id)!;
+      const far = '2026-12-20'; // a Sunday, a study day, far outside the window
+      google.put(APP_CAL, {
+        ...ev,
+        start: { dateTime: L(far, '10:00') },
+        end: { dateTime: L(far, '12:00') },
+      });
+      expect((await syncAgain()).statusCode).toBe(200);
+      expect((await locked())[0]).toMatchObject({ reason: 'moved', block_key: link.block_key });
+      expect(google.get(APP_CAL, link.event_id)!.status).not.toBe('cancelled');
+      expect(startOf(google.get(APP_CAL, link.event_id)!)).toBe(Date.parse(L(far, '10:00')));
+      expect((await links()).some((x) => x.block_key === link.block_key)).toBe(true);
+      // And it stays that way.
+      await syncAgain();
+      expect(google.get(APP_CAL, link.event_id)!.status).not.toBe('cancelled');
+    });
+
+    it('does not turn our own lost-response patch into a user move', async () => {
+      await sync();
+      const link = (await links()).find((x) => x.block_key.startsWith(`big:${MON}:`))!;
+      // Google has the planned time; our link still holds an older one (the patch answer was lost).
+      await rows(
+        `update rnd.calendar_event_links set last_start = last_start - interval '1 hour',
+           last_end = last_end - interval '1 hour' where user_id = $1 and block_key = $2`,
+        [A, link.block_key],
+      );
+      google.seen = [];
+      expect((await syncAgain()).statusCode).toBe(200);
+      expect(await locked()).toEqual([]);
+      const fixed = (await links()).find((x) => x.block_key === link.block_key)!;
+      expect(fixed.last_start.getTime()).toBe(link.last_start.getTime());
+      expect(google.writes()).toEqual([]);
+    });
+
+    it('still writes the study blocks when the busy read fails', async () => {
+      google.failCals.add(PRIMARY);
+      const res = await sync();
+      expect(res.statusCode).toBe(503);
+      expect(google.live(APP_CAL).length).toBeGreaterThan(0);
+      expect((await links()).length).toBe(google.live(APP_CAL).length);
+    });
+
+    it('still reads busy time when the write side fails', async () => {
+      google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
+      google.failCals.add(APP_CAL);
+      const res = await sync();
+      expect(res.statusCode).toBe(503);
+      expect((await busy()).map((r) => r.external_event_id)).toEqual(['meet1']);
+    });
+
+    it('syncs after a plan import', async () => {
+      google.seen = [];
+      const newPlan = 'c0000000-0000-4000-8000-000000000001';
+      const demo = JSON.parse(
+        readFileSync(
+          fileURLToPath(new URL('../../../data/sample-plans/demo-plan.json', import.meta.url)),
+          'utf8',
+        ),
+      );
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/plans/import',
+        headers: await asUser(A),
+        payload: { id: newPlan, ...demo, startDate: SUN, endDate: undefined },
+      });
+      expect(res.statusCode).toBe(201);
+      await waitFor(async () => {
+        expect((await links()).some((x) => x.plan_id === newPlan)).toBe(true);
+      });
+    });
+
+    it('removes stale locks in one statement', async () => {
+      await rows(
+        `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
+         select $1, $2, 'old:' || n, 'big', '2026-10-01T08:00:00Z', '2026-10-01T09:00:00Z', 'deleted'
+         from generate_series(1, 4) n`,
+        [A, PLAN_A],
+      );
+      statements.length = 0;
+      expect((await sync()).statusCode).toBe(200);
+      expect(await locked()).toEqual([]);
+      expect(
+        statements.filter((q) => /delete from \S*calendar_locked_blocks/.test(q)),
+      ).toHaveLength(1);
+    });
+
+    it('answers a save with 2xx while Google is down, and the sync after it only logs a code', async () => {
+      await sync();
+      google.failWith = 503;
+      const plan = await app.inject({
+        method: 'GET',
+        url: `/api/v1/plans/${PLAN_A}`,
+        headers: await asUser(A),
+      });
+      const saved = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/week-pattern`,
+        headers: await asUser(A),
+        payload: { ...plan.json().weekPattern, defaultHours: 5 },
+      });
+      expect(saved.statusCode).toBe(200);
+      const task = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/plans/${PLAN_A}/tasks/big`,
+        headers: await asUser(A),
+        payload: { title: 'Renamed while down' },
+      });
+      expect(task.statusCode).toBe(200);
+      await waitFor(async () => {
+        expect(logs.join('\n')).toContain('did not finish');
+      });
+      expect(logs.join('\n')).not.toContain('Renamed while down');
     });
   });
 
@@ -1017,6 +1242,35 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
 
   // -------------------------------------------------------------------------- isolation
 
+  describe('AI inputs', () => {
+    it('carry no busy-event titles: the briefing built from a plan with busy rows has none', async () => {
+      const title = 'ZZ-DISTINCT-BUSY-TITLE';
+      await rows(
+        `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, title, kind)
+         values ($1, $2, 'distinct', $3, 660, 720, $4, 'busy')`,
+        [A, SUN, PRIMARY, title],
+      );
+      const headers = await asUser(A);
+      const bodies: string[] = [];
+      for (const url of [
+        `/api/v1/plans/${PLAN_A}/days/${SUN}/briefing`,
+        `/api/v1/plans/${PLAN_A}/schedule`,
+        `/api/v1/plans/${PLAN_A}/open-tasks`,
+      ]) {
+        const res = await app.inject({ method: 'GET', url, headers });
+        expect(res.statusCode, url).toBe(200);
+        bodies.push(res.body);
+      }
+      // The busy time did shape the plan ...
+      const schedule = JSON.parse(bodies[1]!) as { blocks: Block[] };
+      expect(
+        schedule.blocks.some((b) => b.date === SUN && b.start < '12:00' && '11:00' < b.end),
+      ).toBe(false);
+      // ... but its title is nowhere in what feeds prompts or briefings.
+      for (const body of bodies) expect(body).not.toContain(title);
+    });
+  });
+
   describe('isolation between users', () => {
     it('never touches another user’s calendar rows', async () => {
       google.put(PRIMARY, timed('meet1', MON, '11:00', '12:00'));
@@ -1029,6 +1283,17 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       await rows(
         `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
          values ($1, $2, 'big:2026-11-02:0', 'big', '2026-11-02T08:00:00Z', '2026-11-02T09:00:00Z', 'moved')`,
+        [B, PLAN_B],
+      );
+      // Same event id and date as A's event, and A's block keys, in B's own rows.
+      await rows(
+        `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, title, kind)
+         values ($1, '2026-11-02', 'meet1', $2, 100, 200, 'B same id', 'busy')`,
+        [B, PRIMARY],
+      );
+      await rows(
+        `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+         values ($1, $2, 'big:2026-11-01:0', 'big', 'b-event-id', '2026-11-01T07:00:00Z', '2026-11-01T11:00:00Z')`,
         [B, PLAN_B],
       );
       const snapshot = async () => ({
@@ -1046,7 +1311,41 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(await snapshot()).toEqual(before);
       // A's own data did get written.
       expect((await busy(A)).length).toBeGreaterThan(0);
+      expect((await busy(B)).find((r) => r.external_event_id === 'meet1')!.title).toBe('B same id');
       expect((await links(A)).every((l) => l.plan_id === PLAN_A)).toBe(true);
+    });
+
+    it('cannot be pointed at another user’s rows, even by passing their id to the repository', async () => {
+      await rows(
+        `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, title, kind)
+         values ($1, '2026-11-02', 'b-event', $2, 600, 660, 'B private', 'busy')`,
+        [B, PRIMARY],
+      );
+      await rows(
+        `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
+         values ($1, $2, 'k', 'big', '2026-11-02T08:00:00Z', '2026-11-02T09:00:00Z', 'moved')`,
+        [B, PLAN_B],
+      );
+      const before = { busy: await busy(B), locked: await locked(B) };
+      // A's database context, B's id in every call: row-level security leaves B's rows alone.
+      await realDb.withUser(A, async (ctx) => {
+        await syncRepo.clearAllBusy(ctx, B);
+        await syncRepo.dropSources(ctx, B, [PRIMARY]);
+        await syncRepo.deleteLockedMany(ctx, B, PLAN_B, ['k']);
+        await syncRepo.deleteLocked(ctx, B, PLAN_B, 'k');
+        await syncRepo.applySource(ctx, B, PRIMARY, {
+          replaceAll: true,
+          touchedIds: [],
+          rows: [],
+          keepFrom: '2099-01-01',
+          syncToken: null,
+          window: null,
+        });
+        expect(await syncRepo.activePlans(ctx, B, 5)).toEqual([]);
+        expect(await syncRepo.links(ctx, B, PLAN_B)).toEqual([]);
+        expect(await syncRepo.locked(ctx, B, PLAN_B)).toEqual([]);
+      });
+      expect({ busy: await busy(B), locked: await locked(B) }).toEqual(before);
     });
   });
 });

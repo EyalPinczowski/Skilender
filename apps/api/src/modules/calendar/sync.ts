@@ -57,6 +57,7 @@ export const DEFAULT_READ_DAYS = 120;
 /** A full listing reads this much beyond what is needed, so the token stays valid for weeks. */
 const WINDOW_SLACK_DAYS = 30;
 const MAX_PAGES = 40;
+const MAX_EXTRA_PASSES = 2;
 const MAX_ACTIVE_PLANS = 5;
 const MAX_INSERT_GENERATIONS = 3;
 const TITLE_MAX = 300;
@@ -191,11 +192,11 @@ export function createCalendarSync(options: CalendarSyncOptions) {
   async function toHttpError(userId: string, error: unknown): Promise<Error> {
     if (error instanceof HttpError) return error;
     if (error instanceof CalendarAuthError) {
-      await options.markNeedsReconnect(userId, safeCode(error.code));
+      await flagReconnect(userId, safeCode(error.code));
       return reconnectRequired();
     }
     if (error instanceof CalendarCryptoError) {
-      await options.markNeedsReconnect(userId, 'token_unreadable');
+      await flagReconnect(userId, 'token_unreadable');
       return reconnectRequired();
     }
     if (error instanceof CalendarRetryableError) {
@@ -216,6 +217,15 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     log.warn({ reason: failureCode(error) }, 'calendar sync failed unexpectedly');
     await recordError(userId, 'sync_failed');
     return new HttpError(502, 'calendar_error', 'The calendar sync did not finish.');
+  }
+
+  /** Flags the connection. A database error here must not replace the answer (it can echo data). */
+  async function flagReconnect(userId: string, code: string): Promise<void> {
+    try {
+      await options.markNeedsReconnect(userId, code);
+    } catch (error) {
+      log.warn({ reason: failureCode(error) }, 'calendar connection was not flagged for reconnect');
+    }
   }
 
   async function recordError(userId: string, code: string): Promise<void> {
@@ -446,6 +456,20 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       if (start === null || end === null || end <= start) continue;
       if (start !== link.last_start.getTime() || end !== link.last_end.getTime()) {
         if (!exists) continue; // the block is gone; the event is deleted below
+        const wanted = desired.get(link.block_key)!;
+        if (start === wanted.start.getTime() && end === wanted.end.getTime()) {
+          // Our own earlier change reached Google but its answer was lost: not a user edit.
+          result.touchedLinks.push({
+            op: 'upsert',
+            link: {
+              ...link,
+              last_start: wanted.start,
+              last_end: wanted.end,
+              etag: ev.etag ?? link.etag,
+            },
+          });
+          continue;
+        }
         const startsAt = new Date(start);
         const endsAt = new Date(end);
         result.locks.push({
@@ -464,7 +488,10 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     return result;
   }
 
-  /** A lock whose block is gone (task done, day passed, block no longer planned) is removed. */
+  /**
+   * A lock whose block is gone (task done, day passed, block no longer planned) is removed, in
+   * one statement. Returns the keys that were removed.
+   */
   async function cleanLocks(
     userId: string,
     planId: string,
@@ -472,7 +499,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     tasks: Map<string, { title: string; open: boolean }>,
     blocks: Block[],
     timeZone: string,
-  ): Promise<void> {
+  ): Promise<Set<string>> {
     const nowMs = now().getTime();
     const lockedStarts = new Set(
       blocks
@@ -481,17 +508,18 @@ export function createCalendarSync(options: CalendarSyncOptions) {
           (b) => `${b.taskId}|${zonedTimeToUtc(b.date, parseTime(b.start), timeZone).getTime()}`,
         ),
     );
-    for (const row of locked) {
-      const gone =
+    const gone = locked.filter(
+      (row) =>
         tasks.get(row.task_id)?.open !== true ||
         row.ends_at.getTime() <= nowMs ||
         // A moved block must still come out of the scheduler as a locked block.
-        (row.reason === 'moved' && !lockedStarts.has(`${row.task_id}|${row.starts_at.getTime()}`));
-      if (gone)
-        await db.withUser(userId, (ctx) =>
-          syncRepo.deleteLocked(ctx, userId, planId, row.block_key),
-        );
+        (row.reason === 'moved' && !lockedStarts.has(`${row.task_id}|${row.starts_at.getTime()}`)),
+    );
+    if (gone.length > 0) {
+      const keys = gone.map((r) => r.block_key);
+      await db.withUser(userId, (ctx) => syncRepo.deleteLockedMany(ctx, userId, planId, keys));
     }
+    return new Set(gone.map((r) => r.block_key));
   }
 
   async function syncPlan(env: WriteEnv, plan: ActivePlan): Promise<void> {
@@ -534,11 +562,23 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       schedule = await scheduling.getSchedule(userId, plan.id);
       desired = desiredNow();
     }
-    await cleanLocks(userId, plan.id, state.locked, state.tasks, schedule.blocks, timeZone);
+    const removedLocks = await cleanLocks(
+      userId,
+      plan.id,
+      state.locked,
+      state.tasks,
+      schedule.blocks,
+      timeZone,
+    );
 
     // Pass 2: bring the app calendar in line with the schedule.
     const ops: LinkOp[] = [];
     const nowMs = now().getTime();
+    const keptMoved = new Set(
+      state.locked
+        .filter((r) => r.reason === 'moved' && !removedLocks.has(r.block_key))
+        .map((r) => r.block_key),
+    );
     const linkByKey = new Map(state.links.map((l) => [l.block_key, l]));
     let failure: unknown = null;
     try {
@@ -560,6 +600,9 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       for (const link of state.links) {
         if (desired.has(link.block_key)) continue;
         if (link.last_end.getTime() <= nowMs) continue; // history stays
+        // A block the user moved out of the window (beyond the 14 days) is still planned there:
+        // its event stays where the user put it.
+        if (keptMoved.has(link.block_key)) continue;
         try {
           await env.guard.deleteAppEvent(env.appCalendarId, link.event_id);
         } catch (error) {
@@ -735,12 +778,19 @@ export function createCalendarSync(options: CalendarSyncOptions) {
 
       const primary = plans[0];
       let readDone = false;
+      // The two halves are independent: a failed busy read does not stop the write side and the
+      // other way round. The first failure is reported after both have been tried.
+      let failure: unknown = null;
       if (primary) {
         const timeZone = primary.timezone;
         const today = localDateOf(now(), timeZone);
         if (reads || (conn.sync_timezone !== null && conn.sync_timezone !== timeZone)) {
-          await readSide(userId, provider, conn.app_calendar_id, plans, timeZone, today);
-          readDone = true;
+          try {
+            await readSide(userId, provider, conn.app_calendar_id, plans, timeZone, today);
+            readDone = true;
+          } catch (error) {
+            failure = error;
+          }
         }
         if (conn.app_calendar_id) {
           const env: WriteEnv = {
@@ -749,11 +799,16 @@ export function createCalendarSync(options: CalendarSyncOptions) {
             guard: createWriteGuard(provider, conn.app_calendar_id),
             appCalendarId: conn.app_calendar_id,
           };
-          for (const plan of plans) await syncPlan(env, plan);
+          try {
+            for (const plan of plans) await syncPlan(env, plan);
+          } catch (error) {
+            failure ??= error;
+          }
         }
       } else {
         readDone = reads;
       }
+      if (failure !== null) throw failure;
       await db.withUser(userId, (ctx) => syncRepo.markSynced(ctx, userId, now(), readDone));
       return readDone;
     } catch (error) {
@@ -799,9 +854,15 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       if (running.has(userId)) {
         throw new HttpError(409, 'sync_in_progress', 'A calendar sync is already running.');
       }
-      running.set(userId, { rerun: false });
+      const state: Running = { rerun: false };
+      running.set(userId, state);
       try {
         await runSync(userId, true);
+        // A reschedule saved while this sync ran asked for another pass (write side only).
+        for (let extra = 0; state.rerun && extra < MAX_EXTRA_PASSES; extra += 1) {
+          state.rerun = false;
+          await runSync(userId, false);
+        }
       } finally {
         running.delete(userId);
       }

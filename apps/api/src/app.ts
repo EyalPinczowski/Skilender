@@ -72,11 +72,11 @@ const HEALTH_URL = '/api/v1/health';
 
 /**
  * Routes whose success changes the schedule (and so the events in the app calendar): week
- * pattern, day overrides, task edits, logs, completion, skips, day start/end and accepted
+ * pattern, day overrides, task edits, logs, completion, skips, day end and accepted
  * adjustments. Everything else (reads, practice, reviews' notes) leaves the calendar alone.
  */
 const RESCHEDULING_ROUTE =
-  /^\/api\/v1\/plans\/:(?:id|planId)\/(?:week-pattern$|day-overrides\/|tasks\/|days\/:date\/end$|suggestions\/:id\/accept$|practice\/sessions\/:sessionId\/finish$)/;
+  /^\/api\/v1\/plans\/import$|^\/api\/v1\/plans\/:(?:id|planId)\/(?:week-pattern$|day-overrides\/|tasks\/|days\/:date\/end$|suggestions\/:id\/accept$|practice\/sessions\/:sessionId\/finish$)/;
 
 /** A plugin that shares the root scope, so its hooks apply to every route (like fastify-plugin). */
 const sharedScope = (fn: (instance: FastifyInstance) => void) =>
