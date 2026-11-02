@@ -792,6 +792,21 @@ export function createPracticeService(
       });
     },
 
+    /**
+     * What the day briefing shows for a practice task: the same prompt as `prompt` (so the same
+     * job-description rule) and the id of the active session, if any. Reads only; no model call.
+     */
+    briefingEntry: async (userId: string, planId: string, taskId: string) => {
+      const task = await practiceTask(userId, planId, taskId);
+      const topics = await weekTopics(userId, planId, taskId);
+      return db.withUser(userId, async (ctx) => {
+        const g = await gather(ctx, userId, planId, kindOf(task));
+        const { full } = build(task, topics, g);
+        const active = await repo.activeSessionId(ctx, userId, planId, taskId);
+        return { prompt: full.copyText, practiceSessionId: active };
+      });
+    },
+
     // -- sessions -----------------------------------------------------------------------------
 
     /**

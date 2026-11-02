@@ -191,11 +191,12 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
   const days = createDaysService(db!, now);
   const scheduling = createSchedulingService(db!, days);
   app.register(schedulingRoutes, { service: scheduling, userId });
-  app.register(briefingRoutes, { service: createBriefingService(scheduling), userId });
-  app.register(daysRoutes, { service: days, userId });
-  app.register(reviewRoutes, { service: createReviewService(db!, days, scheduling), userId });
-  app.register(practiceRoutes, {
-    service: createPracticeService(db!, createTaskService(db!, now), now, chat ?? null),
+  const practice = createPracticeService(db!, createTaskService(db!, now), now, chat ?? null);
+  app.register(briefingRoutes, {
+    service: createBriefingService(scheduling, practice, now, app.log),
     userId,
   });
+  app.register(daysRoutes, { service: days, userId });
+  app.register(reviewRoutes, { service: createReviewService(db!, days, scheduling), userId });
+  app.register(practiceRoutes, { service: practice, userId });
 };
