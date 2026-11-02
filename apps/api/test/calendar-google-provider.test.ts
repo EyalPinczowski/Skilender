@@ -4,6 +4,8 @@ import { APP_CALENDAR_NAME, APP_EVENT_SOURCE } from '@skillstack/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CalendarAuthError,
+  CalendarConflictError,
+  CalendarPreconditionFailedError,
   CalendarRequestError,
   CalendarRetryableError,
   CalendarSyncTokenExpiredError,
@@ -13,12 +15,13 @@ import {
   GoogleCalendarProvider,
   refreshAccessToken,
 } from '../src/modules/calendar/google-provider';
-import type { GuardedInsertTarget, GuardedTarget } from '../src/modules/calendar/provider';
+import { mintInsertTarget, mintTarget } from '../src/modules/calendar/guarded';
 
 interface Seen {
   method: string;
   url: string;
   auth: string | undefined;
+  ifMatch: string | undefined;
   body: string;
 }
 type Handler = (req: Seen, res: ServerResponse) => void;
@@ -44,6 +47,7 @@ beforeEach(async () => {
         method: req.method ?? '',
         url: req.url ?? '',
         auth: req.headers.authorization,
+        ifMatch: req.headers['if-match'],
         body: Buffer.concat(chunks).toString(),
       };
       seen.push(entry);
@@ -61,8 +65,8 @@ afterEach(async () => {
 const provider = (getAccessToken = async () => 'tok-1') =>
   new GoogleCalendarProvider({ apiBase: `${base}/calendar/v3`, getAccessToken });
 
-const evTarget = { calendarId: 'app@group', eventId: 'e/1' } as GuardedTarget;
-const calTarget = { calendarId: 'app@group' } as GuardedInsertTarget;
+const evTarget = mintTarget('app@group', 'e/1');
+const calTarget = mintInsertTarget('app@group');
 const time = { dateTime: '2026-11-03T09:00:00+00:00' };
 
 describe('GoogleCalendarProvider', () => {
@@ -156,12 +160,19 @@ describe('GoogleCalendarProvider', () => {
     expect(JSON.parse(seen[0]!.body)).toEqual({ summary: APP_CALENDAR_NAME });
 
     const tags = { source: APP_EVENT_SOURCE, task_id: 't' };
-    await p.insertEvent(calTarget, { summary: 'S', start: time, end: time, privateTags: tags });
+    await p.insertEvent(calTarget, {
+      id: 'abc12',
+      summary: 'S',
+      start: time,
+      end: time,
+      privateTags: tags,
+    });
     expect(seen[1]).toMatchObject({
       method: 'POST',
       url: '/calendar/v3/calendars/app%40group/events',
     });
     expect(JSON.parse(seen[1]!.body)).toEqual({
+      id: 'abc12',
       summary: 'S',
       start: time,
       end: time,
@@ -183,7 +194,7 @@ describe('GoogleCalendarProvider', () => {
     await expect(provider().deleteEvent(evTarget)).resolves.toBeUndefined();
   });
 
-  it('retries a 401 once with a refreshed token, then throws CalendarAuthError', async () => {
+  it('retries a 401 once with a refreshed token; a second 401 is a request error, not a reconnect', async () => {
     const asked: (boolean | undefined)[] = [];
     const supplier = async (o?: { forceRefresh?: boolean }) => {
       asked.push(o?.forceRefresh);
@@ -198,7 +209,44 @@ describe('GoogleCalendarProvider', () => {
     expect(seen.map((s) => s.auth)).toEqual(['Bearer stale', 'Bearer fresh']);
 
     handler = (_req, res) => json(res, 401, {});
-    await expect(provider().listCalendars()).rejects.toBeInstanceOf(CalendarAuthError);
+    const error = await provider()
+      .listCalendars()
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(CalendarRequestError);
+    expect(error).not.toBeInstanceOf(CalendarAuthError);
+  });
+
+  it('sends If-Match from the target etag on patch and delete, and maps 412', async () => {
+    const t = mintTarget('app@group', 'e1', '"etag-1"');
+    handler = (_req, res) => json(res, 412, { error: { errors: [{ reason: 'conditionNotMet' }] } });
+    await expect(provider().patchEvent(t, { privateTags: {} })).rejects.toBeInstanceOf(
+      CalendarPreconditionFailedError,
+    );
+    await expect(provider().deleteEvent(t)).rejects.toBeInstanceOf(CalendarPreconditionFailedError);
+    expect(seen.map((r) => r.ifMatch)).toEqual(['"etag-1"', '"etag-1"']);
+  });
+
+  it('maps 409 on insert to CalendarConflictError', async () => {
+    handler = (_req, res) => json(res, 409, { error: { errors: [{ reason: 'duplicate' }] } });
+    await expect(
+      provider().insertEvent(calTarget, {
+        id: 'abc12',
+        summary: 'S',
+        start: time,
+        end: time,
+        privateTags: {},
+      }),
+    ).rejects.toBeInstanceOf(CalendarConflictError);
+  });
+
+  it('always sends singleEvents=true, also on an incremental sync, and refuses sync with a filter', async () => {
+    handler = (_req, res) => json(res, 200, { items: [], nextSyncToken: 'n' });
+    await provider().listEvents('c', null, null, { syncToken: 's1' });
+    expect(new URL(seen[0]!.url, base).searchParams.get('singleEvents')).toBe('true');
+    await expect(
+      provider().listEvents('c', null, null, { syncToken: 's1', privateTags: { source: 'x' } }),
+    ).rejects.toBeInstanceOf(CalendarRequestError);
+    expect(seen).toHaveLength(1);
   });
 
   it('maps 429, 5xx and rate-limit 403 to a retryable error with Retry-After', async () => {

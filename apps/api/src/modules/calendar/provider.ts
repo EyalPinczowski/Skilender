@@ -1,5 +1,6 @@
 import type { CalendarEvent, CalendarEventTimeSchema } from '@skillstack/shared';
 import type { z } from 'zod';
+import type { GuardedInsertTarget, GuardedTarget } from './guarded';
 
 /**
  * The calendar seam (spec 12.3). Domain types only: nothing here is a Google shape, so another
@@ -36,6 +37,11 @@ export interface EventPage {
 
 /** What the app writes. The guard adds the tags; callers cannot supply them. */
 export interface AppEventDraft {
+  /**
+   * Deterministic event id (see `eventIdFor`): a retried insert hits 409 instead of duplicating.
+   * Google needs base32hex characters (a-v, 0-9), 5 to 1024 long.
+   */
+  id: string;
   summary: string;
   description?: string;
   start: CalendarEventTime;
@@ -44,19 +50,11 @@ export interface AppEventDraft {
 
 /** The provider-level payload: a draft plus the private tags (forced by the guard). */
 export type EventInsert = AppEventDraft & { privateTags: Record<string, string> };
-export type EventPatch = Partial<AppEventDraft> & { privateTags: Record<string, string> };
+export type EventPatch = Partial<Omit<AppEventDraft, 'id'>> & {
+  privateTags: Record<string, string>;
+};
 
-declare const guardBrand: unique symbol;
-
-/**
- * Proof that the write guard approved this target. The symbol is declared here but never
- * exported, so no other module can build one without a cast; only `write-guard.ts` does.
- */
-export type Guarded<T> = T & { readonly [guardBrand]: true };
-/** Approved destination for a new event. */
-export type GuardedInsertTarget = Guarded<{ readonly calendarId: string }>;
-/** Approved existing event (checked: in the app calendar, tagged as ours). */
-export type GuardedTarget = Guarded<{ readonly calendarId: string; readonly eventId: string }>;
+export type { GuardedInsertTarget, GuardedTarget } from './guarded';
 
 export interface CalendarProvider {
   listCalendars(): Promise<CalendarInfo[]>;

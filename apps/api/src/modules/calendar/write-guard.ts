@@ -1,10 +1,7 @@
 import { APP_EVENT_SOURCE, type CalendarEvent } from '@skillstack/shared';
-import type {
-  AppEventDraft,
-  CalendarProvider,
-  GuardedInsertTarget,
-  GuardedTarget,
-} from './provider';
+import { CalendarConflictError, CalendarPreconditionFailedError } from './errors';
+import { mintInsertTarget, mintTarget, type GuardedTarget } from './guarded';
+import type { AppEventDraft, CalendarProvider } from './provider';
 
 /**
  * The calendar write guard (spec 3.8). This is the ONLY code that may write events:
@@ -21,7 +18,10 @@ export type WriteRefusal =
   | 'event_not_found'
   | 'not_tagged_as_app_event'
   | 'missing_task_id'
-  | 'invalid_task_id';
+  | 'invalid_task_id'
+  | 'invalid_event_id'
+  | 'event_id_taken'
+  | 'changed_concurrently';
 
 export class CalendarWriteRefused extends Error {
   constructor(public readonly reason: WriteRefusal) {
@@ -53,7 +53,7 @@ export interface WriteGuard {
   patchAppEvent(
     calendarId: string,
     eventId: string,
-    patch: Partial<AppEventDraft>,
+    patch: Partial<Omit<AppEventDraft, 'id'>>,
   ): Promise<CalendarEvent>;
   /** Deletes an app-created event. Returns false (and writes nothing) when it is already gone. */
   deleteAppEvent(calendarId: string, eventId: string): Promise<boolean>;
@@ -84,13 +84,20 @@ export function createWriteGuard(provider: CalendarProvider, appCalendarId: stri
     const event = await provider.getEvent(calendarId, eventId);
     if (!event || event.status === 'cancelled') return null;
     const taskId = ownTaskId(event);
-    return { target: { calendarId, eventId } as GuardedTarget, taskId };
+    return { target: mintTarget(calendarId, eventId, event.etag), taskId };
   }
 
   async function remove(calendarId: string, eventId: string): Promise<boolean> {
     const approved = await approve(calendarId, eventId);
     if (!approved) return false;
-    await provider.deleteEvent(approved.target);
+    try {
+      await provider.deleteEvent(approved.target);
+    } catch (error) {
+      if (error instanceof CalendarPreconditionFailedError) {
+        throw new CalendarWriteRefused('changed_concurrently');
+      }
+      throw error;
+    }
     return true;
   }
 
@@ -98,21 +105,40 @@ export function createWriteGuard(provider: CalendarProvider, appCalendarId: stri
     async insertAppEvent(calendarId, taskId, draft) {
       assertAppCalendar(calendarId);
       if (!isNonEmpty(taskId)) throw new CalendarWriteRefused('invalid_task_id');
-      const target = { calendarId } as GuardedInsertTarget;
-      // Set last, so nothing a caller passes can override the tags.
-      return provider.insertEvent(target, {
-        ...draft,
-        privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: taskId },
-      });
+      if (!isNonEmpty(draft.id)) throw new CalendarWriteRefused('invalid_event_id');
+      const target = mintInsertTarget(calendarId);
+      try {
+        // Tags are set last, so nothing a caller passes can override them.
+        return await provider.insertEvent(target, {
+          ...draft,
+          privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: taskId },
+        });
+      } catch (error) {
+        if (!(error instanceof CalendarConflictError)) throw error;
+        // The id exists: a retry of an insert that already landed. Return it only if it is ours.
+        const existing = await provider.getEvent(calendarId, draft.id);
+        if (!existing || existing.status === 'cancelled') {
+          throw new CalendarWriteRefused('event_id_taken');
+        }
+        ownTaskId(existing);
+        return existing;
+      }
     },
 
     async patchAppEvent(calendarId, eventId, patch) {
       const approved = await approve(calendarId, eventId);
       if (!approved) throw new CalendarWriteRefused('event_not_found');
-      return provider.patchEvent(approved.target, {
-        ...patch,
-        privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: approved.taskId },
-      });
+      try {
+        return await provider.patchEvent(approved.target, {
+          ...patch,
+          privateTags: { [SOURCE_KEY]: APP_EVENT_SOURCE, [TASK_KEY]: approved.taskId },
+        });
+      } catch (error) {
+        if (error instanceof CalendarPreconditionFailedError) {
+          throw new CalendarWriteRefused('changed_concurrently');
+        }
+        throw error;
+      }
     },
 
     deleteAppEvent: remove,

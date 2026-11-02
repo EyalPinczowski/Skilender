@@ -1,6 +1,8 @@
 import { CalendarEventSchema, type CalendarEvent } from '@skillstack/shared';
 import {
   CalendarAuthError,
+  CalendarConflictError,
+  CalendarPreconditionFailedError,
   CalendarRequestError,
   CalendarRetryableError,
   CalendarSyncTokenExpiredError,
@@ -70,12 +72,16 @@ async function errorReason(res: Response): Promise<string | null> {
 }
 
 /** Maps a non-2xx response to a typed error. Never includes the body in the message. */
-async function toError(res: Response): Promise<Error> {
+async function toError(res: Response, tokenEndpoint = false): Promise<Error> {
   const reason = await errorReason(res);
   const status = res.status;
-  if (status === 401 || reason === 'invalid_grant' || reason === 'invalid_client') {
-    return new CalendarAuthError(reason ?? 'unauthorized');
+  // Only the token endpoint can say the grant is gone. A Calendar API 401 (even after a forced
+  // refresh) is a request error, not a reason to make the user reconnect.
+  if (tokenEndpoint && (reason === 'invalid_grant' || reason === 'invalid_client')) {
+    return new CalendarAuthError(reason);
   }
+  if (!tokenEndpoint && status === 412) return new CalendarPreconditionFailedError();
+  if (!tokenEndpoint && status === 409) return new CalendarConflictError();
   if (
     status === 429 ||
     status >= 500 ||
@@ -138,8 +144,9 @@ function toCalendar(raw: unknown): CalendarInfo {
   };
 }
 
-function eventBody(e: Partial<EventInsert>): Record<string, unknown> {
+function eventBody(e: Partial<EventInsert> & { id?: string }): Record<string, unknown> {
   const body: Record<string, unknown> = {};
+  if (e.id !== undefined) body.id = e.id;
   if (e.summary !== undefined) body.summary = e.summary;
   if (e.description !== undefined) body.description = e.description;
   if (e.start !== undefined) body.start = e.start;
@@ -158,7 +165,12 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   /** One authorised request. On 401 it retries once with a freshly refreshed token. */
-  private async call(method: string, path: string, body?: unknown): Promise<Response> {
+  private async call(
+    method: string,
+    path: string,
+    body?: unknown,
+    ifMatch?: string,
+  ): Promise<Response> {
     const url = `${this.options.apiBase}${path}`;
     for (let attempt = 0; ; attempt += 1) {
       const token = await this.options.getAccessToken(
@@ -172,6 +184,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
           headers: {
             authorization: `Bearer ${token}`,
             accept: 'application/json',
+            ...(ifMatch ? { 'if-match': ifMatch } : {}),
             ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           },
           body: body === undefined ? undefined : JSON.stringify(body),
@@ -187,8 +200,13 @@ export class GoogleCalendarProvider implements CalendarProvider {
     }
   }
 
-  private async json(method: string, path: string, body?: unknown): Promise<unknown> {
-    const res = await this.call(method, path, body);
+  private async json(
+    method: string,
+    path: string,
+    body?: unknown,
+    ifMatch?: string,
+  ): Promise<unknown> {
+    const res = await this.call(method, path, body, ifMatch);
     try {
       return await res.json();
     } catch {
@@ -196,6 +214,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
     }
   }
 
+  /** calendarList.list needs the calendar.readonly scope (we request it); app.created alone is not enough. */
   async listCalendars(): Promise<CalendarInfo[]> {
     const calendars: CalendarInfo[] = [];
     let pageToken: string | undefined;
@@ -219,18 +238,24 @@ export class GoogleCalendarProvider implements CalendarProvider {
     options: ListEventsOptions = {},
   ): Promise<EventPage> {
     const query = new URLSearchParams({ maxResults: '250' });
+    const filter = Object.entries(options.privateTags ?? {});
+    if (options.syncToken && filter.length > 0) {
+      // Google does not allow extended-property filters on an incremental sync.
+      throw new CalendarRequestError('sync_token_with_filter', null);
+    }
+    // Recurring events are expanded so each occurrence is its own busy interval. A sync must use
+    // the same value as the listing that produced its token, so it is always set.
+    query.set('singleEvents', 'true');
     if (options.syncToken) {
       // Google rejects a syncToken combined with a time window.
       query.set('syncToken', options.syncToken);
     } else {
-      // Recurring events are expanded so each occurrence is its own busy interval.
-      query.set('singleEvents', 'true');
       if (timeMin) query.set('timeMin', timeMin);
       if (timeMax) query.set('timeMax', timeMax);
     }
     if (options.pageToken) query.set('pageToken', options.pageToken);
     if (options.showDeleted) query.set('showDeleted', 'true');
-    for (const [k, v] of Object.entries(options.privateTags ?? {})) {
+    for (const [k, v] of filter) {
       query.append('privateExtendedProperty', `${k}=${v}`);
     }
     let data: { items?: unknown[]; nextPageToken?: string; nextSyncToken?: string };
@@ -280,6 +305,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
         'PATCH',
         `/calendars/${enc(target.calendarId)}/events/${enc(target.eventId)}`,
         eventBody(patch),
+        target.etag,
       ),
     );
   }
@@ -289,6 +315,8 @@ export class GoogleCalendarProvider implements CalendarProvider {
       await this.call(
         'DELETE',
         `/calendars/${enc(target.calendarId)}/events/${enc(target.eventId)}`,
+        undefined,
+        target.etag,
       );
     } catch (error) {
       // Already gone, which is what was asked for.
@@ -334,7 +362,7 @@ export async function refreshAccessToken(options: RefreshOptions): Promise<Refre
     },
     options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   );
-  if (!res.ok) throw await toError(res);
+  if (!res.ok) throw await toError(res, true);
   let data: { access_token?: unknown; expires_in?: unknown };
   try {
     data = (await res.json()) as typeof data;

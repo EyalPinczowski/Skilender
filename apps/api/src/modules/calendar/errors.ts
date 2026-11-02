@@ -41,3 +41,19 @@ export class CalendarRequestError extends Error {
     this.name = 'CalendarRequestError';
   }
 }
+
+/** HTTP 409 on insert: an event with that id already exists (the insert was retried). */
+export class CalendarConflictError extends Error {
+  constructor() {
+    super('Calendar event id already exists');
+    this.name = 'CalendarConflictError';
+  }
+}
+
+/** HTTP 412: the event changed since it was read (If-Match failed). */
+export class CalendarPreconditionFailedError extends Error {
+  constructor() {
+    super('Calendar event changed concurrently');
+    this.name = 'CalendarPreconditionFailedError';
+  }
+}

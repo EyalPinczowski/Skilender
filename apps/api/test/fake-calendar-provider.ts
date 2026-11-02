@@ -1,4 +1,8 @@
 import type { CalendarEvent } from '@skillstack/shared';
+import {
+  CalendarConflictError,
+  CalendarPreconditionFailedError,
+} from '../src/modules/calendar/errors';
 import type {
   CalendarInfo,
   CalendarProvider,
@@ -18,7 +22,12 @@ export class FakeCalendarProvider implements CalendarProvider {
   readonly writes: { op: 'insert' | 'patch' | 'delete'; calendarId: string; eventId?: string }[] =
     [];
   pageSize = 100;
+  /** When true, listEvents ignores privateTags, like a backend whose filter is lax. */
+  ignoreTagFilter = false;
+  /** Runs right before a write is applied; tests use it to simulate a concurrent change. */
+  onBeforeWrite: (() => void) | null = null;
   private seq = 0;
+  private version = 0;
 
   /** Test setup: puts an event in place without going through any write path. */
   seed(calendarId: string, event: CalendarEvent): void {
@@ -42,8 +51,9 @@ export class FakeCalendarProvider implements CalendarProvider {
     options: ListEventsOptions = {},
   ): Promise<EventPage> {
     const tags = Object.entries(options.privateTags ?? {});
-    const all = [...this.bucket(calendarId).values()].filter((e) =>
-      tags.every(([k, v]) => e.extendedProperties?.private?.[k] === v),
+    const all = [...this.bucket(calendarId).values()].filter(
+      (e) =>
+        this.ignoreTagFilter || tags.every(([k, v]) => e.extendedProperties?.private?.[k] === v),
     );
     // The page token is the last event id returned, so deleting while paging skips nothing.
     const from = options.pageToken ? all.findIndex((e) => e.id === options.pageToken) + 1 : 0;
@@ -73,10 +83,12 @@ export class FakeCalendarProvider implements CalendarProvider {
 
   async insertEvent(target: GuardedInsertTarget, event: EventInsert): Promise<CalendarEvent> {
     const { privateTags, ...rest } = event;
+    this.onBeforeWrite?.();
+    if (this.bucket(target.calendarId).has(rest.id)) throw new CalendarConflictError();
     const created: CalendarEvent = {
-      id: `ev-${(this.seq += 1)}`,
       status: 'confirmed',
       ...rest,
+      etag: `v${(this.version += 1)}`,
       extendedProperties: { private: privateTags },
     };
     this.bucket(target.calendarId).set(created.id, created);
@@ -85,12 +97,15 @@ export class FakeCalendarProvider implements CalendarProvider {
   }
 
   async patchEvent(target: GuardedTarget, patch: EventPatch): Promise<CalendarEvent> {
+    this.onBeforeWrite?.();
     const current = this.bucket(target.calendarId).get(target.eventId);
     if (!current) throw new Error('fake: no such event');
+    if (target.etag && current.etag !== target.etag) throw new CalendarPreconditionFailedError();
     const { privateTags, ...rest } = patch;
     const updated: CalendarEvent = {
       ...current,
       ...rest,
+      etag: `v${(this.version += 1)}`,
       extendedProperties: { private: { ...current.extendedProperties?.private, ...privateTags } },
     };
     this.bucket(target.calendarId).set(target.eventId, updated);
@@ -99,6 +114,11 @@ export class FakeCalendarProvider implements CalendarProvider {
   }
 
   async deleteEvent(target: GuardedTarget): Promise<void> {
+    this.onBeforeWrite?.();
+    const current = this.bucket(target.calendarId).get(target.eventId);
+    if (current && target.etag && current.etag !== target.etag) {
+      throw new CalendarPreconditionFailedError();
+    }
     this.bucket(target.calendarId).delete(target.eventId);
     this.writes.push({ op: 'delete', calendarId: target.calendarId, eventId: target.eventId });
   }

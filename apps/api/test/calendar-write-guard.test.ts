@@ -1,5 +1,6 @@
 import { APP_CALENDAR_NAME, APP_EVENT_SOURCE, type CalendarEvent } from '@skillstack/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { eventIdFor } from '../src/modules/calendar/event-id';
 import { CalendarWriteRefused, createWriteGuard } from '../src/modules/calendar/write-guard';
 import { FakeCalendarProvider } from './fake-calendar-provider';
 
@@ -8,7 +9,7 @@ const PRIMARY = 'primary';
 
 const time = { dateTime: '2026-11-03T09:00:00+00:00' };
 const endTime = { dateTime: '2026-11-03T10:00:00+00:00' };
-const draft = { summary: 'Study block', start: time, end: endTime };
+const draft = { id: eventIdFor('task-9'), summary: 'Study block', start: time, end: endTime };
 
 const event = (id: string, tags?: Record<string, string>): CalendarEvent => ({
   id,
@@ -126,7 +127,77 @@ describe('write guard allows', () => {
   });
 });
 
+describe('retried inserts and concurrent changes', () => {
+  it('inserting the same draft twice yields one event (the second hits 409 and returns ours)', async () => {
+    const first = await guard.insertAppEvent(APP_CAL, 'task-9', draft);
+    const second = await guard.insertAppEvent(APP_CAL, 'task-9', draft);
+    expect(second.id).toBe(first.id);
+    expect(provider.events.get(APP_CAL)?.size).toBe(1);
+    expect(provider.writes).toHaveLength(1);
+  });
+
+  it('refuses when the id is taken by an event that is not ours', async () => {
+    provider.seed(APP_CAL, { ...event(draft.id), etag: 'x' });
+    expect(await refusal(guard.insertAppEvent(APP_CAL, 'task-9', draft))).toBe(
+      'not_tagged_as_app_event',
+    );
+    expect(provider.writes).toEqual([]);
+  });
+
+  it('refuses an insert without an event id', async () => {
+    const bad = { ...draft, id: '' };
+    expect(await refusal(guard.insertAppEvent(APP_CAL, 't', bad))).toBe('invalid_event_id');
+  });
+
+  it('a patch or delete whose event changed after the re-fetch is refused, not applied', async () => {
+    provider.seed(APP_CAL, { ...own('e1'), etag: 'v1' });
+    let n = 1;
+    provider.onBeforeWrite = () =>
+      provider.seed(APP_CAL, { ...own('e1'), etag: `moved-${(n += 1)}` });
+    expect(await refusal(guard.patchAppEvent(APP_CAL, 'e1', { summary: 'x' }))).toBe(
+      'changed_concurrently',
+    );
+    expect(await refusal(guard.deleteAppEvent(APP_CAL, 'e1'))).toBe('changed_concurrently');
+    expect(provider.writes).toEqual([]);
+    expect(await provider.getEvent(APP_CAL, 'e1')).not.toBeNull();
+  });
+
+  it('forced tags win over forged privateTags smuggled into a draft', async () => {
+    const forged = {
+      ...draft,
+      privateTags: { source: 'evil', task_id: 'forged' },
+    } as unknown as typeof draft;
+    const created = await guard.insertAppEvent(APP_CAL, 'task-9', forged);
+    expect(created.extendedProperties?.private).toEqual({
+      source: APP_EVENT_SOURCE,
+      task_id: 'task-9',
+    });
+  });
+});
+
+describe('eventIdFor', () => {
+  it('is deterministic, distinct per key and valid base32hex of 5 to 1024 chars', () => {
+    expect(eventIdFor('a')).toBe(eventIdFor('a'));
+    expect(eventIdFor('a')).not.toBe(eventIdFor('b'));
+    expect(eventIdFor('a')).toMatch(/^[a-v0-9]{52}$/);
+  });
+});
+
 describe('deleteAllAppEvents', () => {
+  it('skips events that are not ours even when the provider ignores the tag filter', async () => {
+    provider.ignoreTagFilter = true;
+    provider.seed(APP_CAL, own('mine'));
+    provider.seed(APP_CAL, event('plain'));
+    provider.seed(APP_CAL, event('wrong', { source: 'other', task_id: 't' }));
+    provider.seed(APP_CAL, event('notask', { source: APP_EVENT_SOURCE }));
+    expect(await guard.deleteAllAppEvents(APP_CAL)).toBe(1);
+    expect([...(provider.events.get(APP_CAL)?.keys() ?? [])].sort()).toEqual([
+      'notask',
+      'plain',
+      'wrong',
+    ]);
+  });
+
   it('deletes only events tagged as ours, across pages, and never the calendar', async () => {
     provider.pageSize = 2;
     for (let i = 0; i < 5; i += 1) provider.seed(APP_CAL, own(`own-${i}`));
@@ -169,6 +240,8 @@ describe('compile-time protection', () => {
       await provider.patchEvent({ calendarId: PRIMARY, eventId: 'meeting' }, { privateTags: {} });
       // @ts-expect-error a plain object is not a guard-approved target
       await provider.insertEvent({ calendarId: PRIMARY }, { ...draft, privateTags: {} });
+      // @ts-expect-error a cast-free forged object lacks the brand
+      await provider.deleteEvent({ calendarId: PRIMARY, eventId: 'x', etag: 'e' });
     };
     expect(typeof bypass).toBe('function');
   });
