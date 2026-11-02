@@ -196,135 +196,142 @@ function TodayView({
         titleOf={titleOf}
       />
 
-      <section aria-labelledby="today-heading" className="space-y-3">
-        <h2 id="today-heading">Today’s blocks</h2>
-        <div ref={noticeRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
-          {notice?.tone === 'ok' ? (
-            <p role="status" className="flex flex-wrap items-center gap-3 font-bold text-ok">
-              <span>{notice.text}</span>
-              {notice.undoTaskId ? (
-                <Button
-                  onClick={() => {
-                    const task = tasksById.get(notice.undoTaskId!);
-                    if (task) reopenTask(task);
-                  }}
-                >
-                  Undo
-                </Button>
+      {/* One column up to tablet; from desktop width today's tasks and what comes next sit side by side. */}
+      <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8 lg:space-y-0">
+        <div className="min-w-0 space-y-6">
+          <section aria-labelledby="today-heading" className="space-y-3">
+            <h2 id="today-heading">Today’s blocks</h2>
+            <div ref={noticeRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
+              {notice?.tone === 'ok' ? (
+                <p role="status" className="flex flex-wrap items-center gap-3 font-bold text-ok">
+                  <span>{notice.text}</span>
+                  {notice.undoTaskId ? (
+                    <Button
+                      onClick={() => {
+                        const task = tasksById.get(notice.undoTaskId!);
+                        if (task) reopenTask(task);
+                      }}
+                    >
+                      Undo
+                    </Button>
+                  ) : null}
+                </p>
               ) : null}
-            </p>
-          ) : null}
-          {notice?.tone === 'error' ? <ErrorText>{notice.text}</ErrorText> : null}
-        </div>
-
-        {suggested.map((id) => {
-          const task = tasksById.get(id);
-          if (!task || task.status === 'done') return null;
-          return (
-            <div
-              key={id}
-              role="group"
-              aria-label={`Estimate reached: ${task.title}`}
-              className="space-y-2 rounded-md border border-accent bg-accent-soft p-4 text-accent-soft-text"
-            >
-              <p>
-                <strong>{task.title}</strong>
-                <br />
-                You've reached the estimate. Mark as done?
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="primary"
-                  disabled={complete.isPending}
-                  onClick={() =>
-                    act(
-                      complete,
-                      task,
-                      `Marked ${task.title} as done.`,
-                      'Could not mark the task as done.',
-                      true,
-                    )
-                  }
-                >
-                  Mark as done
-                </Button>
-                <Button onClick={() => setSuggested((ids) => ids.filter((x) => x !== id))}>
-                  Not yet
-                </Button>
-              </div>
+              {notice?.tone === 'error' ? <ErrorText>{notice.text}</ErrorText> : null}
             </div>
-          );
-        })}
 
-        {todays.length === 0 && workedOn.length === 0 ? (
-          <p className="text-muted">Nothing is scheduled for today.</p>
-        ) : (
-          <ul className="space-y-3">
-            {todays.map((block) => {
-              const task = tasksById.get(block.taskId);
-              if (!task) return null;
+            {suggested.map((id) => {
+              const task = tasksById.get(id);
+              if (!task || task.status === 'done') return null;
               return (
-                <BlockItem
-                  key={`${block.taskId}-${block.start}`}
-                  planId={plan.id}
-                  block={block}
-                  task={task}
-                  today={schedule.today}
-                  busy={busyId === task.id}
-                  onLogged={onLogged}
-                  onDone={() =>
-                    act(
-                      complete,
-                      task,
-                      `Marked ${task.title} as done.`,
-                      'Could not mark the task as done.',
-                      true,
-                    )
-                  }
-                  onSkip={() =>
-                    act(skip, task, `Skipped ${task.title}.`, 'Could not skip the task.', true)
-                  }
-                  onReopen={() => reopenTask(task)}
-                />
+                <div
+                  key={id}
+                  role="group"
+                  aria-label={`Estimate reached: ${task.title}`}
+                  className="space-y-2 rounded-md border border-accent bg-accent-soft p-4 text-accent-soft-text"
+                >
+                  <p>
+                    <strong>{task.title}</strong>
+                    <br />
+                    You've reached the estimate. Mark as done?
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="primary"
+                      disabled={complete.isPending}
+                      onClick={() =>
+                        act(
+                          complete,
+                          task,
+                          `Marked ${task.title} as done.`,
+                          'Could not mark the task as done.',
+                          true,
+                        )
+                      }
+                    >
+                      Mark as done
+                    </Button>
+                    <Button onClick={() => setSuggested((ids) => ids.filter((x) => x !== id))}>
+                      Not yet
+                    </Button>
+                  </div>
+                </div>
               );
             })}
-          </ul>
-        )}
-      </section>
 
-      {workedOn.length > 0 ? (
-        <section aria-labelledby="worked-heading" className="space-y-3">
-          <h2 id="worked-heading">Worked on today</h2>
-          <ul className="space-y-3">
-            {workedOn.map((task) => (
-              <WorkedOnItem
-                key={task.id}
-                planId={plan.id}
-                task={task}
-                today={schedule.today}
-                loggedToday={loggedToday(task.id)}
-                busy={busyId === task.id}
-                onLogged={onLogged}
-                onDone={() =>
-                  act(
-                    complete,
-                    task,
-                    `Marked ${task.title} as done.`,
-                    'Could not mark the task as done.',
-                    true,
-                  )
-                }
-                onSkip={() =>
-                  act(skip, task, `Skipped ${task.title}.`, 'Could not skip the task.', true)
-                }
-                onReopen={() => reopenTask(task)}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+            {todays.length === 0 && workedOn.length === 0 ? (
+              <p className="text-muted">Nothing is scheduled for today.</p>
+            ) : (
+              <ul className="space-y-3">
+                {todays.map((block) => {
+                  const task = tasksById.get(block.taskId);
+                  if (!task) return null;
+                  return (
+                    <BlockItem
+                      key={`${block.taskId}-${block.start}`}
+                      planId={plan.id}
+                      block={block}
+                      task={task}
+                      today={schedule.today}
+                      busy={busyId === task.id}
+                      onLogged={onLogged}
+                      onDone={() =>
+                        act(
+                          complete,
+                          task,
+                          `Marked ${task.title} as done.`,
+                          'Could not mark the task as done.',
+                          true,
+                        )
+                      }
+                      onSkip={() =>
+                        act(skip, task, `Skipped ${task.title}.`, 'Could not skip the task.', true)
+                      }
+                      onReopen={() => reopenTask(task)}
+                    />
+                  );
+                })}
+              </ul>
+            )}
+          </section>
 
-      <UpcomingDays blocks={schedule.blocks} today={schedule.today} tasksById={tasksById} />
+          {workedOn.length > 0 ? (
+            <section aria-labelledby="worked-heading" className="space-y-3">
+              <h2 id="worked-heading">Worked on today</h2>
+              <ul className="space-y-3">
+                {workedOn.map((task) => (
+                  <WorkedOnItem
+                    key={task.id}
+                    planId={plan.id}
+                    task={task}
+                    today={schedule.today}
+                    loggedToday={loggedToday(task.id)}
+                    busy={busyId === task.id}
+                    onLogged={onLogged}
+                    onDone={() =>
+                      act(
+                        complete,
+                        task,
+                        `Marked ${task.title} as done.`,
+                        'Could not mark the task as done.',
+                        true,
+                      )
+                    }
+                    onSkip={() =>
+                      act(skip, task, `Skipped ${task.title}.`, 'Could not skip the task.', true)
+                    }
+                    onReopen={() => reopenTask(task)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+
+        <div className="min-w-0">
+          <UpcomingDays blocks={schedule.blocks} today={schedule.today} tasksById={tasksById} />
+        </div>
+      </div>
     </>
   );
 }
