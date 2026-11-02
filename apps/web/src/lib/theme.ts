@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
-const STORAGE_KEY = 'skillstack.theme';
+const STORAGE_KEY = 'upversion.theme';
 
 export const isThemePreference = (value: unknown): value is ThemePreference =>
   value === 'system' || value === 'light' || value === 'dark';

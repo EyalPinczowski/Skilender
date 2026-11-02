@@ -103,7 +103,7 @@ function open(handlers: Record<string, (r: Request) => Response | Promise<Respon
     }),
   );
   window.localStorage.setItem(
-    `skillstack.practice.${BASE.split('/').at(-1)}.${TASK_ID}`,
+    `upversion.practice.${BASE.split('/').at(-1)}.${TASK_ID}`,
     SESSION_ID,
   );
   renderApp({ auth: fakeAuth(SESSION), path: `/practice/${TASK_ID}` });

@@ -1,11 +1,11 @@
-# Skillstack – Privacy Policy
+# Upversion – Privacy Policy
 
 **Version 0.1 · Effective date: [EFFECTIVE DATE]**
 **Contact: [CONTACT EMAIL]**
 
-> Draft for a free, invite-only beta. Not legal advice – have it reviewed before opening Skillstack to the public.
+> Draft for a free, invite-only beta. Not legal advice – have it reviewed before opening Upversion to the public.
 
-Skillstack ("we", "the app") helps you turn a learning goal into a study plan and run it day by day. This policy explains what we collect, why, who we share it with, and how you control it. We collect only what the app needs to work.
+Upversion ("we", "the app") helps you turn a learning goal into a study plan and run it day by day. This policy explains what we collect, why, who we share it with, and how you control it. We collect only what the app needs to work.
 
 ## 1. What we collect
 
@@ -23,7 +23,7 @@ Skillstack ("we", "the app") helps you turn a learning goal into a study plan an
 - Your plans, schedules, progress logs, hours, day reviews (difficulty, density, energy, notes), practice sessions and the feedback on them, and recommendations you accept or dismiss.
 
 **Calendar (only if you connect it)**
-- With your permission, we read the times and titles of events in your Google Calendar to plan around them, and we create and update study blocks in a separate "Skillstack" calendar. We **never** change or delete events we didn't create. We store only what's needed (event times and titles), and a secure connection token.
+- With your permission, we read the times and titles of events in your Google Calendar to plan around them, and we create and update study blocks in a separate "Upversion" calendar. We **never** change or delete events we didn't create. We store only what's needed (event times and titles), and a secure connection token.
 
 **Technical data**
 - Basic logs needed to run and secure the service (for example, request times and error messages). We don't log the content of your answers.
@@ -37,7 +37,7 @@ We **don't** use advertising trackers, sell data, or build profiles for marketin
 - To run practice sessions and save your feedback.
 - To sync with your calendar, if you choose to.
 - To keep the service secure, prevent abuse, and stay within the limits of the free services we use.
-- To improve Skillstack using **aggregate** statistics (for example, how many people finish the intake) – not your individual content.
+- To improve Upversion using **aggregate** statistics (for example, how many people finish the intake) – not your individual content.
 
 ## 3. AI features
 Some features use third-party AI models with free tiers: the day overview, plan suggestions, and in-app practice. When you use them:
@@ -47,7 +47,7 @@ Some features use third-party AI models with free tiers: the day overview, plan 
 - You can always use the app without the AI features: plans can be built by the rule-based builder, and practices can be run in your own Claude account instead.
 
 ## 4. Who we share data with
-We use these service providers to run Skillstack. They process data on our behalf:
+We use these service providers to run Upversion. They process data on our behalf:
 
 | Provider | What for |
 |---|---|
@@ -61,8 +61,8 @@ We use these service providers to run Skillstack. They process data on our behal
 
 We don't sell or rent your data, and we don't share it with anyone else unless the law requires it.
 
-## 5. Who at Skillstack can see your data
-Skillstack is run by one person, who is the admin.
+## 5. Who at Upversion can see your data
+Upversion is run by one person, who is the admin.
 - The admin can see **account and usage information**: your email, sign-up and activity dates, your goal and target role, plan progress, certificates earned, and how much you use the AI features.
 - The admin **can't** see your free-text answers, pasted job postings, practice conversations, or day-review notes – unless **you** turn on "Allow support access" in Settings (for example, when you ask for help). It switches off automatically after 7 days.
 - Every time the admin opens your details, it's recorded, and you can see this log in Settings.
@@ -85,7 +85,7 @@ Depending on where you live (for example, under the Israeli Privacy Protection L
 Data is encrypted in transit and at rest by our providers. Each user's data is separated at the database level, so it can't be read by other users. Backups are encrypted. No system is perfectly secure; if a breach affects your data, we'll tell you as required by law.
 
 ## 9. Age
-Skillstack is meant for people aged **[16]** and over.
+Upversion is meant for people aged **[16]** and over.
 
 ## 10. Cookies and local storage
 We use only what's needed to keep you signed in and remember your settings. No advertising or tracking cookies.

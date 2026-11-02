@@ -1,5 +1,5 @@
 {
-  "name": "@skillstack/db",
+  "name": "@upversion/db",
   "version": "0.0.0",
   "private": true,
   "description": "Database environments (prod, rnd) and the migration runner.",

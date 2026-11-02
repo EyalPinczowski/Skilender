@@ -47,7 +47,7 @@ async function roles(names: string[]): Promise<Map<string, RoleRow>> {
 
 const tempDirs: string[] = [];
 async function copyOfMigrations(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'skillstack-migrations-'));
+  const dir = await mkdtemp(join(tmpdir(), 'upversion-migrations-'));
   tempDirs.push(dir);
   await cp(MIGRATIONS, dir, { recursive: true });
   return dir;
@@ -263,7 +263,7 @@ describe.skipIf(!dbAvailable)('migrate (real Postgres, non-superuser admin)', ()
 
 describe('migration files', () => {
   it('refuses two files with the same version number before it connects', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'skillstack-migrations-'));
+    const dir = await mkdtemp(join(tmpdir(), 'upversion-migrations-'));
     tempDirs.push(dir);
     await writeFile(join(dir, '0001_first.sql'), 'select 1;\n');
     await writeFile(join(dir, '0001_second.sql'), 'select 2;\n');

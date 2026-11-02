@@ -4,13 +4,14 @@ import { BrowserRouter } from 'react-router';
 import { App } from './App';
 import { createBrowserAuthService, type AuthService } from './auth/auth-service';
 import { parseEnv } from './env';
+import { migrateLegacyStorage } from './lib/legacy-storage';
 import { createQueryClient } from './lib/query-client';
 import { applyTheme, readTheme } from './lib/theme';
 
 /** Plain DOM on purpose: this runs when the app itself cannot start. */
 function showConfigError(root: HTMLElement, error: unknown) {
   const title = document.createElement('h1');
-  title.textContent = 'Skillstack could not start';
+  title.textContent = 'Upversion could not start';
   const detail = document.createElement('pre');
   detail.textContent = error instanceof Error ? error.message : String(error);
   detail.style.whiteSpace = 'pre-wrap';
@@ -28,6 +29,8 @@ export function mount(
   /** Replaces the Supabase sign-in. Only the end-to-end build passes it (see main.tsx). */
   authOverride?: AuthService,
 ) {
+  // First, before anything reads storage: carries pre-rename settings over to the new keys.
+  migrateLegacyStorage();
   let env;
   try {
     env = parseEnv(rawEnv);

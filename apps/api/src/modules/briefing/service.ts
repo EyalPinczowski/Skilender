@@ -1,4 +1,4 @@
-import { buildBriefing, localDateOf, type Briefing } from '@skillstack/shared';
+import { buildBriefing, localDateOf, type Briefing } from '@upversion/shared';
 import { HttpError } from '../../errors';
 import type { PracticeService } from '../practice/service';
 import type { SchedulingService } from '../scheduling/service';

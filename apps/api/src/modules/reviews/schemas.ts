@@ -5,7 +5,7 @@ import {
   ProposedChangeSchema,
   SuggestionSchema,
   TaskOutcomeSchema,
-} from '@skillstack/shared';
+} from '@upversion/shared';
 import { z } from 'zod';
 import { noNulCharacters } from '../../validation';
 

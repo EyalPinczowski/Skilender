@@ -10,5 +10,5 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 cd "$root"
-pnpm --silent --filter @skillstack/api openapi:dump --out "$tmp/openapi.json"
-pnpm --silent --filter @skillstack/web exec openapi-typescript "$tmp/openapi.json" -o "$out" >/dev/null
+pnpm --silent --filter @upversion/api openapi:dump --out "$tmp/openapi.json"
+pnpm --silent --filter @upversion/web exec openapi-typescript "$tmp/openapi.json" -o "$out" >/dev/null

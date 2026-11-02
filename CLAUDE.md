@@ -1,8 +1,8 @@
-# CLAUDE.md – Skillstack
+# CLAUDE.md – Upversion
 
 **The source of truth is [`docs/SPEC.md`](docs/SPEC.md).** Read it before changing anything. If the spec, the catalog data in `data/catalog/` or the code disagree, or the spec looks like a mistake, say so instead of guessing.
 
-Skillstack turns a learning goal into a study plan and runs it day by day (PWA; React + TypeScript web app, Fastify API, shared package with the scheduling engine; Supabase + Vercel + Render on free plans).
+Upversion turns a learning goal into a study plan and runs it day by day (PWA; React + TypeScript web app, Fastify API, shared package with the scheduling engine; Supabase + Vercel + Render on free plans).
 
 ## Rules to always follow
 

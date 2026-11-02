@@ -30,7 +30,7 @@ import { runToCompletion, startService, stopService, waitForHttp } from './suppo
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const adminUrl = requireEnv('TEST_DATABASE_URL');
   const superuserUrl = requireEnv('TEST_SUPERUSER_URL');
-  const dir = mkdtempSync(join(tmpdir(), 'skillstack-e2e-'));
+  const dir = mkdtempSync(join(tmpdir(), 'upversion-e2e-'));
   const services: ReturnType<typeof startService>[] = [];
   let auth: Awaited<ReturnType<typeof startAuthServer>> | undefined;
   let aiStub: Awaited<ReturnType<typeof startAiStub>> | undefined;
@@ -58,7 +58,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     for (const name of ['TEST_DATABASE_URL', 'TEST_SUPERUSER_URL', ...Object.values(WORKER_ENV)]) {
       delete base[name];
     }
-    await runToCompletion('api-build', dir, 'pnpm', ['--filter', '@skillstack/api', 'build'], {
+    await runToCompletion('api-build', dir, 'pnpm', ['--filter', '@upversion/api', 'build'], {
       cwd: REPO_ROOT,
       env: base,
     });

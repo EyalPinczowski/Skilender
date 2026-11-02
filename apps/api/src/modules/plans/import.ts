@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { parsePlanFile, TAXONOMY_SKILL_IDS, type PlanFile } from '@skillstack/shared';
+import { parsePlanFile, TAXONOMY_SKILL_IDS, type PlanFile } from '@upversion/shared';
 import { ZodError } from 'zod';
 import { HttpError } from '../../errors';
 import { MAX_OVERRIDES_PER_PLAN, MAX_TASKS_PER_PLAN } from './schemas';
