@@ -358,18 +358,40 @@ describe('timeouts and aborting', () => {
   });
 
   it('stops at the whole-turn deadline', async () => {
-    const calls: string[] = [];
-    const hang: Behaviour = () => new Promise<string>(() => undefined);
-    const { gateway } = setup(
-      [provider('a', hang, calls), provider('b', hang, calls), provider('c', ok(), calls)],
-      { timeoutMs: 40, turnTimeoutMs: 60 },
-    );
-    const started = Date.now();
-    await expect(gateway.generate({ userId: USER_A, request: request() })).rejects.toBeInstanceOf(
-      AIUnavailableError,
-    );
-    expect(Date.now() - started).toBeLessThan(500);
-    expect(calls).not.toContain('c');
+    // Fake timers: no real waiting, so a slow CI runner cannot change the outcome.
+    vi.useFakeTimers();
+    try {
+      const calls: string[] = [];
+      const hang: Behaviour = () => new Promise<string>(() => undefined);
+      // The wall clock can read a millisecond earlier than the timers that just fired (they run
+      // on the event loop's own clock). Once the second provider is called, make it do that.
+      let skewMs = 0;
+      const { gateway } = setup(
+        [
+          provider('a', hang, calls),
+          provider(
+            'b',
+            (signal) => {
+              skewMs = 1;
+              return hang(signal);
+            },
+            calls,
+          ),
+          provider('c', ok(), calls),
+        ],
+        { timeoutMs: 40, turnTimeoutMs: 60 },
+        { now: () => new Date(Date.now() - skewMs) },
+      );
+      const outcome = gateway.generate({ userId: USER_A, request: request() }).then(
+        () => 'resolved',
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(60);
+      expect(await outcome).toBeInstanceOf(AIUnavailableError);
+      expect(calls).toEqual(['a', 'b']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('aborts the call in flight when the caller aborts, and does not try the next provider', async () => {
