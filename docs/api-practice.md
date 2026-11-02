@@ -68,7 +68,7 @@ Decisions and limits:
 
 ## Sessions
 
-- **Create.** Idempotent on the client's `id`: the same id with the same task and channel answers 200 with the stored session; the same id for anything else is 409. A second **active** session on a task is 409 with code `practice_session_active` and the existing id in the message. Two simultaneous starts are serialised by the plan row lock, so exactly one wins. Writes `practice.started`. `planned_minutes` is the task estimate in minutes. The stored prompt is the one **without** the job description.
+- **Create.** Idempotent on the client's `id`: the same id with the same task and channel answers 200 with the stored session; the same id for anything else is 409. A second **active** session on a task is 409 with code `practice_session_active`, and the error body carries the running session's id as `sessionId` (also named in the message). The unique-index backstop answers the same way, with `sessionId` when the running session can be read. Two simultaneous starts are serialised by the plan row lock, so exactly one wins. Writes `practice.started`. `planned_minutes` is the task estimate in minutes. The stored prompt is the one **without** the job description.
 - **Abandon.** Takes the session row lock, so it and a finish on the same session run one after the other: the first wins and the other answers 409 and changes nothing. Active to `abandoned`, `ended_at` set, nothing else changes (no log, task untouched), no event. Repeating it is 200. A finished session is 409.
 
 ## Finishing: order and idempotency

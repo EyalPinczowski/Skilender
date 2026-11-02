@@ -1,49 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Button } from '../../components/ui';
-
-type CopyState = 'idle' | 'copied' | 'failed';
-
-/** Selects the text so it can be copied by hand, and tries the old copy command as a fallback. */
-function copyWithSelection(node: HTMLElement | null): boolean {
-  if (!node) return false;
-  const selection = window.getSelection();
-  if (!selection) return false;
-  selection.removeAllRanges();
-  const range = document.createRange();
-  range.selectNodeContents(node);
-  selection.addRange(range);
-  try {
-    return typeof document.execCommand === 'function' && document.execCommand('copy');
-  } catch {
-    return false;
-  }
-}
+import { useCopyText } from '../../lib/use-copy';
 
 /**
  * A ready-made prompt with a Copy button. Uses the clipboard API; when it is missing or refused the
- * text is selected for a manual copy and the message says so. "Copied" is announced politely.
+ * text is selected for a manual copy and the message says so. The result is announced politely,
+ * once per copy, from one live region that is always in the page.
  */
 export function CopyPrompt({ text, label }: { text: string; label: string }) {
-  const [state, setState] = useState<CopyState>('idle');
   const preRef = useRef<HTMLPreElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  async function copy() {
-    let ok = false;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        ok = true;
-      }
-    } catch {
-      ok = false;
-    }
-    if (!ok) ok = copyWithSelection(preRef.current);
-    setState(ok ? 'copied' : 'failed');
-    clearTimeout(timer.current);
-    if (ok) timer.current = setTimeout(() => setState('idle'), 4000);
-  }
+  const { state, copy } = useCopyText(text, preRef);
 
   return (
     <div className="space-y-2">
@@ -59,7 +25,7 @@ export function CopyPrompt({ text, label }: { text: string; label: string }) {
         <Button onClick={() => void copy()}>
           Copy prompt<span className="sr-only">: {label}</span>
         </Button>
-        <span role="status" aria-live="polite" className="font-bold text-ok">
+        <span role="status" aria-live="polite" aria-atomic="true" className="font-bold text-ok">
           {state === 'copied' ? 'Copied' : ''}
         </span>
         {state === 'failed' ? (

@@ -13,6 +13,8 @@ export const errorResponseSchema = z.object({
     message: z.string(),
     requestId: z.string(),
     fallbacks: z.array(z.string()).optional(),
+    /** The running practice session, on 409 `practice_session_active`. */
+    sessionId: z.string().optional(),
   }),
 });
 
