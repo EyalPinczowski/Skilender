@@ -118,6 +118,12 @@ const envSchema = z.object({
   FEATURE_CALENDAR: booleanString('false'),
   // Newest first, "v2:<base64>,v1:<base64>", each key 32 bytes. Server-only secret: never logged.
   CALENDAR_TOKEN_KEYS: z.string().optional(),
+  // Google OAuth client. Required when FEATURE_CALENDAR=true. The secret is server-only: never logged.
+  GOOGLE_CLIENT_ID: z.string().min(1).max(512).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).max(512).optional(),
+  // Overridable so e2e can point at a local stub. Defaults are Google's (needs check against docs).
+  GOOGLE_CALENDAR_API_BASE: z.url().default('https://www.googleapis.com/calendar/v3'),
+  GOOGLE_OAUTH_BASE: z.url().default('https://oauth2.googleapis.com'),
   ...featureEnvShape,
 });
 
@@ -137,6 +143,15 @@ export interface AIConfig extends AISettings {
   /** A whole turn, across fallbacks. */
   turnTimeoutMs: number;
   historyChars: number;
+}
+
+export interface GoogleCalendarConfig {
+  clientId: string;
+  clientSecret: string;
+  /** No trailing slash, e.g. https://www.googleapis.com/calendar/v3 */
+  apiBase: string;
+  /** No trailing slash; the token endpoint is `${oauthBase}/token`. */
+  oauthBase: string;
 }
 
 export interface Config {
@@ -160,7 +175,12 @@ export interface Config {
   trustProxy: number;
   features: Features;
   /** Holds key material: never log or serialise `tokenKeys`. */
-  calendar: { enabled: boolean; tokenKeys: CalendarKey[] };
+  calendar: {
+    enabled: boolean;
+    tokenKeys: CalendarKey[];
+    /** Null until GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set. Holds a secret: never log it. */
+    google: GoogleCalendarConfig | null;
+  };
   ai: AIConfig;
 }
 
@@ -233,8 +253,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     trustProxy: e.TRUST_PROXY,
     features: toFeatures(e),
-    calendar: { enabled: e.FEATURE_CALENDAR, tokenKeys: calendarKeys },
+    calendar: { enabled: e.FEATURE_CALENDAR, tokenKeys: calendarKeys, google: loadGoogle(e) },
     ai,
+  };
+}
+
+function loadGoogle(e: z.infer<typeof envSchema>): GoogleCalendarConfig | null {
+  if (e.FEATURE_CALENDAR) {
+    const missing = (['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const).filter((n) => !e[n]);
+    if (missing.length > 0) {
+      throw new ConfigError(missing.map((n) => `${n}: required when FEATURE_CALENDAR=true`));
+    }
+  }
+  if (!e.GOOGLE_CLIENT_ID || !e.GOOGLE_CLIENT_SECRET) return null;
+  return {
+    clientId: e.GOOGLE_CLIENT_ID,
+    clientSecret: e.GOOGLE_CLIENT_SECRET,
+    apiBase: e.GOOGLE_CALENDAR_API_BASE.replace(/\/+$/, ''),
+    oauthBase: e.GOOGLE_OAUTH_BASE.replace(/\/+$/, ''),
   };
 }
 

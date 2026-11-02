@@ -16,6 +16,8 @@ export const CalendarEventTimeSchema = z.object({
 
 export const CalendarEventSchema = z.object({
   id: z.string().min(1),
+  /** Changes on every edit; sent as If-Match so a write fails if the event moved on. */
+  etag: z.string().optional(),
   status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
   summary: z.string().optional(),
   start: CalendarEventTimeSchema,
