@@ -114,8 +114,8 @@ export function createSchedulingService(db: Database, days: DaysService) {
 
   /**
    * Runs the engine with the user's synced calendar: busy events are subtracted from capacity
-   * (spec 3.8), blocking all-day events are days off, and blocks the user moved in the calendar
-   * keep their time. `useCalendar: false` gives the plan as if nothing were synced.
+   * (spec 3.8), blocking all-day events are days off, blocks the user moved in the calendar
+   * keep their time, and the time of a block the user deleted there is busy (skipped). `useCalendar: false` gives the plan as if nothing were synced.
    *
    * A locked block that overlaps a busy event: the engine does not move the locked block (the
    * user's own placement wins) and does not warn about the overlap with busy time. Other

@@ -33,6 +33,7 @@ export interface BusyRow {
 }
 
 export interface LockedRow {
+  reason: 'moved' | 'deleted';
   task_id: string;
   starts_at: Date;
   ends_at: Date;
@@ -45,7 +46,8 @@ export interface LockedRow {
  *
  * Only `kind = 'busy'` rows count as busy time. Tentative rows are shown in the calendar view
  * but never counted; all-day rows count only when `blocks_day` is set, and then they cancel
- * the whole day instead of subtracting minutes.
+ * the whole day instead of subtracting minutes. Locked-block rows with reason 'moved' are
+ * locked blocks; rows with reason 'deleted' are busy time (the slot is skipped).
  */
 export async function loadCalendarInputs(
   ctx: UserContext,
@@ -61,7 +63,7 @@ export async function loadCalendarInputs(
     [userId],
   );
   const lockedRows = await ctx.client.query<LockedRow>(
-    `select task_id, starts_at, ends_at from ${ctx.schema}.calendar_locked_blocks
+    `select task_id, reason, starts_at, ends_at from ${ctx.schema}.calendar_locked_blocks
      where user_id = $1 and plan_id = $2 order by starts_at, block_key`,
     [userId, planId],
   );
@@ -91,6 +93,12 @@ export function calendarInputsFromRows(
     for (const i of splitByDay(r.starts_at.getTime(), r.ends_at.getTime(), timeZone)) {
       const end = Math.min(i.endMinute, LAST_MINUTE);
       if (end <= i.startMinute) continue;
+      if (r.reason === 'deleted') {
+        // The user deleted the block in the calendar: that time is unavailable and the task is
+        // planned elsewhere (owner decision), so it is busy time, not a lock.
+        busy.push({ date: i.date, start: formatTime(i.startMinute), end: formatTime(end) });
+        continue;
+      }
       lockedBlocks.push({
         taskId: r.task_id,
         date: i.date,

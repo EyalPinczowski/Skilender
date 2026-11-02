@@ -148,12 +148,19 @@ describe.skipIf(!dbAvailable)('calendar rows in the schedule (real Postgres)', (
         ],
       ),
     );
-  const lockRow = (user: string, plan: string, taskId: string, startsAt: string, endsAt: string) =>
+  const lockRow = (
+    user: string,
+    plan: string,
+    taskId: string,
+    startsAt: string,
+    endsAt: string,
+    reason: 'moved' | 'deleted' = 'moved',
+  ) =>
     testDb.admin((c) =>
       c.query(
         `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at,
-           ends_at, reason) values ($1, $2, $3, $4, $5, $6, 'moved')`,
-        [user, plan, `${taskId}-${startsAt}`, taskId, startsAt, endsAt],
+           ends_at, reason) values ($1, $2, $3, $4, $5, $6, $7)`,
+        [user, plan, `${taskId}-${startsAt}`, taskId, startsAt, endsAt, reason],
       ),
     );
 
@@ -234,6 +241,24 @@ describe.skipIf(!dbAvailable)('calendar rows in the schedule (real Postgres)', (
     const b = res.json() as Schedule;
     expect(on(b.blocks, TUE)).toEqual([]);
     expect(b.blocks.some((x) => x.kind === 'locked')).toBe(true);
+  });
+
+  it('a block deleted in the calendar is not re-placed and its slot is unavailable', async () => {
+    await lockRow(A, PLAN_A, 'lk', local(MON, '15:00'), local(MON, '16:00'), 'deleted');
+    const s = await schedule();
+    expect(s.blocks.some((b) => b.kind === 'locked')).toBe(false);
+    const lk = s.blocks.filter((b) => b.taskId === 'lk');
+    expect(on(s.blocks, MON).some((b) => overlaps(b, '15:00', '16:00'))).toBe(false);
+    // The deleted hour is gone from Monday's capacity.
+    expect(minutesOn(s.blocks, MON)).toBe(6 * 60);
+    // The task is still planned, elsewhere.
+    expect(lk.reduce((n, b) => n + b.minutes, 0)).toBe(60);
+  });
+
+  it('a moved block stays where the user put it', async () => {
+    await lockRow(A, PLAN_A, 'lk', local(MON, '15:00'), local(MON, '16:00'), 'moved');
+    const s = await schedule();
+    expect(s.blocks.filter((b) => b.kind === 'locked')).toHaveLength(1);
   });
 
   it('a locked block that overlaps a busy event: the engine keeps the lock where it is', async () => {
