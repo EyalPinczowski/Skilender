@@ -22,10 +22,13 @@ function useFocusMainOnNavigation() {
   return main;
 }
 
+/** Page width steps: phone and tablet 6xl, desktop (1024+) 7xl, wide (1440+) a little more. */
+const FRAME = 'mx-auto max-w-6xl lg:max-w-7xl min-[1440px]:max-w-[90rem]';
+
 function Header({ appEnv }: { appEnv: AppEnv }) {
   return (
     <header className="border-b border-border bg-surface">
-      <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4">
+      <div className={`${FRAME} flex min-h-16 items-center gap-3 px-4`}>
         <Logo title={null} />
         <span className="text-h2 font-bold">{APP_NAME}</span>
         <span className="ml-auto">
@@ -58,16 +61,24 @@ const NAV = [
 
 const itemBase = 'flex items-center gap-2 font-bold no-underline';
 
-/** The signed-in app: a tab bar along the bottom of a phone, a side rail from tablet width up. */
+/** Pages that use the extra width of a desktop (two columns); the others keep a reading column. */
+const WIDE_PATHS = new Set(['/', '/week']);
+
+/**
+ * The signed-in app. Phone (under 640 px): tab bar along the bottom. Tablet (640 to 1023): side
+ * rail. Desktop (1024 and up): a wider persistent sidebar, with the content in a centred column.
+ */
 export function AppShell({ appEnv }: { appEnv: AppEnv }) {
   const main = useFocusMainOnNavigation();
+  const { pathname } = useLocation();
+  const wide = WIDE_PATHS.has(pathname);
   return (
     <>
       <Header appEnv={appEnv} />
-      <div className="mx-auto flex max-w-6xl">
+      <div className={`${FRAME} flex`}>
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-10 flex overflow-x-auto border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:static md:inset-auto md:block md:w-56 md:shrink-0 md:self-start md:overflow-visible md:border-t-0 md:border-r md:bg-transparent md:p-3 md:pb-3"
+          className="fixed inset-x-0 bottom-0 z-10 flex overflow-x-auto border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] sm:static sm:inset-auto sm:block sm:w-56 sm:shrink-0 sm:self-start sm:overflow-visible sm:border-t-0 sm:border-r sm:bg-transparent sm:p-3 sm:pb-3 lg:sticky lg:top-0 lg:w-64 lg:p-4"
         >
           {NAV.map(({ to, label, end, Icon }) => (
             <NavLink
@@ -75,7 +86,7 @@ export function AppShell({ appEnv }: { appEnv: AppEnv }) {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `${itemBase} min-h-16 min-w-24 shrink-0 grow flex-col justify-center border-t-4 px-3 text-sm md:min-h-11 md:min-w-0 md:flex-row md:justify-start md:rounded-sm md:border-t-0 md:border-l-4 md:px-3 md:py-2 md:text-base ${
+                `${itemBase} min-h-16 min-w-24 shrink-0 grow flex-col justify-center border-t-4 px-3 text-sm sm:min-h-11 sm:min-w-0 sm:flex-row sm:justify-start sm:rounded-sm sm:border-t-0 sm:border-l-4 sm:px-3 sm:py-2 sm:text-base ${
                   isActive
                     ? 'border-accent bg-accent-soft text-accent-soft-text'
                     : 'border-transparent text-muted hover:text-text'
@@ -91,9 +102,9 @@ export function AppShell({ appEnv }: { appEnv: AppEnv }) {
           ref={main}
           id="main"
           tabIndex={-1}
-          className="min-w-0 grow px-4 pb-28 pt-6 md:px-8 md:pb-8"
+          className="min-w-0 grow px-4 pb-28 pt-6 sm:px-8 sm:pb-8"
         >
-          <div className="max-w-3xl">
+          <div className={wide ? 'max-w-3xl lg:max-w-none' : 'max-w-3xl'}>
             <CalendarWatcher />
             <Outlet />
           </div>

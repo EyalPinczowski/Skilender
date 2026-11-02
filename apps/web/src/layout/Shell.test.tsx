@@ -22,12 +22,37 @@ describe('app shell navigation', () => {
     expect(nav.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
   });
 
-  it('is a tab bar that scrolls sideways on a phone and a rail from tablet width', async () => {
+  it('is a bottom tab bar on a phone, a rail from 640 px and a sticky sidebar from 1024 px', async () => {
     await openApp();
-    const classes = screen.getByRole('navigation', { name: 'Main' }).className;
-    for (const c of ['fixed', 'bottom-0', 'overflow-x-auto', 'md:static', 'md:w-56']) {
-      expect(classes).toContain(c);
-    }
+    const classes = screen.getByRole('navigation', { name: 'Main' }).className.split(' ');
+    // Phone: fixed to the bottom, scrolls sideways if it ever overflows.
+    for (const c of ['fixed', 'bottom-0', 'overflow-x-auto']) expect(classes).toContain(c);
+    // Tablet: in the page flow as a rail.
+    for (const c of ['sm:static', 'sm:block', 'sm:w-56']) expect(classes).toContain(c);
+    // Desktop: wider and sticky, still the same single navigation.
+    for (const c of ['lg:sticky', 'lg:top-0', 'lg:w-64']) expect(classes).toContain(c);
+  });
+
+  it('offers the same four destinations, reachable with the keyboard', async () => {
+    const nav = await openApp();
+    expect(nav.getAllByRole('link').map((l) => l.textContent)).toEqual([
+      'Today',
+      'Week',
+      'Plan',
+      'Settings',
+    ]);
+    await userEvent.tab(); // skip link
+    await userEvent.tab();
+    expect(nav.getByRole('link', { name: 'Today' })).toHaveFocus();
+  });
+
+  it('lets Today and Week use the desktop width and keeps other pages in a reading column', async () => {
+    await openApp();
+    const column = screen.getByRole('main').firstElementChild!;
+    expect(column.className).toContain('lg:max-w-none');
+    await userEvent.click(screen.getByRole('link', { name: 'Settings' }));
+    await screen.findByRole('heading', { level: 1, name: 'Settings' });
+    expect(screen.getByRole('main').firstElementChild!.className).not.toContain('lg:max-w-none');
   });
 
   it('gives every item a touch target of at least 44 by 44 px', async () => {

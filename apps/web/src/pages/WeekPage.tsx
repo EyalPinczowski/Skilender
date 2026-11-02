@@ -147,46 +147,51 @@ function WeekView({
         {formatDate(open.weekStart, 'short')} to {formatDate(open.weekEnd, 'short')} · {plan.name}
       </p>
 
-      <TrendSection plan={plan} schedule={schedule} />
+      {/* Two columns from desktop width: trend and progress on the left, open tasks on the right. */}
+      <div className="space-y-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:space-y-0">
+        <div className="min-w-0 space-y-6">
+          <TrendSection plan={plan} schedule={schedule} />
 
-      <LastPracticeScores planId={plan.id} />
+          <LastPracticeScores planId={plan.id} />
 
-      <section aria-labelledby="week-progress-heading" className="space-y-3">
-        <h2 id="week-progress-heading">Week progress</h2>
-        <dl className="grid grid-cols-2 gap-3">
-          <div>
-            <dt className="text-muted">Tasks completed</dt>
-            <dd className="text-h2 font-bold tabular-nums">
-              {totals.tasksDone} of {totals.tasksPlanned}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted">Hours, actual of planned</dt>
-            <dd className="text-h2 font-bold tabular-nums">
-              {formatHours(totals.actualHours)} of {formatHours(totals.plannedHours)}
-            </dd>
-          </div>
-        </dl>
-        <WeekChart days={days} />
-      </section>
+          <section aria-labelledby="week-progress-heading" className="space-y-3">
+            <h2 id="week-progress-heading">Week progress</h2>
+            <dl className="grid grid-cols-2 gap-3">
+              <div>
+                <dt className="text-muted">Tasks completed</dt>
+                <dd className="text-h2 font-bold tabular-nums">
+                  {totals.tasksDone} of {totals.tasksPlanned}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">Hours, actual of planned</dt>
+                <dd className="text-h2 font-bold tabular-nums">
+                  {formatHours(totals.actualHours)} of {formatHours(totals.plannedHours)}
+                </dd>
+              </div>
+            </dl>
+            <WeekChart days={days} />
+          </section>
+        </div>
 
-      <section aria-labelledby="open-heading" className="space-y-3">
-        <h2 id="open-heading">Open tasks</h2>
-        {sorted.length === 0 ? (
-          <p className="text-muted">Nothing is open this week.</p>
-        ) : (
-          <ul className="space-y-3">
-            {sorted.map((task) => (
-              <OpenTaskRow
-                key={task.taskId}
-                planId={plan.id}
-                task={task}
-                weekStart={open.weekStart}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+        <section aria-labelledby="open-heading" className="min-w-0 space-y-3">
+          <h2 id="open-heading">Open tasks</h2>
+          {sorted.length === 0 ? (
+            <p className="text-muted">Nothing is open this week.</p>
+          ) : (
+            <ul className="space-y-3">
+              {sorted.map((task) => (
+                <OpenTaskRow
+                  key={task.taskId}
+                  planId={plan.id}
+                  task={task}
+                  weekStart={open.weekStart}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </>
   );
 }
@@ -231,7 +236,7 @@ export function WeekPage() {
       <PlanSwitcher />
       <PlanGate
         empty={
-          <p className="text-muted">
+          <p className="max-w-3xl text-muted">
             No plan yet. Import one from{' '}
             <Link to="/" className={linkClass}>
               Today

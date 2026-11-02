@@ -22,7 +22,7 @@ function Bar({ plan }: { plan: PlanSummary }) {
   return (
     <section
       aria-label="Plan summary"
-      className="sticky top-0 z-10 -mx-4 space-y-2 border-b border-border bg-bg px-4 py-2 md:-mx-8 md:px-8"
+      className="sticky top-0 z-10 -mx-4 space-y-2 border-b border-border bg-bg px-4 py-2 sm:-mx-8 sm:px-8"
     >
       {atRisk.map((warning, index) => (
         <div

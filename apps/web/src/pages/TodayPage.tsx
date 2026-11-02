@@ -5,7 +5,7 @@ import { Home } from './today/Home';
 
 function EmptyState({ apiUrl }: { apiUrl: string }) {
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <h1>Today</h1>
       <section
         aria-labelledby="empty-heading"
