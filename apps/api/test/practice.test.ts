@@ -413,6 +413,7 @@ describe.skipIf(!dbAvailable)('practice sessions without a model (real Postgres)
       expect(second.statusCode).toBe(409);
       expect(second.json().error.code).toBe('practice_session_active');
       expect(second.json().error.message).toContain(S(1));
+      expect(second.json().error.sessionId).toBe(S(1));
 
       // Another task is fine, and so is the same task once the first is over.
       await start('p2', S(3));

@@ -58,6 +58,14 @@ export type TaskService = ReturnType<typeof createTaskService>;
 
 const notFound = () => new HttpError(404, 'not_found', 'Resource not found.');
 const unprocessable = (message: string) => new HttpError(422, 'unprocessable', message);
+/** 409 with the running session's id in the body, so the client can carry on with it. */
+const activeConflict = (sessionId: string) =>
+  new HttpError(
+    409,
+    'practice_session_active',
+    `This task already has an active practice session (${sessionId}).`,
+    { sessionId },
+  );
 const conflict = (message: string, code = 'conflict') => new HttpError(409, code, message);
 
 /** The kind a practice task without a `practiceKind` is stored under. */
@@ -827,10 +835,7 @@ export function createPracticeService(
         }
         const active = await repo.activeSessionId(ctx, userId, planId, taskId);
         if (active) {
-          throw conflict(
-            `This task already has an active practice session (${active}).`,
-            'practice_session_active',
-          );
+          throw activeConflict(active);
         }
         if (input.channel === 'in_app' && !aiAvailable()) throw aiUnavailable();
         const kind = kindOf(task);
@@ -842,8 +847,11 @@ export function createPracticeService(
           jobDescriptionIncluded: g.jobDescription.length > 0,
           redactions: stored.redactions,
         };
-        const created = await repo
-          .insertSession(ctx, userId, {
+        // A savepoint, so a unique violation leaves the transaction usable for the read below.
+        await ctx.client.query('savepoint insert_session');
+        let created;
+        try {
+          created = await repo.insertSession(ctx, userId, {
             id: input.id,
             planId,
             taskId,
@@ -854,18 +862,21 @@ export function createPracticeService(
             startedAt: now(),
             prompt: stored.copyText,
             inputs,
-          })
-          .catch((error: unknown) => {
-            // The plan lock above makes this unreachable; the unique index is the backstop.
-            const pg = error as { code?: string; constraint?: string };
-            if (pg.code === '23505' && pg.constraint === 'practice_sessions_one_active_idx') {
-              throw conflict(
-                'This task already has an active practice session.',
-                'practice_session_active',
-              );
-            }
-            throw error;
           });
+        } catch (error: unknown) {
+          // The plan lock above makes this unreachable; the unique index is the backstop.
+          const pg = error as { code?: string; constraint?: string };
+          if (pg.code === '23505' && pg.constraint === 'practice_sessions_one_active_idx') {
+            await ctx.client.query('rollback to savepoint insert_session');
+            const running = await repo.activeSessionId(ctx, userId, planId, taskId);
+            if (running) throw activeConflict(running);
+            throw conflict(
+              'This task already has an active practice session.',
+              'practice_session_active',
+            );
+          }
+          throw error;
+        }
         await plansRepo.insertEvent(ctx, userId, planId, 'practice.started', {
           sessionId: created.id,
           taskId,

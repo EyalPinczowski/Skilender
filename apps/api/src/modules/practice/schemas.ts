@@ -1,10 +1,13 @@
-import { LocalDateSchema } from '@skillstack/shared';
+import {
+  LocalDateSchema,
+  MAX_JOB_DESCRIPTION_LENGTH,
+  MAX_LOG_HOURS,
+  MAX_PASTED_FEEDBACK_LENGTH,
+} from '@skillstack/shared';
 import { z } from 'zod';
 import { noNulCharacters } from '../../validation';
 
-export const MAX_JOB_DESCRIPTION_LENGTH = 8000;
-export const MAX_PASTED_FEEDBACK_LENGTH = 20_000;
-export const MAX_LOG_HOURS = 12;
+export { MAX_JOB_DESCRIPTION_LENGTH, MAX_LOG_HOURS, MAX_PASTED_FEEDBACK_LENGTH };
 export const HISTORY_DEFAULT_LIMIT = 50;
 export const HISTORY_MAX_LIMIT = 200;
 /** Trends read at most this many of the newest scored sessions. */

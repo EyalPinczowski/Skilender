@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 /** The API's single error shape (apps/api/src/errors.ts). */
 const errorBodySchema = z.object({
-  error: z.object({ code: z.string(), message: z.string(), requestId: z.string().optional() }),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    requestId: z.string().optional(),
+    sessionId: z.string().optional(),
+  }),
 });
 
 export type ApiErrorKind = 'http' | 'network' | 'timeout';
@@ -16,6 +21,8 @@ export class ApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly requestId?: string,
+    /** The running practice session, on 409 `practice_session_active`. */
+    public readonly sessionId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -24,8 +31,8 @@ export class ApiError extends Error {
   static fromBody(status: number, body: unknown): ApiError {
     const parsed = errorBodySchema.safeParse(body);
     if (parsed.success) {
-      const { code, message, requestId } = parsed.data.error;
-      return new ApiError('http', status, code, message, requestId);
+      const { code, message, requestId, sessionId } = parsed.data.error;
+      return new ApiError('http', status, code, message, requestId, sessionId);
     }
     return new ApiError('http', status, 'unknown', `The server answered with status ${status}.`);
   }
