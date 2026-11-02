@@ -1,5 +1,4 @@
-export const APP_NAME = 'Skillstack';
-export const APP_TAGLINE = 'build your skills, one block at a time';
+export { APP_NAME, APP_TAGLINE } from './constants';
 
 export * from './dates';
 export * from './zone';
@@ -13,6 +12,8 @@ export * from './scheduling/engine';
 export * from './scheduling/changes';
 export * from './scheduling/cv';
 export * from './scheduling/adjustments';
+export * from './calendar/event';
+export * from './calendar/busy';
 export * from './export/ics';
 export * from './export/printable';
 export * from './practice/redact';
