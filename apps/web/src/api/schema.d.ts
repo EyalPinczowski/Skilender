@@ -659,6 +659,21 @@ export interface paths {
                             aiCache: {
                                 [key: string]: unknown;
                             }[];
+                            calendarConnections: {
+                                [key: string]: unknown;
+                            }[];
+                            calendarEventLinks: {
+                                [key: string]: unknown;
+                            }[];
+                            calendarLockedBlocks: {
+                                [key: string]: unknown;
+                            }[];
+                            calendarBusy: {
+                                [key: string]: unknown;
+                            }[];
+                            calendarSources: {
+                                [key: string]: unknown;
+                            }[];
                         };
                     };
                 };

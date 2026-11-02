@@ -69,7 +69,24 @@ export const EXPORT_SECTIONS = {
   practiceFeedback: { table: 'practice_feedback', order: 'created_at, session_id' },
   aiUsageDaily: { table: 'ai_usage_daily', order: 'day, purpose' },
   aiCache: { table: 'ai_cache', order: 'created_at, key' },
+  // The refresh token is never exported, not even as ciphertext: the column list leaves it out.
+  calendarConnections: {
+    table: 'calendar_connections',
+    order: 'created_at',
+    columns:
+      'user_id, provider, app_calendar_id, status, granted_scopes, last_synced_at, last_error_code, created_at, updated_at',
+  },
+  calendarEventLinks: { table: 'calendar_event_links', order: 'plan_id, block_key' },
+  calendarLockedBlocks: { table: 'calendar_locked_blocks', order: 'plan_id, block_key' },
+  calendarBusy: { table: 'calendar_busy', order: 'date, external_event_id' },
+  calendarSources: { table: 'calendar_sources', order: 'calendar_id' },
 } as const;
+
+/**
+ * User-owned tables that are deliberately not exported: short-lived login state that holds only
+ * hashes and ciphertext of secrets (the OAuth state and the PKCE verifier).
+ */
+export const EXPORT_EXCLUDED_TABLES = ['calendar_oauth_states'] as const;
 export type ExportSectionKey = keyof typeof EXPORT_SECTIONS;
 
 /** Account operations. Every query runs inside db.withUser, so row-level security applies. */
@@ -118,17 +135,18 @@ export function createAccountService(db: Database, authAdmin: AuthAdmin = unconf
     /** Everything the account holds. Table names are fixed here; none comes from a request. */
     exportData: (userId: string) =>
       db.withUser(userId, async (ctx) => {
-        const select = async (table: string, column: string, order: string) => {
+        const select = async (table: string, column: string, order: string, columns = '*') => {
           const { rows } = await ctx.client.query(
-            `select * from ${ctx.schema}.${table} where ${column} = $1 order by ${order}`,
+            `select ${columns} from ${ctx.schema}.${table} where ${column} = $1 order by ${order}`,
             [userId],
           );
           return rows as Record<string, unknown>[];
         };
         const user = (await select('app_users', 'id', 'id'))[0]!;
         const sections: Record<string, Record<string, unknown>[]> = {};
-        for (const [key, { table, order }] of Object.entries(EXPORT_SECTIONS)) {
-          sections[key] = await select(table, 'user_id', order);
+        for (const [key, section] of Object.entries(EXPORT_SECTIONS)) {
+          const columns = 'columns' in section ? section.columns : undefined;
+          sections[key] = await select(section.table, 'user_id', section.order, columns);
         }
         return {
           exportedAt: new Date().toISOString(),

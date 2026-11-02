@@ -209,6 +209,61 @@ const TABLES: UserTable[] = [
       `insert into rnd.ai_cache (user_id, key, purpose, text, expires_at)
        values ('${u}', '${HEX_KEY('c')}', 'practice_feedback', 't', now() + interval '1 day')`,
   },
+  {
+    name: 'calendar_connections',
+    ownerColumn: 'user_id',
+    update: `status = 'needs_reconnect'`,
+    deletable: true,
+    // One connection per user and both seeded users have one: the upsert updates it, which only
+    // works for the signed-in user's own row.
+    insert: (u) =>
+      `insert into rnd.calendar_connections (user_id, status) values ('${u}', 'connected')
+       on conflict (user_id) do update set status = excluded.status`,
+  },
+  {
+    name: 'calendar_oauth_states',
+    ownerColumn: 'user_id',
+    update: null,
+    deletable: true,
+    insert: (u) =>
+      `insert into rnd.calendar_oauth_states (user_id, state_hash, pkce_verifier_ciphertext, expires_at)
+       values ('${u}', '${HEX_KEY('f')}', 'ct', now() + interval '10 minutes')`,
+  },
+  {
+    name: 'calendar_event_links',
+    ownerColumn: 'user_id',
+    update: `generation = generation + 1`,
+    deletable: true,
+    insert: (u) =>
+      `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+       values ('${u}', '${PLAN_B}', 'new-block', 't1', 'ev9', '2026-01-07 09:00+00', '2026-01-07 10:00+00')`,
+  },
+  {
+    name: 'calendar_locked_blocks',
+    ownerColumn: 'user_id',
+    update: `reason = 'deleted'`,
+    deletable: true,
+    insert: (u) =>
+      `insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason)
+       values ('${u}', '${PLAN_B}', 'new-block', 't1', '2026-01-07 09:00+00', '2026-01-07 10:00+00', 'moved')`,
+  },
+  {
+    name: 'calendar_busy',
+    ownerColumn: 'user_id',
+    update: `title = 'changed'`,
+    deletable: true,
+    insert: (u) =>
+      `insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, kind)
+       values ('${u}', '2026-01-07', 'ext9', 'cal1', 540, 600, 'busy')`,
+  },
+  {
+    name: 'calendar_sources',
+    ownerColumn: 'user_id',
+    update: `blocks_time = true`,
+    deletable: true,
+    insert: (u) =>
+      `insert into rnd.calendar_sources (user_id, calendar_id, name) values ('${u}', 'cal9', 'Work')`,
+  },
 ];
 
 /** Tables with a user_id column the app writes; app_settings is global and tested on its own. */
@@ -280,6 +335,23 @@ async function seed(client: pg.Client): Promise<void> {
       insert into rnd.ai_cache (user_id, key, purpose, text, expires_at) values
         ('${USER_A}', '${HEX_KEY('a')}', 'day_overview', 'cached A', now() + interval '1 day'),
         ('${USER_B}', '${HEX_KEY('b')}', 'day_overview', 'cached B', now() + interval '1 day');
+      insert into rnd.calendar_connections (user_id, status, granted_scopes, refresh_token_ciphertext) values
+        ('${USER_A}', 'connected', '{calendar.app.created}', 'ctA'),
+        ('${USER_B}', 'connected', '{calendar.app.created}', 'ctB');
+      insert into rnd.calendar_oauth_states (user_id, state_hash, pkce_verifier_ciphertext, expires_at) values
+        ('${USER_A}', '${HEX_KEY('d')}', 'ct', now() + interval '10 minutes'),
+        ('${USER_B}', '${HEX_KEY('e')}', 'ct', now() + interval '10 minutes');
+      insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end) values
+        ('${USER_A}', '${PLAN_A}', 'b1', 't1', 'evA', '2026-01-05 09:00+00', '2026-01-05 10:00+00'),
+        ('${USER_B}', '${PLAN_B}', 'b1', 't1', 'evB', '2026-01-05 09:00+00', '2026-01-05 10:00+00');
+      insert into rnd.calendar_locked_blocks (user_id, plan_id, block_key, task_id, starts_at, ends_at, reason) values
+        ('${USER_A}', '${PLAN_A}', 'b2', 't1', '2026-01-05 11:00+00', '2026-01-05 12:00+00', 'moved'),
+        ('${USER_B}', '${PLAN_B}', 'b2', 't1', '2026-01-05 11:00+00', '2026-01-05 12:00+00', 'deleted');
+      insert into rnd.calendar_busy (user_id, date, external_event_id, source_calendar_id, start_minute, end_minute, kind) values
+        ('${USER_A}', '2026-01-05', 'extA', 'cal1', 600, 660, 'busy'),
+        ('${USER_B}', '2026-01-05', 'extB', 'cal1', 600, 660, 'tentative');
+      insert into rnd.calendar_sources (user_id, calendar_id, name) values
+        ('${USER_A}', 'cal1', 'Primary A'), ('${USER_B}', 'cal1', 'Primary B');
       insert into rnd.ai_provider_usage (day, provider_id, requests) values ('2026-01-05', 'fake', 4);
       insert into rnd.app_settings (key, value, is_public) values ('secret.key', '"x"', false);
     `);
@@ -1066,6 +1138,8 @@ describe.skipIf(!dbAvailable)('data model: row-level security (rnd)', () => {
             'adjustments',
             'practice_contexts',
             'practice_sessions',
+            'calendar_event_links',
+            'calendar_locked_blocks',
           ]) {
             const { rows } = await client.query(
               `select count(*)::int as n from rnd.${table} where plan_id = $1`,
