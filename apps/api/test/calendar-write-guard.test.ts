@@ -154,13 +154,18 @@ describe('retried inserts and concurrent changes', () => {
 
   it('delete then re-insert of the same task restores the event (cancelled keeps its id)', async () => {
     provider.keepCancelled = true;
-    const first = await guard.insertAppEvent(APP_CAL, 'task-9', draft);
+    const first = await guard.insertAppEvent(APP_CAL, 'task-9', { ...draft, colorId: '7' });
     expect(await guard.deleteAppEvent(APP_CAL, first.id)).toBe(true);
     expect((await provider.getEvent(APP_CAL, first.id))?.status).toBe('cancelled');
 
-    const moved = { ...draft, summary: 'Back again' };
+    const moved = { ...draft, summary: 'Back again', colorId: '4' };
     const restored = await guard.insertAppEvent(APP_CAL, 'task-9', moved);
-    expect(restored).toMatchObject({ id: first.id, status: 'confirmed', summary: 'Back again' });
+    expect(restored).toMatchObject({
+      id: first.id,
+      status: 'confirmed',
+      summary: 'Back again',
+      colorId: '4',
+    });
     expect(restored.extendedProperties?.private).toEqual({
       source: APP_EVENT_SOURCE,
       task_id: 'task-9',

@@ -20,6 +20,8 @@ export const CalendarEventSchema = z.object({
   etag: z.string().optional(),
   status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
   summary: z.string().optional(),
+  /** Google event colour id ('1'..'11'); absent when the event uses the calendar's colour. */
+  colorId: z.string().optional(),
   start: CalendarEventTimeSchema,
   end: CalendarEventTimeSchema,
   /** Google: `opaque` (shown as Busy, the default) or `transparent` (shown as Free). */

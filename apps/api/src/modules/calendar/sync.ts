@@ -666,10 +666,12 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         }
         throw error;
       }
-      // A retried insert returns the event that is already there; it may sit at another time.
+      // A retried insert returns the event that is already there; it may sit at another time or
+      // have another (or no) colour.
       if (
         instantOf(event.start) !== d.start.getTime() ||
-        instantOf(event.end) !== d.end.getTime()
+        instantOf(event.end) !== d.end.getTime() ||
+        event.colorId !== d.colorId
       ) {
         try {
           event = await env.guard.patchAppEvent(env.appCalendarId, id, {

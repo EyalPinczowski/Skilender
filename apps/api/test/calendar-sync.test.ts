@@ -777,6 +777,7 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(google.live(APP_CAL).filter((e) => e.id === id)).toHaveLength(1);
       const ev = google.get(APP_CAL, id)!;
       expect(startOf(ev)).toBe(Date.parse(L(SUN, '09:00'))); // brought to the planned time
+      expect(ev.colorId).toBe(colorIdForTask(0));
       expect((await links()).find((x) => x.block_key === key)!.event_id).toBe(id);
     });
 
@@ -815,12 +816,20 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     it('patches an event with no stored or a different colour once, and not again', async () => {
       await sync();
       const l = await links();
+      // Events written before colours existed: no colour in Google, none stored.
+      for (const e of google.live(APP_CAL)) google.put(APP_CAL, { ...e, colorId: undefined });
       await rows(`update rnd.calendar_event_links set last_color = null where user_id = '${A}'`);
       google.seen = [];
       await syncAgain();
       const writes = google.writes();
       expect(writes).toHaveLength(l.length);
       expect(writes.every((w) => w.method === 'PATCH')).toBe(true);
+      const expectColours = (order: Record<string, number>) => {
+        const live = google.live(APP_CAL);
+        expect(live.length).toBeGreaterThan(0);
+        for (const e of live) expect(e.colorId).toBe(colorIdForTask(order[tagsOf(e).task_id!]!));
+      };
+      expectColours({ big: 0, lk: 1 });
       google.seen = [];
       await syncAgain();
       expect(google.writes()).toEqual([]);
@@ -830,12 +839,26 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       google.seen = [];
       await syncAgain();
       expect(google.writes().length).toBeGreaterThan(0);
-      const colours = new Map(google.live(APP_CAL).map((e) => [tagsOf(e).task_id, e.colorId]));
-      expect(colours.get('big')).toBe(colorIdForTask(1));
-      expect(colours.get('lk')).toBe(colorIdForTask(0));
+      expectColours({ big: 1, lk: 0 });
       google.seen = [];
       await syncAgain();
       expect(google.writes()).toEqual([]);
+    });
+
+    it('recolours an existing event found by a retried insert, even when its times are right', async () => {
+      await sync();
+      const key = `big:${SUN}:0`;
+      const link = (await links()).find((x) => x.block_key === key)!;
+      // The insert landed but its answer and the link were lost; the event has no colour.
+      google.put(APP_CAL, { ...google.get(APP_CAL, link.event_id)!, colorId: undefined });
+      await rows(
+        `delete from rnd.calendar_event_links where user_id = '${A}' and block_key = '${key}'`,
+      );
+      google.seen = [];
+      await syncAgain();
+      expect(google.get(APP_CAL, link.event_id)!.colorId).toBe(colorIdForTask(0));
+      expect(google.writes().filter((w) => w.method === 'PATCH')).toHaveLength(1);
+      expect((await links()).find((x) => x.block_key === key)!.last_color).toBe(colorIdForTask(0));
     });
 
     it('deletes events whose block no longer exists', async () => {
