@@ -260,6 +260,105 @@ export interface MessageRow {
   createdAt: Date;
 }
 
+/** One message of a session by its id (the client's for a user turn), or null. */
+export async function getMessage(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+  messageId: string,
+): Promise<MessageRow | null> {
+  const all = await listMessages(ctx, userId, sessionId);
+  return all.find((m) => m.id === messageId) ?? null;
+}
+
+export interface NewMessage {
+  id: string;
+  role: MessageRow['role'];
+  content: string;
+  providerId: string | null;
+  model: string | null;
+  redacted: boolean;
+}
+
+/** Appends a message at the next `seq`. The caller holds the session row lock. */
+export async function insertMessage(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+  m: NewMessage,
+  at: Date,
+): Promise<MessageRow> {
+  const { rows } = await ctx.client.query<{ seq: number }>(
+    `insert into ${ctx.schema}.practice_messages
+       (user_id, session_id, id, seq, role, content, provider_id, model, redacted, created_at)
+     values ($1, $2, $3,
+       (select coalesce(max(seq) + 1, 0) from ${ctx.schema}.practice_messages
+         where user_id = $1 and session_id = $2),
+       $4, $5, $6, $7, $8, $9)
+     returning seq`,
+    [userId, sessionId, m.id, m.role, m.content, m.providerId, m.model, m.redacted, at],
+  );
+  return { ...m, seq: rows[0]!.seq, createdAt: at };
+}
+
+/** The marker of a model turn in flight (both columns or neither). */
+export async function getPending(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+): Promise<{ turnId: string; since: Date } | null> {
+  const { rows } = await ctx.client.query<{ pending_turn_id: string | null; pending_since: Date }>(
+    `select pending_turn_id, pending_since from ${ctx.schema}.practice_sessions
+     where user_id = $1 and id = $2`,
+    [userId, sessionId],
+  );
+  const r = rows[0];
+  return r?.pending_turn_id ? { turnId: r.pending_turn_id, since: r.pending_since } : null;
+}
+
+export async function setPending(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+  turnId: string,
+  at: Date,
+): Promise<void> {
+  await ctx.client.query(
+    `update ${ctx.schema}.practice_sessions set pending_turn_id = $3, pending_since = $4
+     where user_id = $1 and id = $2`,
+    [userId, sessionId, turnId, at],
+  );
+}
+
+/** Clears the marker, but only if it is still this turn's (a newer turn keeps its own). */
+export async function clearPending(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+  turnId: string,
+): Promise<void> {
+  await ctx.client.query(
+    `update ${ctx.schema}.practice_sessions set pending_turn_id = null, pending_since = null
+     where user_id = $1 and id = $2 and pending_turn_id = $3`,
+    [userId, sessionId, turnId],
+  );
+}
+
+/** Remembers a provider that answered in this session (distinct, at most 20). */
+export async function addProviderUsed(
+  ctx: UserContext,
+  userId: string,
+  sessionId: string,
+  providerId: string,
+): Promise<void> {
+  await ctx.client.query(
+    `update ${ctx.schema}.practice_sessions set providers_used = array_append(providers_used, $3)
+     where user_id = $1 and id = $2 and not ($3 = any(providers_used))
+       and cardinality(providers_used) < 20`,
+    [userId, sessionId, providerId],
+  );
+}
+
 export async function listMessages(
   ctx: UserContext,
   userId: string,

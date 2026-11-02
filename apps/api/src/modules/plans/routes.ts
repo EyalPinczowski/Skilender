@@ -12,7 +12,7 @@ import { createBriefingService } from '../briefing/service';
 import { daysRoutes } from '../days/routes';
 import { createDaysService } from '../days/service';
 import { practiceRoutes } from '../practice/routes';
-import { createPracticeService } from '../practice/service';
+import { createPracticeService, type ChatDeps } from '../practice/service';
 import { reviewRoutes } from '../reviews/routes';
 import { createReviewService } from '../reviews/service';
 import { schedulingRoutes } from '../scheduling/routes';
@@ -36,6 +36,8 @@ export interface PlanRoutesOptions {
   db: Database | null;
   /** The clock; tests inject a fixed one. Defaults to the system time. */
   now?: () => Date;
+  /** The AI pieces for the in-app practice chat. Without them in-app practice answers 503. */
+  chat?: ChatDeps | null;
 }
 
 const errors = {
@@ -50,7 +52,7 @@ const errors = {
 /** Plans, their time settings and the read side of scheduling, all under /api/v1/plans. */
 export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
   app,
-  { verifier, db, now },
+  { verifier, db, now, chat },
 ) => {
   const accounts = db ? createAccountService(db) : null;
   installAccountGuard(app, verifier, accounts);
@@ -193,7 +195,7 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
   app.register(daysRoutes, { service: days, userId });
   app.register(reviewRoutes, { service: createReviewService(db!, days, scheduling), userId });
   app.register(practiceRoutes, {
-    service: createPracticeService(db!, createTaskService(db!, now), now),
+    service: createPracticeService(db!, createTaskService(db!, now), now, chat ?? null),
     userId,
   });
 };

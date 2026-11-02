@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   FEEDBACK_BLOCK_INSTRUCTION,
+  FEEDBACK_JSON_INSTRUCTION,
   GENERIC_RUBRIC_STEPS,
   PERSONAS,
   PiiLeakError,
@@ -10,13 +11,25 @@ import {
   localDateOf,
   normalizeEnteredScore,
   parseFeedbackBlock,
+  parseModelFeedback,
   redactPii,
+  RETRY_JSON_INSTRUCTION,
+  sanitizeUserText,
   rubricFeedback,
   trendsByKind,
   type BuiltPracticePrompt,
   type PracticePromptInput,
 } from '@skillstack/shared';
 import { ZodError } from 'zod';
+import { reserveUserCap, utcDay, type AIUsageStore } from '../../ai/budget';
+import {
+  AIUnavailableError,
+  AIUserCapError,
+  type AIGateway,
+  type GatewayResult,
+} from '../../ai/gateway';
+import type { AIPurpose } from '../../ai/provider';
+import { buildSafeRequest, truncateHistory, type SafeMessage } from '../../ai/safe-request';
 import type { Database, UserContext } from '../../db/database';
 import { HttpError } from '../../errors';
 import * as plansRepo from '../plans/repository';
@@ -37,6 +50,7 @@ import {
   type FinishBody,
   type MessageView,
   type PasteFeedbackBody,
+  type SendMessageBody,
   type SessionView,
 } from './schemas';
 
@@ -61,6 +75,46 @@ function clip(text: string, max: number): string {
 }
 
 const iso = (d: Date) => d.toISOString();
+
+/** What the in-app chat needs besides the database. Absent means in-app practice is off. */
+export interface ChatDeps {
+  gateway: AIGateway;
+  usage: AIUsageStore;
+  userCaps: Readonly<Record<AIPurpose, number>>;
+  /** The gateway's whole-turn limit; a pending marker only goes stale well after it. */
+  turnTimeoutMs: number;
+}
+
+/** The least time a pending marker is believed. */
+export const MIN_STALE_PENDING_MS = 60_000;
+/**
+ * A turn that has been pending longer than this is treated as dead (a crash). It must outlast
+ * a live turn: an AI finish can make two gateway calls, each up to the turn limit.
+ */
+export const stalePendingMs = (turnTimeoutMs: number): number =>
+  Math.max(MIN_STALE_PENDING_MS, 2 * turnTimeoutMs + 15_000);
+/** What the client can do instead of the in-app chat. */
+const FALLBACKS = ['copy_prompt', 'self_rubric'];
+/** A model name or provider id is shown to the client only if it looks like a plain slug. */
+const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
+const safeSlug = (value: string | null | undefined, max: number): string | null =>
+  typeof value === 'string' && value.length <= max && SAFE_SLUG.test(value) ? value : null;
+const MAX_REPLY_STORED = 8000;
+const MAX_SYSTEM_CHARS = 19_000;
+
+const aiUnavailable = () =>
+  new HttpError(503, 'ai_unavailable', 'In-app practice is not available right now.', {
+    fallbacks: FALLBACKS,
+  });
+const turnInProgress = () =>
+  new HttpError(409, 'turn_in_progress', 'The previous turn is still being answered. Try again.');
+
+/** Provider and gateway failures as client answers. Never carries provider text. */
+function chatError(error: unknown): unknown {
+  if (error instanceof AIUnavailableError) return aiUnavailable();
+  if (error instanceof ZodError) return unprocessable('That text cannot be sent to the model.');
+  return error;
+}
 const minutesBetween = (a: Date, b: Date) =>
   Math.max(0, Math.round((b.getTime() - a.getTime()) / 60_000));
 
@@ -72,6 +126,18 @@ const minutesBetween = (a: Date, b: Date) =>
 export function sessionLogId(sessionId: string): string {
   const h = createHash('sha256').update(`practice-log:${sessionId}`).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/** The fixed first message of an in-app session. No model writes it. */
+function openerText(personaId: keyof typeof PERSONAS, task: TaskView, minutes: number): string {
+  const step = task.howToSteps.map((x) => x.trim()).find((x) => x.length > 0);
+  const label = PERSONAS[personaId].label;
+  return clip(
+    `Welcome to your ${label.toLowerCase()} session. You have about ${minutes} minutes. ` +
+      (step ? `Start with this: ${step} ` : '') +
+      'Tell me when you are ready and we begin.',
+    1000,
+  );
 }
 
 const toMessageView = (m: MessageRow): MessageView => ({
@@ -214,6 +280,8 @@ interface FinishRequest extends Completion {
   feedback: NewFeedback | null;
   /** Pasted text: its parse result is reported back. */
   parsed?: boolean;
+  /** AI finish: the turn marker this call set; if it is gone the model result is dropped. */
+  pendingTurnId?: string;
 }
 
 export interface FinishResult {
@@ -243,7 +311,77 @@ export function createPracticeService(
   db: Database,
   tasks: TaskService,
   now: () => Date = () => new Date(),
+  chat: ChatDeps | null = null,
 ) {
+  const staleMs = stalePendingMs(chat?.turnTimeoutMs ?? 0);
+  const isFresh = (pending: { since: Date } | null): boolean =>
+    pending !== null && now().getTime() - pending.since.getTime() < staleMs;
+
+  /** True when at least one provider could take a call now. */
+  const aiAvailable = (): boolean =>
+    chat !== null &&
+    chat.gateway
+      .providers()
+      .some((p) => p.configured && p.budget !== null && p.cooldownUntil === null);
+
+  /** Best effort: a failed clear is recovered by the stale-pending rule. */
+  const clearPendingQuietly = async (userId: string, sessionId: string, turnId: string) => {
+    try {
+      await db.withUser(userId, (ctx) => repo.clearPending(ctx, userId, sessionId, turnId));
+    } catch {
+      // Stale after 60 s.
+    }
+  };
+
+  /** The model's view of the session: system text and the user/assistant turns. */
+  function chatContext(session: SessionRow, messages: MessageRow[], historyChars: number) {
+    const persona = PERSONAS[session.persona as keyof typeof PERSONAS] ?? PERSONAS.generic_coach;
+    let setup = session.prompt;
+    if (setup.startsWith(persona.system)) setup = setup.slice(persona.system.length).trimStart();
+    const at = setup.lastIndexOf(FEEDBACK_BLOCK_INSTRUCTION);
+    if (at >= 0) setup = setup.slice(0, at).trimEnd();
+    // The opener (everything before the first user turn) goes into the system text, so the
+    // transcript starts with the user, which every provider accepts.
+    let opener = '';
+    const turns: { role: 'user' | 'assistant'; content: string }[] = [];
+    for (const m of messages) {
+      if (m.role === 'note') continue;
+      if (m.role === 'assistant' && !turns.some((t) => t.role === 'user')) {
+        opener = m.content;
+        continue;
+      }
+      // Older unanswered user messages (a failed turn the user did not retry) are dropped:
+      // only the newest of a run counts, so the size stays bounded.
+      const last = turns[turns.length - 1];
+      if (last && last.role === m.role) last.content = m.content;
+      else turns.push({ role: m.role, content: m.content });
+    }
+    // Newest 60 turns, starting with the user, then cut to the size limit (which keeps the
+    // "earlier turns omitted" note on the oldest kept turn).
+    let recent = turns.slice(-60);
+    while (recent[0]?.role === 'assistant' && recent.length > 1) recent = recent.slice(1);
+    const system = clip(
+      `${persona.system}\n\n${setup}${
+        opener ? `\n\nYou already opened the session with: ${opener}` : ''
+      }\n\nThe user now answers. Do not write a feedback block unless asked.`,
+      MAX_SYSTEM_CHARS,
+    );
+    const history: SafeMessage[] = truncateHistory(recent, historyChars);
+    return { system, history };
+  }
+
+  /** A user instruction after the transcript (merged into a trailing user turn if there is one). */
+  function withInstruction(history: SafeMessage[], instruction: string): SafeMessage[] {
+    const last = history[history.length - 1];
+    if (last && last.role === 'user') {
+      return [
+        ...history.slice(0, -1),
+        { role: 'user', content: `${last.content}\n\n${instruction}` },
+      ];
+    }
+    return [...history, { role: 'user', content: instruction }];
+  }
+
   /** The task, or 404; 422 when it is not a practice task. */
   async function practiceTask(userId: string, planId: string, taskId: string): Promise<TaskView> {
     const task = await tasks.getTask(userId, planId, taskId);
@@ -390,6 +528,16 @@ export function createPracticeService(
     return db.withUser(userId, async (ctx) => {
       const session = await repo.getSession(ctx, userId, planId, sessionId, true);
       if (!session) throw notFound();
+      if (request.pendingTurnId !== undefined) {
+        // The model result is only used if this turn still owns the session and it is active.
+        const pending = await repo.getPending(ctx, userId, sessionId);
+        if (session.status !== 'active' || pending?.turnId !== request.pendingTurnId) {
+          throw conflict(
+            'The session changed while the feedback was written. Try again.',
+            'turn_superseded',
+          );
+        }
+      }
       if (session.status === 'abandoned') throw conflict('This practice was abandoned.');
       let current = await tasks.getTaskIn(ctx, userId, planId, session.taskId);
       if (session.status === 'finished') {
@@ -437,6 +585,161 @@ export function createPracticeService(
         current,
       );
     });
+  }
+
+  /**
+   * Finish an in-app session with feedback from the model. Same shape as the other finishes:
+   * the model is called with no transaction open (the feedback call is reserved and the turn
+   * marked pending first), then `complete` saves the feedback and finishes in one transaction.
+   * Valid JSON is saved as `model_json`, JSON that needed local repair as `model_repaired`
+   * (no retry), anything else gets ONE retry and then is kept as `free_text`. Marking the task
+   * done still needs `markDone`.
+   */
+  async function aiFinish(
+    userId: string,
+    planId: string,
+    sessionId: string,
+    body: FinishBody,
+  ): Promise<FinishResult> {
+    const options = { markDone: body.markDone, logHours: body.logHours };
+    if (!chat) throw aiUnavailable();
+    const turnId = randomUUID();
+    const prep = await db.withUser(userId, async (ctx) => {
+      const session = await repo.getSession(ctx, userId, planId, sessionId, true);
+      if (!session) throw notFound();
+      if (session.channel !== 'in_app') {
+        throw unprocessable('AI feedback is only for in-app sessions.');
+      }
+      // Finished or abandoned: the normal finish decides (replay or 409), with no model call.
+      if (session.status !== 'active') return null;
+      const pending = await repo.getPending(ctx, userId, sessionId);
+      if (isFresh(pending)) {
+        throw turnInProgress();
+      }
+      const messages = await repo.listMessages(ctx, userId, sessionId);
+      if (!messages.some((m) => m.role === 'user')) {
+        throw unprocessable('Say something in the chat before asking for feedback.');
+      }
+      if (!aiAvailable()) throw aiUnavailable();
+      if (body.markDone) {
+        // Fail before spending a call on a finish that would be refused afterwards.
+        const task = await tasks.getTaskIn(ctx, userId, planId, session.taskId);
+        if (task.status === 'skipped') throw conflict('Reopen the task before marking it done.');
+      }
+      if (
+        !(await reserveUserCap(
+          ctx,
+          userId,
+          utcDay(now()),
+          'practice_feedback',
+          chat.userCaps.practice_feedback,
+        ))
+      ) {
+        throw new AIUserCapError('practice_feedback');
+      }
+      await repo.setPending(ctx, userId, sessionId, turnId, now());
+      const identity = await repo.getIdentity(ctx, userId);
+      return {
+        session,
+        messages,
+        knownIdentifiers: knownIdentifiersFor({
+          email: identity.email,
+          displayName: identity.displayName,
+        }),
+      };
+    });
+    if (prep === null) {
+      return complete(userId, planId, sessionId, () => ({ ...options, feedback: null }));
+    }
+
+    try {
+      const { system, history } = chatContext(
+        prep.session,
+        prep.messages,
+        chat.gateway.historyLimitChars(),
+      );
+      const ask = (instruction: string) =>
+        chat.gateway.generate({
+          userId,
+          request: buildSafeRequest(
+            {
+              purpose: 'practice_feedback',
+              system,
+              messages: withInstruction(history, instruction),
+              maxOutputTokens: 400,
+              json: true,
+            },
+            prep.knownIdentifiers,
+          ),
+          userCap: 'already_reserved',
+        });
+      const toFeedback = (
+        f: { score: number; strengths: string; improve: string; next_focus: string },
+        source: 'model_json' | 'model_repaired',
+      ): NewFeedback => ({
+        source,
+        score: f.score,
+        strengths: f.strengths,
+        improve: f.improve,
+        nextFocus: f.next_focus,
+        raw: null,
+      });
+
+      let feedback: NewFeedback;
+      const first = await ask(FEEDBACK_JSON_INSTRUCTION);
+      const parsed = parseModelFeedback(first.text);
+      if (parsed.ok) {
+        // A local repair saved a call.
+        if (parsed.repaired) {
+          await chat.usage.noteAvoided(userId, 'practice_feedback').catch(() => undefined);
+        }
+        feedback = toFeedback(parsed.feedback, parsed.repaired ? 'model_repaired' : 'model_json');
+      } else {
+        feedback = {
+          source: 'free_text',
+          score: null,
+          strengths: '',
+          improve: '',
+          nextFocus: '',
+          raw: parsed.freeText,
+        };
+        // One retry, counted against the user's cap and the provider budget, and skipped when
+        // the cap is used up. Any failure here keeps the free text.
+        try {
+          const reserved = await db.withUser(userId, (ctx) =>
+            reserveUserCap(
+              ctx,
+              userId,
+              utcDay(now()),
+              'practice_feedback',
+              chat.userCaps.practice_feedback,
+            ),
+          );
+          if (reserved) {
+            const second = parseModelFeedback(
+              (await ask(`${FEEDBACK_JSON_INSTRUCTION}\n\n${RETRY_JSON_INSTRUCTION}`)).text,
+            );
+            if (second.ok) {
+              feedback = toFeedback(
+                second.feedback,
+                second.repaired ? 'model_repaired' : 'model_json',
+              );
+            }
+          }
+        } catch {
+          // Keep the free text.
+        }
+      }
+      return await complete(userId, planId, sessionId, () => ({
+        ...options,
+        feedback,
+        pendingTurnId: turnId,
+      }));
+    } catch (error) {
+      throw chatError(error);
+    } finally {
+      await clearPendingQuietly(userId, sessionId, turnId);
+    }
   }
 
   return {
@@ -500,11 +803,11 @@ export function createPracticeService(
       userId: string,
       planId: string,
       taskId: string,
-      input: { id: string; channel: 'external' | 'self' },
+      input: { id: string; channel: 'in_app' | 'external' | 'self' },
     ) => {
       const task = await practiceTask(userId, planId, taskId);
       const topics = await weekTopics(userId, planId, taskId);
-      return db.withUser(userId, async (ctx) => {
+      const result = await db.withUser(userId, async (ctx) => {
         // One writer per plan at a time, so "one active session per task" cannot race.
         if (!(await plansRepo.lockPlan(ctx, userId, planId))) throw notFound();
         const existing = await repo.getSessionById(ctx, userId, input.id);
@@ -529,6 +832,7 @@ export function createPracticeService(
             'practice_session_active',
           );
         }
+        if (input.channel === 'in_app' && !aiAvailable()) throw aiUnavailable();
         const kind = kindOf(task);
         const g = await gather(ctx, userId, planId, kind);
         const { stored } = build(task, topics, g);
@@ -568,8 +872,234 @@ export function createPracticeService(
           kind,
           channel: created.channel,
         });
-        return { created: true, session: toSessionView(created), messages: [] as MessageView[] };
+        const messages: MessageView[] = [];
+        if (input.channel === 'in_app') {
+          // No model call: the opener is fixed text built from the task.
+          const opener = await repo.insertMessage(
+            ctx,
+            userId,
+            created.id,
+            {
+              id: randomUUID(),
+              role: 'assistant',
+              content: openerText(stored.personaId, task, created.plannedMinutes),
+              providerId: null,
+              model: null,
+              redacted: false,
+            },
+            created.startedAt,
+          );
+          messages.push(toMessageView(opener));
+        }
+        return { created: true, session: toSessionView(created), messages };
       });
+      if (result.created && input.channel === 'in_app') {
+        await chat?.usage.noteAvoided(userId, 'practice_message').catch(() => undefined);
+      }
+      return result;
+    },
+
+    /**
+     * One chat turn. The user's text is cleaned and stored, the user's daily call is reserved
+     * and the turn is marked pending, all in one short transaction that commits BEFORE the model
+     * is called. The call itself runs with no transaction open. The reply is stored in a second
+     * short transaction. A failure clears the marker and keeps the user's message, so sending
+     * the same id again retries. The same id after an answer returns the stored pair.
+     */
+    sendMessage: async (
+      userId: string,
+      planId: string,
+      sessionId: string,
+      body: SendMessageBody,
+      signal?: AbortSignal,
+    ) => {
+      if (!chat) throw aiUnavailable();
+      const turnId = randomUUID();
+      const cap = chat.userCaps.practice_message;
+      const usageNow = async (): Promise<{ used: number; cap: number }> => {
+        try {
+          const snap = await chat.usage.snapshot(userId);
+          return { used: snap.user.practice_message.used, cap };
+        } catch {
+          return { used: 0, cap };
+        }
+      };
+      const toReply = (m: MessageRow) => ({
+        id: m.id,
+        content: m.content,
+        providerId: m.providerId,
+        model: m.model,
+      });
+
+      const prep = await db.withUser(userId, async (ctx) => {
+        const session = await repo.getSession(ctx, userId, planId, sessionId, true);
+        if (!session) throw notFound();
+        if (session.channel !== 'in_app') throw unprocessable('This is not an in-app session.');
+        const identity = await repo.getIdentity(ctx, userId);
+        const knownIdentifiers = knownIdentifiersFor({
+          email: identity.email,
+          displayName: identity.displayName,
+        });
+        // Throws PiiLeakError (422 pii_blocked) when something personal survives redaction.
+        const clean = sanitizeUserText(body.content, { knownIdentifiers });
+        const all = await repo.listMessages(ctx, userId, sessionId);
+        const existing = all.find((m) => m.id === body.id) ?? null;
+        if (existing) {
+          if (existing.role !== 'user' || existing.content !== clean.text) {
+            throw conflict('This message id was already used for different text.');
+          }
+          const after = all.filter((m) => m.seq > existing.seq && m.role !== 'note');
+          if (after[0]?.role === 'assistant') {
+            return { kind: 'replay', userMessage: existing, reply: after[0] } as const;
+          }
+          if (after.length > 0) {
+            // Later messages exist but none answers this one: it was superseded, not pending.
+            throw conflict('A later message was sent after this one.', 'message_superseded');
+          }
+        }
+        if (session.status !== 'active') throw conflict('This practice is not active.');
+        const pending = await repo.getPending(ctx, userId, sessionId);
+        if (isFresh(pending)) {
+          throw turnInProgress();
+        }
+        if (!aiAvailable()) throw aiUnavailable();
+        const userMessage =
+          existing ??
+          (await repo.insertMessage(
+            ctx,
+            userId,
+            sessionId,
+            {
+              id: body.id,
+              role: 'user',
+              content: clean.text,
+              providerId: null,
+              model: null,
+              redacted: clean.count > 0,
+            },
+            now(),
+          ));
+        // Reserved before the call and committed with this transaction. A failed call still
+        // counts (conservative), and so does a retry.
+        if (!(await reserveUserCap(ctx, userId, utcDay(now()), 'practice_message', cap))) {
+          throw new AIUserCapError('practice_message');
+        }
+        await repo.setPending(ctx, userId, sessionId, turnId, now());
+        const messages = existing ? all : [...all, userMessage];
+        return { kind: 'turn', session, userMessage, messages, knownIdentifiers } as const;
+      });
+
+      if (prep.kind === 'replay') {
+        return {
+          userMessage: toMessageView(prep.userMessage),
+          reply: toReply(prep.reply),
+          switched: null,
+          usage: await usageNow(),
+          replayed: true,
+        };
+      }
+
+      // No transaction is open from here until the reply is stored.
+      let answer: GatewayResult;
+      try {
+        const { system, history } = chatContext(
+          prep.session,
+          prep.messages,
+          chat.gateway.historyLimitChars(),
+        );
+        const request = buildSafeRequest(
+          {
+            purpose: 'practice_message',
+            system,
+            messages: history,
+            maxOutputTokens: 600,
+            json: false,
+          },
+          prep.knownIdentifiers,
+        );
+        answer = await chat.gateway.generate({
+          userId,
+          request,
+          userCap: 'already_reserved',
+          ...(signal ? { signal } : {}),
+        });
+      } catch (error) {
+        await clearPendingQuietly(userId, sessionId, turnId);
+        throw chatError(error);
+      }
+
+      const providerId = safeSlug(answer.providerId, 64);
+      const model = safeSlug(answer.model, 100);
+      const labelOf = (id: string) =>
+        chat.gateway.providers().find((p) => p.id === id)?.label ?? id;
+      const switched =
+        answer.switched && safeSlug(answer.switched.from, 64) && providerId
+          ? {
+              from: answer.switched.from,
+              fromLabel: labelOf(answer.switched.from),
+              to: providerId,
+              toLabel: labelOf(providerId),
+              reason: answer.switched.reason,
+            }
+          : null;
+      let reply: MessageRow;
+      try {
+        reply = await db.withUser(userId, async (ctx) => {
+          const locked = await repo.getSession(ctx, userId, planId, sessionId, true);
+          const pending = await repo.getPending(ctx, userId, sessionId);
+          // Finished or abandoned meanwhile, or a newer turn took over after this one went
+          // stale: drop the reply (nothing appended, nothing cleared that is not ours).
+          if (!locked || locked.status !== 'active' || pending?.turnId !== turnId) {
+            throw conflict(
+              'The session changed while the reply was written. Try again.',
+              'turn_superseded',
+            );
+          }
+          if (switched) {
+            await repo.insertMessage(
+              ctx,
+              userId,
+              sessionId,
+              {
+                id: randomUUID(),
+                role: 'note',
+                content: `Continuing on ${switched.toLabel}.`,
+                providerId: null,
+                model: null,
+                redacted: false,
+              },
+              now(),
+            );
+          }
+          const stored = await repo.insertMessage(
+            ctx,
+            userId,
+            sessionId,
+            {
+              id: randomUUID(),
+              role: 'assistant',
+              content: clip(answer.text, MAX_REPLY_STORED),
+              providerId,
+              model,
+              redacted: false,
+            },
+            now(),
+          );
+          if (providerId) await repo.addProviderUsed(ctx, userId, sessionId, providerId);
+          await repo.clearPending(ctx, userId, sessionId, turnId);
+          return stored;
+        });
+      } catch (error) {
+        await clearPendingQuietly(userId, sessionId, turnId);
+        throw error;
+      }
+      return {
+        userMessage: toMessageView(prep.userMessage),
+        reply: toReply(reply),
+        switched,
+        usage: await usageNow(),
+        replayed: false,
+      };
     },
 
     getSession: (userId: string, planId: string, sessionId: string) =>
@@ -613,11 +1143,13 @@ export function createPracticeService(
 
     /** Finishes with a self-check, an entered score, or no feedback at all. */
     finish: (userId: string, planId: string, sessionId: string, body: FinishBody) =>
-      complete(userId, planId, sessionId, (task) => ({
-        markDone: body.markDone,
-        logHours: body.logHours,
-        feedback: feedbackFromFinish(task, body),
-      })),
+      body.aiFeedback
+        ? aiFinish(userId, planId, sessionId, body)
+        : complete(userId, planId, sessionId, (task) => ({
+            markDone: body.markDone,
+            logHours: body.logHours,
+            feedback: feedbackFromFinish(task, body),
+          })),
 
     /** Active to abandoned: nothing is logged and no event is written. Idempotent. */
     abandon: (userId: string, planId: string, sessionId: string) =>

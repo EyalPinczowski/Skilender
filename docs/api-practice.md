@@ -2,17 +2,18 @@
 
 Spec 3.3. Base path `/api/v1/plans/:planId`. Every route sits behind the Terms guard (403 `terms_not_accepted` until the current terms and privacy are accepted). The same rules as the other plan routes: a bearer token, the user is the token's `sub`, a `user_id` in a body is rejected (400), another user's plan, task or session answers 404 exactly like a missing one, and every error has the shape `{ "error": { "code", "message", "requestId" } }`. Text containing U+0000 answers 422. The live contract is `GET /api/v1/openapi.json`.
 
-This package has **no AI**. The in-app chat (channel `in_app`, messages, model feedback) comes in the chat package; the seams are the `channel` column, the empty `messages` list and the `model_json` / `model_repaired` feedback sources, which exist in the schema already.
+Sessions on the `external` and `self` channels need no model. The `in_app` channel (chat with a model, model feedback) is described under "In-app chat" below and needs an AI provider; with none, it answers 503 `ai_unavailable` and the other channels keep working.
 
 | Method and path                         | What it does                                                                 | Success | Errors                  |
 | --------------------------------------- | ---------------------------------------------------------------------------- | ------- | ----------------------- |
 | `GET /practice/context`                 | The saved job description                                                    | 200     | 404                     |
 | `PUT /practice/context`                 | Save it (`""` clears), returns `redactionsPreview`                           | 200     | 400, 404, 422           |
 | `GET /tasks/:taskId/practice/prompt`    | The ready-made prompt and what went into it. Saves nothing                   | 200     | 404, 422                |
-| `POST /tasks/:taskId/practice/sessions` | Start a session `{ id, channel: external \| self }`                          | 201/200 | 400, 404, 409, 422      |
-| `GET /practice/sessions/:sessionId`     | Session, messages (empty for now), feedback                                  | 200     | 404                     |
+| `POST /tasks/:taskId/practice/sessions` | Start a session `{ id, channel: in_app \| external \| self }`               | 201/200 | 400, 404, 409, 422, 503 |
+| `GET /practice/sessions/:sessionId`     | Session, messages, feedback                                                  | 200     | 404                     |
+| `POST /practice/sessions/:id/messages`  | One chat turn `{ id, content }` (in-app only)                                | 201/200 | 400, 404, 409, 422, 429, 503 |
 | `POST /practice/sessions/:id/feedback`  | Paste feedback `{ text, markDone?, logHours? }` and finish                   | 201/200 | 400, 404, 409, 422      |
-| `POST /practice/sessions/:id/finish`    | Finish with a rubric, an entered score or nothing `{ markDone, logHours?, rubric?, enteredScore? }` | 201/200 | 400, 404, 409, 422 |
+| `POST /practice/sessions/:id/finish`    | Finish with a rubric, an entered score or nothing `{ markDone, logHours?, rubric?, enteredScore?, aiFeedback? }` | 201/200 | 400, 404, 409, 422, 429, 503 |
 | `POST /practice/sessions/:id/abandon`   | Give up: nothing logged, task untouched                                      | 200     | 404, 409                |
 | `GET /practice/history?kind&from&to&limit` | Finished sessions, newest first, no text                                  | 200     | 400, 404                |
 | `GET /practice/trends?from&to`          | Score points and `last`, `average`, `delta` per kind                         | 200     | 400, 404                |
@@ -23,6 +24,35 @@ This package has **no AI**. The in-app chat (channel `in_app`, messages, model f
 - **No cross-module SQL.** The practice SQL reads and writes only the four practice tables, the `events` table (its own `practice.*` events: writes go through the plans repository, and the practice repository reads back the `practice.finished` event of one session for replay checks) and the user's own name and email (to hide them from prompts). Facts about tasks (type, steps, estimate, status) and every change to them come from the tasks service, which offers transaction-scoped variants (`getTaskIn`, `addLogIn`, `completeTaskIn`) so a finish can use them inside its own transaction. The database still has the foreign key from a session to its task.
 - **Job description (Tier 2).** Stored once per plan in `practice_contexts`. It is in the prompt returned by `GET .../practice/prompt` (for the user to copy) after personal details are removed, but **never** in a session's stored `prompt_used`, in an event or in a log line (`prompt_inputs.jobDescriptionIncluded` records only that it was used).
 - **Personal details.** Prompts are built with the shared allowlist builder, with the user's email, its local part and name tokens as known identifiers. If something personal survives, the answer is 422 `pii_blocked`.
+
+## In-app chat
+
+Spec 3.3, channel `in_app`. Needs at least one configured AI provider (see the AI gateway); the whole project works with AI off.
+
+- **Opener.** Creating an `in_app` session returns one fixed message (role `assistant`, no provider) built from the persona and the task's first step. No model is called; it counts as a call avoided. With no provider available the create answers 503 `ai_unavailable` and nothing is stored.
+- **A turn: `POST .../messages { id, content }`** (`content` 1 to 4000 characters, `id` chosen by the client). The text is neutralised and has personal details removed (the user's own email, name tokens, phone numbers, links) **before it is stored**; `userMessage.redacted` says so. If something personal survives, 422 `pii_blocked` and nothing is sent or stored.
+  1. **Transaction 1 (short, committed before any network call):** lock the session row, replay or conflict check on the message id, refuse a fresh pending turn (409 `turn_in_progress`), check a provider could answer, store the user message, **reserve one of the user's daily `practice_message` calls**, set `pending_turn_id` / `pending_since`.
+  2. **No transaction open:** build the request with `buildSafeRequest` and the user's known identifiers (the system text is the persona plus the stored task setup; the fixed opener is folded into it so the transcript starts with the user), send the **whole earlier transcript** (cut to the smallest provider limit by `truncateHistory`, notes excluded), call the gateway with `userCap: 'already_reserved'`.
+  3. **Transaction 2:** store a `note` (when the provider changed: "Continuing on {label}.") and the reply, record the provider in `providers_used`, clear the pending marker. After any failure the marker is cleared in its own transaction and the user message stays; a stale marker (older than 60 s, for example after a crash) is ignored and replaced by the next turn.
+  - **Idempotency.** The same id with the same text after an answer returns the stored pair with 200 and `replayed: true`, with no model call and no new reserve. The same id with other text is 409. The same id after a failure retries the stored message (and counts again against the cap).
+  - **Answer.** `{ userMessage, reply: { id, content, providerId, model }, switched: { from, fromLabel, to, toLabel, reason } | null, usage: { used, cap }, replayed }`. `model` and `providerId` are shown only if they look like a plain slug (letters, digits, `.`, `_`, `:`, `/`, `-`, at most 100 characters); otherwise `null`. Replies are plain text: render them as text, never as HTML or links.
+  - **Errors.** 429 `ai_user_cap` (the user's daily calls; other users unaffected) and 503 `ai_unavailable` carry `fallbacks: ["copy_prompt", "self_rubric"]`; 429 `rate_limited` is the per-user window of 20 turns a minute (in memory, per API instance); 409 `turn_in_progress`; 422 for a non-`in_app` session. Provider error text never reaches a response or a log; only provider ids and codes do.
+- **AI feedback: `POST .../finish { markDone, logHours?, aiFeedback: true }`** (not combinable with `rubric` or `enteredScore`; 5 a minute per user). The user must have said something. One `practice_feedback` call is reserved and the turn marked pending (so a message or a second finish meanwhile is 409), the model is asked for JSON, and then the normal one-transaction finish saves the result:
+  - valid JSON: source `model_json`;
+  - JSON that needed local repair (code fences, single quotes, `"7/10"`, `nextFocus`, trailing commas): source `model_repaired`, **no retry** (counted as a call avoided);
+  - anything else: **one retry** ("Return only valid JSON ..."), reserved against the user's feedback calls and skipped at the cap; if that is still not JSON, or fails, the first text is saved as `free_text` with no score. Nothing is lost and the finish still succeeds.
+  - If the first call fails (provider down, cap), the answer is 503 or 429 with `fallbacks`, the session stays active and can finish with a rubric, an entered score or pasted feedback.
+  - **Done-marking is never automatic**: the task is marked done only with `markDone: true`. A repeated identical `finish` is a replay (200) with no model call.
+- The pasted-feedback route also works on `in_app` sessions.
+
+Decisions and limits:
+
+- The stored prompt has no job description, so the chat does not see it either (a follow-up could rebuild it per turn).
+- The per-user turn window is in memory (one instance on the free plan).
+- **Merged turns.** A message that failed and was not retried stays stored, but only the newest of a run of user messages with no answer between them is sent to the model; older unanswered ones are dropped from the request, so the size stays bounded. The newest 60 turns are taken, the transcript starts with a user turn, and history is then cut to the smallest provider limit (a one-line "earlier turns omitted" note stays on the oldest kept turn).
+- **Retrying an older id.** Retrying a failed message after a later message was sent is 409 `message_superseded` (the stored pair of a message is only ever its own reply).
+- **Stale pending.** A turn is treated as dead after `max(60 s, 2 x AI_TURN_TIMEOUT_MS + 15 s)`. The reply (or AI feedback) is saved only if the session is still active and the turn still owns the marker; otherwise it is dropped and the call answers 409 `turn_superseded`. A plain finish or abandon during a turn therefore wins, and no late reply is appended.
+- A retry that needed local repair is saved as `model_repaired`. An AI finish with `markDone` on a skipped task is 409 before any model call.
 
 ## Prompt
 
@@ -69,5 +99,6 @@ Tables `practice_contexts`, `practice_sessions`, `practice_messages`, `practice_
 
 ## Not tested here / follow-ups
 
-- The chat (messages, provider fallback, JSON feedback) is the next package; `messages` is always empty today.
+- The chat is tested with the fake provider only (no real provider has been called). The real providers' behaviour on a mid-conversation 429, their token limits and response times are "needs check" until the owner's first real call on R&D.
+- Cancelling a request (the client going away) is not wired from the route to the gateway; the turn finishes and is stored.
 - The briefing still shows the raw `promptTemplate`; the dynamic prompt reaches it in its own package.
