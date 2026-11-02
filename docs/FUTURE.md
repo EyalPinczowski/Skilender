@@ -22,6 +22,7 @@ The single list of deferred ideas, each with the seam it will use (spec sections
 ## Infrastructure and product follow-ups
 
 - **Open sign-up** instead of invite-only: a config flag, once free limits and Google verification allow it.
+- **Google verification before public calendar sync.** The OAuth app runs in production status without verification (a warning screen and a small user cap; see `docs/google-calendar-setup.md`, limits need check). Verification needs a domain, so calendar sync stays invite-only, with the `.ics` export as the alternative, until then.
 - **A custom domain**, needed for Google verification (calendar sync for everyone) and for a custom email sender.
 - **Email provider** for invite and request-access emails: a free SMTP option has to be verified first (needs check).
 - **Content-Security-Policy** for the API's Swagger UI (security headers beyond `nosniff` and `Referrer-Policy`).

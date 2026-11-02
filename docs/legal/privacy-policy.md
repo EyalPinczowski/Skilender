@@ -23,7 +23,7 @@ Upversion ("we", "the app") helps you turn a learning goal into a study plan and
 - Your plans, schedules, progress logs, hours, day reviews (difficulty, density, energy, notes), practice sessions and the feedback on them, and recommendations you accept or dismiss.
 
 **Calendar (only if you connect it)**
-- With your permission, we read the times and titles of events in your Google Calendar to plan around them, and we create and update study blocks in a separate "Upversion" calendar. We **never** change or delete events we didn't create. We store only what's needed (event times and titles), and a secure connection token.
+- See section 5 (Google Calendar) for exactly what is read, stored and written.
 
 **Technical data**
 - Basic logs needed to run and secure the service (for example, request times and error messages). We don't log the content of your answers.
@@ -61,18 +61,36 @@ We use these service providers to run Upversion. They process data on our behalf
 
 We don't sell or rent your data, and we don't share it with anyone else unless the law requires it.
 
-## 5. Who at Upversion can see your data
+## 5. Google Calendar (only if you connect it)
+
+Connecting your calendar is optional and off by default. The app works fully without it. [Exact wording of this section needs check against Google's current API Services User Data Policy and the OAuth consent-screen requirements.]
+
+**What we read.** With your permission (scope `calendar.readonly`), we read the **titles and times** of events from your Google calendars, plus the few fields needed to tell whether an event really blocks your time (for example, whether you accepted it and whether it is marked busy or free). We **never** read or keep event descriptions, attendees or locations.
+
+**What we store.** While your calendar is connected, we store the titles and times of your **busy** events, so we can plan study blocks around them. We store a Google **refresh token**, encrypted, on our backend only; it is never sent to your browser. Nothing else from your calendar is stored.
+
+**What we write.** With the scope `calendar.app.created`, we create, move and delete **only the events the app created itself**, in a separate secondary calendar that the app creates for you. We never change, move or delete any other event, in any calendar. The app checks this in code before every write.
+
+**How to disconnect or revoke.**
+- In the app: Settings → Calendar → Disconnect.
+- In Google: open your Google Account permissions page ([Google Account third-party access page - link needs check]) and remove the app's access.
+
+**Deletion.** When you disconnect your calendar, or delete your account, we delete the stored busy-event titles and times and the encrypted token, and we delete the events the app created in its own calendar. We do **not** delete anything else in your Google Calendar.
+
+**Limited Use.** [Needs check against Google's current policy; use Google's exact required wording here.] The app's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements. In plain terms: we use Google Calendar data only to provide and improve the planning and calendar features you see in the app; we do not transfer it to others except as needed to provide those features, to comply with the law, or as part of a merger or sale with your notice; we do not use it for advertising; no human reads it except with your consent, for security, or to comply with the law; and **calendar data is never sent to AI models**.
+
+## 6. Who at Upversion can see your data
 Upversion is run by one person, who is the admin.
 - The admin can see **account and usage information**: your email, sign-up and activity dates, your goal and target role, plan progress, certificates earned, and how much you use the AI features.
 - The admin **can't** see your free-text answers, pasted job postings, practice conversations, or day-review notes – unless **you** turn on "Allow support access" in Settings (for example, when you ask for help). It switches off automatically after 7 days.
 - Every time the admin opens your details, it's recorded, and you can see this log in Settings.
 
-## 6. How long we keep it
+## 7. How long we keep it
 - As long as your account exists.
 - When you delete your account, your data is deleted immediately from the live database, and from backups within **30 days**.
 - Access requests that are declined are deleted after [90] days.
 
-## 7. Your rights and controls
+## 8. Your rights and controls
 - **See and download** everything we hold about you: Settings → Export my data.
 - **Correct** your answers and plans at any time in the app.
 - **Delete** your account and all its data: Settings → Delete my account.
@@ -81,17 +99,17 @@ Upversion is run by one person, who is the admin.
 
 Depending on where you live (for example, under the Israeli Privacy Protection Law or the EU GDPR), you may have additional rights. Contact us to use them.
 
-## 8. Security
+## 9. Security
 Data is encrypted in transit and at rest by our providers. Each user's data is separated at the database level, so it can't be read by other users. Backups are encrypted. No system is perfectly secure; if a breach affects your data, we'll tell you as required by law.
 
-## 9. Age
+## 10. Age
 Upversion is meant for people aged **[16]** and over.
 
-## 10. Cookies and local storage
+## 11. Cookies and local storage
 We use only what's needed to keep you signed in and remember your settings. No advertising or tracking cookies.
 
-## 11. International transfers
+## 12. International transfers
 Our providers may store data outside your country (for example, in the EU or the US). We use providers that apply standard safeguards for such transfers.
 
-## 12. Changes
+## 13. Changes
 If we change this policy, we'll update the version and date above and show you a notice in the app.

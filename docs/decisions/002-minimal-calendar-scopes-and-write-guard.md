@@ -1,6 +1,8 @@
 # 002 – Minimal calendar scopes and a write guard
 
-**Status:** Planned · built with the calendar feature (v0.3b)
+**Status:** Accepted · calendar feature (v0.3b)
+
+> Note: Accepted (2026-11-02): built in v0.3b. Details of the guard and token handling are in ADR 014.
 
 ## Context
 Syncing study blocks to Google Calendar is useful, but a bug that edits or deletes someone's real events would destroy trust.

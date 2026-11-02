@@ -124,7 +124,7 @@ describe('parseCalendarTokenKeys', () => {
 
 describe('calendar config and startup', () => {
   it('is off by default with no keys', () => {
-    expect(loadConfig({}).calendar).toEqual({ enabled: false, tokenKeys: [] });
+    expect(loadConfig({}).calendar).toEqual({ enabled: false, tokenKeys: [], google: null });
   });
 
   it('refuses to start with FEATURE_CALENDAR=true and no key', () => {
@@ -133,6 +133,24 @@ describe('calendar config and startup', () => {
     expect(() => loadConfig({ FEATURE_CALENDAR: 'true', CALENDAR_TOKEN_KEYS: '  ' })).toThrow(
       ConfigError,
     );
+  });
+
+  it('refuses to start with FEATURE_CALENDAR=true and no Google client, and trims base URLs', () => {
+    const keys = `v1:${k1}`;
+    expect(() => loadConfig({ FEATURE_CALENDAR: 'true', CALENDAR_TOKEN_KEYS: keys })).toThrow(
+      /GOOGLE_CLIENT_ID/,
+    );
+    const c = loadConfig({
+      GOOGLE_CLIENT_ID: 'cid',
+      GOOGLE_CLIENT_SECRET: 'csecret',
+      GOOGLE_CALENDAR_API_BASE: 'http://127.0.0.1:9/calendar/v3/',
+    });
+    expect(c.calendar.google).toEqual({
+      clientId: 'cid',
+      clientSecret: 'csecret',
+      apiBase: 'http://127.0.0.1:9/calendar/v3',
+      oauthBase: 'https://oauth2.googleapis.com',
+    });
   });
 
   it('refuses to start with FEATURE_CALENDAR=true and an invalid key, without echoing it', () => {
@@ -148,7 +166,12 @@ describe('calendar config and startup', () => {
   });
 
   it('starts with a valid key set, and rejects an invalid set even when the flag is off', () => {
-    const c = loadConfig({ FEATURE_CALENDAR: 'true', CALENDAR_TOKEN_KEYS: `v2:${k2},v1:${k1}` });
+    const c = loadConfig({
+      FEATURE_CALENDAR: 'true',
+      CALENDAR_TOKEN_KEYS: `v2:${k2},v1:${k1}`,
+      GOOGLE_CLIENT_ID: 'cid',
+      GOOGLE_CLIENT_SECRET: 'csecret',
+    });
     expect(c.calendar.enabled).toBe(true);
     expect(c.calendar.tokenKeys.map((k) => k.id)).toEqual(['v2', 'v1']);
     expect(() => loadConfig({ CALENDAR_TOKEN_KEYS: 'v1:abc' })).toThrow(ConfigError);
