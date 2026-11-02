@@ -90,7 +90,11 @@ export const EXPORT_EXCLUDED_TABLES = ['calendar_oauth_states'] as const;
 export type ExportSectionKey = keyof typeof EXPORT_SECTIONS;
 
 /** Account operations. Every query runs inside db.withUser, so row-level security applies. */
-export function createAccountService(db: Database, authAdmin: AuthAdmin = unconfiguredAuthAdmin) {
+export function createAccountService(
+  db: Database,
+  authAdmin: AuthAdmin = unconfiguredAuthAdmin,
+  hooks: { beforeDelete?: (userId: string) => Promise<void> } = {},
+) {
   return {
     /** First call creates the profile (allowlist and cap are enforced in the database). */
     provision: (userId: string, email: string | null) => db.provision(userId, email ?? ''),
@@ -164,15 +168,20 @@ export function createAccountService(db: Database, authAdmin: AuthAdmin = unconf
      * Why not commit first: delete_account() also removes the email from the allowlist, so the
      * guard answers 403 to a retry and the Auth user could never be removed afterwards.
      * Only the verified user's own id is ever sent to Supabase.
+     * Before that, `hooks.beforeDelete` runs (calendar cleanup); it never blocks the deletion.
      */
-    deleteAccount: (userId: string) =>
-      db.withUser(userId, async (ctx) => {
+    deleteAccount: async (userId: string) => {
+      // Outside the transaction on purpose: it talks to Google, and its own database changes
+      // (the calendar rows) must not depend on the Auth deletion below. A retry runs it again.
+      await hooks.beforeDelete?.(userId);
+      return db.withUser(userId, async (ctx) => {
         const { rows } = await ctx.client.query<{ ok: boolean }>(
           `select ${ctx.schema}.delete_account() as ok`,
         );
         await authAdmin.deleteUser(userId);
         return rows[0]!.ok;
-      }),
+      });
+    },
   };
 }
 

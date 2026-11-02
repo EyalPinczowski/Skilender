@@ -26,6 +26,7 @@ import {
   unconfiguredAuthAdmin,
   type AuthAdmin,
 } from './modules/accounts/auth-admin';
+import { CalendarTokenCrypto } from './calendar-crypto';
 import { aiRoutes } from './modules/ai/routes';
 import { accountRoutes } from './modules/accounts/routes';
 import {
@@ -33,6 +34,8 @@ import {
   rejectAllVerifier,
   type TokenVerifier,
 } from './modules/accounts/token-verifier';
+import { calendarRoutes } from './modules/calendar/routes';
+import { createCalendarService } from './modules/calendar/service';
 import { createDatabaseProbe } from './modules/health/probe';
 import { healthRoutes } from './modules/health/routes';
 import { planRoutes } from './modules/plans/routes';
@@ -221,11 +224,34 @@ export function buildApp(config: Config, deps: AppDeps = {}) {
     transformStaticCSP: transformSwaggerCsp,
   });
 
+  // Calendar (v0.3b): the routes exist only with FEATURE_CALENDAR on. The service is also what
+  // account deletion calls first, to remove the app's events and revoke the token.
+  const calendarService =
+    config.calendar.enabled && config.calendar.google && db
+      ? createCalendarService({
+          db,
+          google: config.calendar.google,
+          crypto: new CalendarTokenCrypto(config.calendar.tokenKeys),
+          log: app.log,
+          now: deps.now,
+        })
+      : null;
+
   app.register(
     async (v1) => {
       v1.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
       v1.register(healthRoutes, { config, probe: createDatabaseProbe(db) });
-      v1.register(accountRoutes, { verifier, db, authAdmin });
+      v1.register(accountRoutes, {
+        verifier,
+        db,
+        authAdmin,
+        beforeAccountDeletion: calendarService
+          ? (userId) => calendarService.cleanupForAccountDeletion(userId)
+          : undefined,
+      });
+      if (config.calendar.enabled) {
+        v1.register(calendarRoutes, { verifier, db, service: calendarService });
+      }
       v1.register(planRoutes, {
         verifier,
         db,
