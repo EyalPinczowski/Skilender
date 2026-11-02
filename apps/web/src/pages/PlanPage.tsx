@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import type { Task } from '../api/client';
 import { useDeletePlan, useTasks } from '../api/hooks';
@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
 import { Button, ErrorText, linkClass } from '../components/ui';
-import { describeError } from '../lib/messages';
+import { describeError, isConnectionProblem } from '../lib/messages';
 import { formatHours } from '../lib/format';
 import { anchorText, dependencyText } from '../lib/task-text';
 import { TASK_TYPE_META } from '../lib/task-types';
@@ -43,9 +43,20 @@ function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => strin
 
 /** Every task of the plan, in plan order. */
 export function PlanPage() {
+  const [deleted, setDeleted] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // The deleted plan's button is gone: focus moves to the page heading, which stays.
+  useEffect(() => {
+    if (deleted) heading.current?.focus();
+  }, [deleted]);
   return (
     <div className="space-y-6">
-      <h1>Plan</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        Plan
+      </h1>
+      <div role="status" className="font-bold text-ok empty:hidden">
+        {deleted ? 'Plan deleted.' : null}
+      </div>
       <PlanSwitcher />
       <PlanGate
         empty={
@@ -61,7 +72,12 @@ export function PlanPage() {
         {(plan) => (
           <>
             <TaskList planId={plan.id} name={plan.name} />
-            <ManagePlans planId={plan.id} name={plan.name} />
+            <ManagePlans
+              key={plan.id}
+              planId={plan.id}
+              name={plan.name}
+              onDeleted={() => setDeleted(true)}
+            />
           </>
         )}
       </PlanGate>
@@ -91,7 +107,15 @@ function TaskList({ planId, name }: { planId: string; name: string }) {
   );
 }
 
-function ManagePlans({ planId, name }: { planId: string; name: string }) {
+function ManagePlans({
+  planId,
+  name,
+  onDeleted,
+}: {
+  planId: string;
+  name: string;
+  onDeleted: () => void;
+}) {
   const remove = useDeletePlan();
   const [confirming, setConfirming] = useState(false);
   return (
@@ -103,7 +127,9 @@ function ManagePlans({ planId, name }: { planId: string; name: string }) {
         </Button>
         {remove.error ? (
           <ErrorText>
-            {describeError(remove.error, 'The plan could not be deleted. Nothing was changed.')}
+            {isConnectionProblem(remove.error)
+              ? describeError(remove.error, '')
+              : 'The plan could not be deleted. Nothing was changed. Try again in a moment.'}
           </ErrorText>
         ) : null}
       </div>
@@ -118,11 +144,16 @@ function ManagePlans({ planId, name }: { planId: string; name: string }) {
       {confirming ? (
         <ConfirmDialog
           title={`Delete “${name}”?`}
-          confirmLabel="Delete plan"
+          confirmLabel={remove.isPending ? 'Deleting…' : 'Delete plan'}
           cancelLabel="Keep this plan"
           busy={remove.isPending}
           onCancel={() => setConfirming(false)}
-          onConfirm={() => remove.mutate(planId, { onSettled: () => setConfirming(false) })}
+          onConfirm={() =>
+            remove.mutate(planId, {
+              onSuccess: onDeleted,
+              onSettled: () => setConfirming(false),
+            })
+          }
         >
           <p>
             Your progress and the calendar events Upversion created for this plan are removed. This

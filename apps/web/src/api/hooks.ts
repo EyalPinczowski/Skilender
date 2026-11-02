@@ -194,6 +194,10 @@ export function useDeletePlan() {
     ...mutationDefaults,
     mutationFn: (planId: string) => api.deletePlan(planId).then(() => planId),
     onSuccess: async (planId) => {
+      // Gone from the cached list at once, so a failed refetch cannot leave it on screen.
+      queryClient.setQueryData<{ plans: { id: string }[] }>(plansKey, (old) =>
+        old ? { ...old, plans: old.plans.filter((p) => p.id !== planId) } : old,
+      );
       await queryClient.invalidateQueries({ queryKey: plansKey });
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== 'plans' && query.queryKey[1] === planId,

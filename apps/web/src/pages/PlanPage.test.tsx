@@ -219,6 +219,8 @@ describe('Manage plans', () => {
     expect(api.count(`DELETE ${BASE}`)).toBe(0);
     await user.click(within(dialog).getByRole('button', { name: 'Delete plan' }));
     expect(await screen.findByText(/No plan yet/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Plan' })).toHaveFocus();
     expect(api.count(`DELETE ${BASE}`)).toBe(1);
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
@@ -238,8 +240,52 @@ describe('Manage plans', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
     await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The plan could not be deleted');
     expect(screen.getByRole('heading', { name: 'Demo plan' })).toBeInTheDocument();
+  });
+
+  const OTHER_ID = '44444444-4444-4444-8444-444444444444';
+  function twoPlans(extra: Parameters<typeof planRoutes>[0] = {}) {
+    let deleted = false;
+    const api = installApi(
+      planRoutes({
+        'GET /api/v1/plans': () =>
+          json({
+            plans: deleted
+              ? [planSummary({ id: OTHER_ID, name: 'Other plan' })]
+              : [planSummary(), planSummary({ id: OTHER_ID, name: 'Other plan' })],
+          }),
+        [`GET /api/v1/plans/${OTHER_ID}/tasks`]: () => json({ tasks: [] }),
+        [`DELETE ${BASE}`]: () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+        ...extra,
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    return api;
+  }
+
+  it('after deleting one of two plans the page shows the remaining one', async () => {
+    twoPlans();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('heading', { name: 'Other plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Demo plan' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Plan deleted.');
+  });
+
+  it('a delete error does not carry over to another plan', async () => {
+    twoPlans({ [`DELETE ${BASE}`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete this plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete plan' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The plan could not be deleted');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Plan' }), OTHER_ID);
+    expect(await screen.findByRole('heading', { name: 'Other plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('imports another plan from the disclosure and selects it', async () => {
