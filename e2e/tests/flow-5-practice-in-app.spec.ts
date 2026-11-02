@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test';
 import { expect, expectNoA11yViolations, signIn, test } from '../fixtures';
 import { CHAT_REPLY, aiCalls, resetAi, scriptAi } from '../support/ai-stub';
-import { openPractice, practiceTaskStatus, setUpPracticeTask } from '../support/practice';
+import {
+  finishedSessions,
+  openPractice,
+  practiceTaskStatus,
+  setUpPracticeTask,
+} from '../support/practice';
 
 /**
  * Practice in the in-app chat (spec 3.3). The API runs its real Groq and Cloudflare provider code;
@@ -9,8 +14,10 @@ import { openPractice, practiceTaskStatus, setUpPracticeTask } from '../support/
  *
  * Order matters: a provider that answered 429 is "cooling down" in the API process for the rest of
  * the run (the API's clock is fixed), so the test that forces a 429 on the first provider comes
- * last in this file and nothing in a later file relies on that provider.
+ * last in this file and nothing in a later file relies on that provider. For the same reason the
+ * file never retries: a retried 429 test could not see the switch again.
  */
+test.describe.configure({ retries: 0 });
 
 async function startInAppChat(page: Page, taskId: string): Promise<void> {
   await openPractice(page, taskId);
@@ -72,7 +79,9 @@ test('in-app practice: feedback that is not JSON is saved as plain text, nothing
     await expect(page.getByText('Logged 0.5 h.')).toBeVisible();
     await expect(page.getByText('The task was not marked done.')).toBeVisible();
     await expectNoA11yViolations(page, 'the plain text result');
-    expect(await practiceTaskStatus(api)).not.toBe('done');
+    // Logging time moved it to in progress; only the tick marks done.
+    expect(await practiceTaskStatus(api)).toBe('in_progress');
+    expect(await finishedSessions(api)).toMatchObject([{ source: 'free_text', score: null }]);
     // One chat call, the broken feedback and its one retry: the retry is the only extra call.
     expect((await aiCalls()).filter((c) => c.provider === 'groq').map((c) => c.json)).toEqual([
       false,

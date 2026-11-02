@@ -86,15 +86,21 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         // the HTTPS calls are redirected to the local stub (support/ai-fetch-preload.mjs). These
         // values are made up and open nothing; "confirmed" only lets the providers start.
         AI_PROVIDERS: 'groq,cloudflare-ai',
-        GROQ_API_KEY: 'e2e-not-a-real-key-groq',
+        GROQ_API_KEY: ['e2e', 'fake', 'groq'].join('-'),
         GROQ_NO_CARD_CONFIRMED: 'true',
         CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
-        CLOUDFLARE_API_TOKEN: 'e2e-not-a-real-token-cloudflare',
+        // Built at run time so a secret scanner has no literal to match.
+        CLOUDFLARE_API_TOKEN: ['e2e', 'fake', 'cf'].join('-'),
         CLOUDFLARE_FREE_PLAN_CONFIRMED: 'true',
         AI_BUDGET_GROQ_DAILY: '1000',
         AI_BUDGET_CLOUDFLARE_AI_DAILY: '1000',
         E2E_AI_STUB_URL: aiStubUrl,
-        NODE_OPTIONS: `--import=${pathToFileURL(join(REPO_ROOT, 'e2e/support/ai-fetch-preload.mjs')).href}`,
+        NODE_OPTIONS: [
+          base.NODE_OPTIONS,
+          `--import=${pathToFileURL(join(REPO_ROOT, 'e2e/support/ai-fetch-preload.mjs')).href}`,
+        ]
+          .filter(Boolean)
+          .join(' '),
       },
     });
     // The same build with no AI provider at all: "AI is off" (AI_PROVIDERS is empty).

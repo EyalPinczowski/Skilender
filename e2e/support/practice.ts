@@ -25,12 +25,30 @@ export async function openPractice(page: Page, taskId: string): Promise<void> {
   await expect(page.getByRole('heading', { level: 2, name: 'Start practice' })).toBeVisible();
 }
 
-/** The status of the practice task as the API sees it. */
+/** The status of the practice task as the API sees it (looked up in whichever plan has it). */
 export async function practiceTaskStatus(api: APIRequestContext): Promise<string | undefined> {
   const plans = (await (await api.get('/api/v1/plans')).json()) as { plans: { id: string }[] };
-  const response = await api.get(`/api/v1/plans/${plans.plans[0]!.id}/tasks`);
-  const { tasks } = (await response.json()) as { tasks: { title: string; status: string }[] };
-  return tasks.find((t) => t.title === PRACTICE_TASK_TITLE)?.status;
+  for (const plan of plans.plans) {
+    const response = await api.get(`/api/v1/plans/${plan.id}/tasks`);
+    const { tasks } = (await response.json()) as { tasks: { title: string; status: string }[] };
+    const task = tasks.find((t) => t.title === PRACTICE_TASK_TITLE);
+    if (task) return task.status;
+  }
+  return undefined;
+}
+
+/** The finished sessions of the user's plans, as the history route lists them. */
+export async function finishedSessions(
+  api: APIRequestContext,
+): Promise<{ source: string | null; score: number | null }[]> {
+  const plans = (await (await api.get('/api/v1/plans')).json()) as { plans: { id: string }[] };
+  const all: { source: string | null; score: number | null }[] = [];
+  for (const plan of plans.plans) {
+    const response = await api.get(`/api/v1/plans/${plan.id}/practice/history`);
+    expect(response.ok(), await response.text()).toBe(true);
+    all.push(...((await response.json()) as { sessions: typeof all }).sessions);
+  }
+  return all;
 }
 
 /**

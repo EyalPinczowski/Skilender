@@ -48,7 +48,7 @@ test('no AI configured: the chat is not offered, and a self-check finishes the p
   await finishWithAllStepsTicked(page);
   await expectNoA11yViolations(page, 'the self-check result');
   // A rubric never marks anything done by itself.
-  expect(await practiceTaskStatus(api)).not.toBe('done');
+  expect(await practiceTaskStatus(api)).toBe('in_progress');
 });
 
 test('the AI goes away mid-chat: the notice names the fallbacks, and a self-check still finishes', async ({
@@ -86,6 +86,6 @@ test('the AI goes away mid-chat: the notice names the fallbacks, and a self-chec
 
   await test.step('finish with the self-check', async () => {
     await finishWithAllStepsTicked(page);
-    expect(await practiceTaskStatus(api)).not.toBe('done');
+    expect(await practiceTaskStatus(api)).toBe('in_progress');
   });
 });
