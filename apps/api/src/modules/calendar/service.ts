@@ -193,6 +193,8 @@ export function createCalendarService(options: CalendarServiceOptions) {
 
   return {
     markNeedsReconnect,
+    /** A provider for a decrypted refresh token; used by the sync engine. */
+    providerFor,
 
     getCalendar: view,
 

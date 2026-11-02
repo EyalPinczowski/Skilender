@@ -206,6 +206,19 @@ for (const schema of ENVS) {
       );
     });
 
+    it('lets the app store the sync bookkeeping columns (migration 0013) and nothing wider', async () => {
+      await as(USER_A, async (q) => {
+        await q(
+          `update ${s}.calendar_sources set sync_token = 'tok-1', window_start = '2026-11-01', window_end = '2026-12-01'`,
+        );
+        await q(`update ${s}.calendar_connections set sync_timezone = 'Asia/Jerusalem'`);
+        await q(`update ${s}.calendar_event_links set last_summary = 'Course'`);
+      });
+      await expect(
+        as(USER_A, (q) => q(`update ${s}.calendar_sources set sync_token = repeat('x', 2001)`)),
+      ).rejects.toThrow();
+    });
+
     it('has no UPDATE policy on calendar_oauth_states for the app role', async () => {
       await withClient(TEST_DATABASE_URL!, async (client) => {
         const { rows } = await client.query<{ polcmd: string }>(

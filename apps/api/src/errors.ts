@@ -26,6 +26,8 @@ export class HttpError extends Error {
     message: string,
     /** Extra fields safe to show to the client, merged into the error body. */
     public readonly extra?: Record<string, unknown>,
+    /** Response headers, for example `retry-after`. */
+    public readonly headers?: Record<string, string>,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -82,6 +84,7 @@ export function installErrorHandling(app: FastifyInstance): void {
     }
     if (error instanceof HttpError) {
       const b = body(request.id, error.code, error.message);
+      if (error.headers) reply.headers(error.headers);
       return reply
         .status(error.statusCode)
         .send(error.extra ? { error: { ...b.error, ...error.extra } } : b);

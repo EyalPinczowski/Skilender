@@ -23,6 +23,8 @@ Migration 0009 (practice): `practice_contexts` (job description per plan; no del
 
 Migration 0011 (calendar, spec 3.8): `calendar_connections` (one per user; the refresh token only as ciphertext), `calendar_oauth_states` (short-lived, no update, `state_hash` unique), `calendar_event_links` and `calendar_locked_blocks` (per plan block, cascade with the plan), `calendar_busy` (minutes of a local date; title only, never descriptions or attendees) and `calendar_sources`. All have `user_id` with RLS; the app can delete its own rows and update only working columns. The account export omits the ciphertext column and `calendar_oauth_states`. Tests: `test/calendar-schema.test.ts` (both schemas) and the parametrised cases in `test/data-model.test.ts`.
 
+Migration 0013 (calendar sync, additive): `calendar_sources.sync_token`, `window_start`, `window_end` (Google's incremental-sync token and the dates it covers), `calendar_connections.sync_timezone` (the zone the busy rows were computed in) and `calendar_event_links.last_summary`. All nullable; the app login may update them.
+
 SQL tokens: `{{schema}} {{owner}} {{app}} {{app_user}} {{backup}}`. Anything else in `{{ }}` is an error.
 
 ## How the roles fit together (per schema `s`)

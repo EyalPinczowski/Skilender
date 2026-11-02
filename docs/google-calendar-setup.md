@@ -58,3 +58,7 @@ Run these once on R&D with a throwaway Google account before relying on the beha
 - [ ] In Testing status, the refresh token stops working after 7 days (confirms why production status is needed).
 - [ ] Revoking access on the Google Account permissions page makes the next sync show "Reconnect calendar".
 - [ ] Disconnect in the app deletes only the events the app created.
+- [ ] A full `events.list` with `timeMin`/`timeMax`/`singleEvents=true` returns a `nextSyncToken` on its last page, and a later call with only that token (plus `singleEvents=true`) returns just the changes, cancelled events included. The sync engine depends on this; if not, every sync is a full listing (correct, but more calls).
+- [ ] An incremental call with an expired or invalid token answers HTTP 410 (the engine then does a full listing of that calendar).
+- [ ] Re-inserting an event with the id of a deleted (cancelled) event of the app answers 409, and `events.get` still returns its tags, so the write guard restores it. If the tags are missing the engine falls back to the next id generation (up to 3).
+- [ ] A listing of the app calendar with `showDeleted=true` returns events the user deleted as `status=cancelled`; a moved event shows new `start`/`end` (the engine compares them with the times it last wrote).

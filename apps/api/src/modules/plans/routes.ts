@@ -38,7 +38,15 @@ export interface PlanRoutesOptions {
   now?: () => Date;
   /** The AI pieces for the in-app practice chat. Without them in-app practice answers 503. */
   chat?: ChatDeps | null;
+  /**
+   * Runs before a plan is deleted (the calendar's events for it are removed). Best effort: it
+   * must not throw, and a slow or failing call never blocks the deletion.
+   */
+  beforePlanDelete?: ((userId: string, planId: string) => Promise<void>) | undefined;
 }
+
+/** The longest the plan delete waits for the calendar clean-up. */
+const PLAN_DELETE_CALENDAR_WAIT_MS = 8000;
 
 const errors = {
   400: errorResponseSchema,
@@ -52,7 +60,7 @@ const errors = {
 /** Plans, their time settings and the read side of scheduling, all under /api/v1/plans. */
 export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
   app,
-  { verifier, db, now, chat },
+  { verifier, db, now, chat, beforePlanDelete },
 ) => {
   const accounts = db ? createAccountService(db) : null;
   installAccountGuard(app, verifier, accounts);
@@ -129,6 +137,14 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
       },
     },
     async (request, reply) => {
+      if (beforePlanDelete) {
+        // Events first (the links go with the plan), but only for a short while: deleting a plan
+        // never waits on Google.
+        await Promise.race([
+          beforePlanDelete(userId(request), request.params.id).catch(() => undefined),
+          new Promise<void>((resolve) => setTimeout(resolve, PLAN_DELETE_CALENDAR_WAIT_MS).unref()),
+        ]);
+      }
       await plans.remove(userId(request), request.params.id);
       return reply.status(204).send(null);
     },
