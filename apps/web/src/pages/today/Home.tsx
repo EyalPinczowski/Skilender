@@ -24,6 +24,7 @@ import { PastDayView } from './PastDayView';
 import { UpcomingDays } from './UpcomingDays';
 import { useDayRollover } from './use-day-rollover';
 import { WarningsNotice } from './WarningsNotice';
+import { WorkAhead } from './WorkAhead';
 import { WorkedOnItem } from './WorkedOnItem';
 
 type Notice = { tone: 'ok'; text: string; undoTaskId?: string } | { tone: 'error'; text: string };
@@ -187,6 +188,9 @@ function TodayView({
                 />
               )}
             </QueryView>
+            {state.status === 'ended' ? null : (
+              <WorkAhead planId={plan.id} schedule={schedule} tasksById={tasksById} />
+            )}
           </>
         )}
       </QueryView>
