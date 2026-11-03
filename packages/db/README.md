@@ -27,6 +27,8 @@ Migration 0013 (calendar sync, additive): `calendar_sources.sync_token`, `window
 
 Migration 0014 (calendar event colours, additive): `calendar_event_links.last_color` (the Google `colorId` '1'..'11' last written to the event; nullable, the app login may update it). A null or different value makes the next sync patch the event.
 
+Migration 0015 (calendar event details, additive): `calendar_event_links.last_detail_hash` (SHA-256 hex of the description last written to the event; nullable, the app login may update it). The description itself is not stored. `test/migrate.test.ts` renames its copied migration to a high number (9002) so new real migrations never collide with it.
+
 SQL tokens: `{{schema}} {{owner}} {{app}} {{app_user}} {{backup}}`. Anything else in `{{ }}` is an error.
 
 ## How the roles fit together (per schema `s`)

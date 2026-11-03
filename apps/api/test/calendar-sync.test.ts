@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { APP_EVENT_SOURCE, colorIdForTask, type Block } from '@upversion/shared';
+import {
+  APP_EVENT_SOURCE,
+  EVENT_COLOR_PALETTE,
+  NEUTRAL_COLOR_ID,
+  type Block,
+} from '@upversion/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { CalendarTokenCrypto } from '../src/calendar-crypto';
@@ -54,6 +59,10 @@ class GoogleStub {
   tokensExpired = false;
   /** A delete removes the event entirely (404 afterwards) instead of cancelling it. */
   hardDelete = false;
+  /** The next N event deletes answer 412 (the event changed meanwhile). */
+  deletePrecondition = 0;
+  /** Every event delete answers this status. */
+  deleteFailsWith: number | null = null;
   pageSize = 3;
   /** Calendar ids whose requests answer 503 (the others work). */
   failCals = new Set<string>();
@@ -187,6 +196,11 @@ class GoogleStub {
           return send(res, 200, this.get(cal, id!));
         }
         if (req.method === 'DELETE') {
+          if (this.deleteFailsWith) return send(res, this.deleteFailsWith, {});
+          if (this.deletePrecondition > 0) {
+            this.deletePrecondition -= 1;
+            return send(res, 412, {});
+          }
           if (this.hardDelete) bucket.delete(id!);
           else this.put(cal, { ...found.raw, status: 'cancelled' });
           res.writeHead(204);
@@ -268,9 +282,18 @@ describe('a failed reconnect flag', () => {
 });
 
 describe('desiredBlocks', () => {
+  const task = (title: string) => ({
+    title,
+    open: true,
+    type: 'course',
+    estHours: 2,
+    url: 'https://example.com/a',
+    steps: ['Enrol'],
+    colorId: '9',
+  });
   const tasks = new Map([
-    ['a', { title: 'Course A', open: true, orderIndex: 0 }],
-    ['b', { title: 'Closed', open: false, orderIndex: 1 }],
+    ['a', { ...task('Course A'), colorId: EVENT_COLOR_PALETTE[0]! }],
+    ['b', { ...task('Closed'), open: false, colorId: EVENT_COLOR_PALETTE[1]! }],
   ]);
   const blk = (taskId: string, date: string, start: string, end: string, kind = 'study'): Block =>
     ({
@@ -281,7 +304,14 @@ describe('desiredBlocks', () => {
       minutes: Number(end.slice(0, 2)) * 60 - Number(start.slice(0, 2)) * 60,
       kind,
     }) as Block;
-  const base = { tasks, locked: [], today: MON, horizon: '2026-11-15', timeZone: 'Asia/Jerusalem' };
+  const base = {
+    planName: 'My plan',
+    tasks,
+    locked: [],
+    today: MON,
+    horizon: '2026-11-15',
+    timeZone: 'Asia/Jerusalem',
+  };
 
   it('keys blocks as task:date:ordinal and keeps only open tasks inside the window', () => {
     const out = desiredBlocks({
@@ -296,8 +326,12 @@ describe('desiredBlocks', () => {
     });
     expect([...out.keys()]).toEqual([`a:${MON}:0`, `a:${MON}:1`]);
     expect(out.get(`a:${MON}:0`)!.start.toISOString()).toBe('2026-11-02T07:00:00.000Z');
-    expect(out.get(`a:${MON}:0`)!.summary).toBe('Course A');
-    expect(out.get(`a:${MON}:0`)!.colorId).toBe(colorIdForTask(0));
+    expect(out.get(`a:${MON}:0`)!.summary).toBe('Course: Course A');
+    expect(out.get(`a:${MON}:0`)!.colorId).toBe(EVENT_COLOR_PALETTE[0]);
+    expect(out.get(`a:${MON}:0`)!.description).toBe(
+      'Plan: My plan\nType: Course\nEstimate: 2 h\nLink: https://example.com/a\n\nSteps:\n1. Enrol',
+    );
+    expect(out.get(`a:${MON}:0`)!.detailHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('does not reuse the key of a deleted or moved block', () => {
@@ -426,6 +460,8 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     google.grantRevoked = false;
     google.tokensExpired = false;
     google.hardDelete = false;
+    google.deletePrecondition = 0;
+    google.deleteFailsWith = null;
     await testDb.admin(async (c) => {
       await c.query('delete from rnd.app_users');
       await c.query('delete from rnd.allowed_emails');
@@ -539,8 +575,10 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       last_end: Date;
       generation: number;
       last_color: string | null;
+      last_detail_hash: string | null;
     }>(
-      `select plan_id, block_key, task_id, event_id, last_start, last_end, generation, last_color
+      `select plan_id, block_key, task_id, event_id, last_start, last_end, generation, last_color,
+              last_detail_hash
        from rnd.calendar_event_links where user_id = $1 order by block_key`,
       [user],
     );
@@ -731,7 +769,7 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
   // -------------------------------------------------------------------------- write side
 
   describe('writing study blocks to the app calendar', () => {
-    it('creates one tagged event per planned block, with no description', async () => {
+    it('creates one tagged event per planned block, with the plan data as its description', async () => {
       await sync();
       const sched = (await schedule()).blocks.filter(
         (b) => b.date >= SUN && b.date <= '2026-11-14',
@@ -742,8 +780,8 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       for (const e of events) {
         expect(tagsOf(e)).toMatchObject({ source: APP_EVENT_SOURCE });
         expect(['big', 'lk']).toContain(tagsOf(e).task_id);
-        expect(e.description).toBeUndefined();
-        expect(['Big course', 'Second task']).toContain(e.summary);
+        expect(String(e.description)).toMatch(/^Plan: Plan\nType: Course\nEstimate: (20|3) h/);
+        expect(['Course: Big course', 'Course: Second task']).toContain(e.summary);
       }
       const l = await links();
       expect(l).toHaveLength(events.length);
@@ -777,7 +815,7 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       expect(google.live(APP_CAL).filter((e) => e.id === id)).toHaveLength(1);
       const ev = google.get(APP_CAL, id)!;
       expect(startOf(ev)).toBe(Date.parse(L(SUN, '09:00'))); // brought to the planned time
-      expect(ev.colorId).toBe(colorIdForTask(0));
+      expect(ev.colorId).toBe(EVENT_COLOR_PALETTE[0]);
       expect((await links()).find((x) => x.block_key === key)!.event_id).toBe(id);
     });
 
@@ -796,7 +834,7 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       const writes = google.writes();
       expect(writes.length).toBeGreaterThan(0);
       expect(writes.every((w) => w.method === 'PATCH')).toBe(true);
-      expect(google.live(APP_CAL).filter((e) => e.summary === 'Renamed').length).toBe(
+      expect(google.live(APP_CAL).filter((e) => e.summary === 'Course: Renamed').length).toBe(
         (await links()).filter((x) => x.task_id === 'big').length,
       );
     });
@@ -805,11 +843,13 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       await sync();
       const events = google.live(APP_CAL);
       const byTask = new Map(events.map((e) => [tagsOf(e).task_id, e.colorId]));
-      expect(byTask.get('big')).toBe(colorIdForTask(0));
-      expect(byTask.get('lk')).toBe(colorIdForTask(1));
+      expect(byTask.get('big')).toBe(EVENT_COLOR_PALETTE[0]);
+      expect(byTask.get('lk')).toBe(EVENT_COLOR_PALETTE[1]);
       expect(byTask.get('big')).not.toBe(byTask.get('lk'));
       expect(
-        (await links()).every((l) => l.last_color === colorIdForTask(l.task_id === 'big' ? 0 : 1)),
+        (await links()).every(
+          (l) => l.last_color === EVENT_COLOR_PALETTE[l.task_id === 'big' ? 0 : 1],
+        ),
       ).toBe(true);
     });
 
@@ -827,7 +867,8 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       const expectColours = (order: Record<string, number>) => {
         const live = google.live(APP_CAL);
         expect(live.length).toBeGreaterThan(0);
-        for (const e of live) expect(e.colorId).toBe(colorIdForTask(order[tagsOf(e).task_id!]!));
+        for (const e of live)
+          expect(e.colorId).toBe(EVENT_COLOR_PALETTE[order[tagsOf(e).task_id!]!]);
       };
       expectColours({ big: 0, lk: 1 });
       google.seen = [];
@@ -856,9 +897,195 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
       );
       google.seen = [];
       await syncAgain();
-      expect(google.get(APP_CAL, link.event_id)!.colorId).toBe(colorIdForTask(0));
+      expect(google.get(APP_CAL, link.event_id)!.colorId).toBe(EVENT_COLOR_PALETTE[0]);
       expect(google.writes().filter((w) => w.method === 'PATCH')).toHaveLength(1);
-      expect((await links()).find((x) => x.block_key === key)!.last_color).toBe(colorIdForTask(0));
+      expect((await links()).find((x) => x.block_key === key)!.last_color).toBe(
+        EVENT_COLOR_PALETTE[0],
+      );
+    });
+
+    it('gives the parts of one course (same externalRef) one colour, and practice graphite', async () => {
+      await rows(
+        `update rnd.tasks set external_ref = 'same-course' where plan_id = '${PLAN_A}' and user_id = '${A}'`,
+      );
+      await sync();
+      const shared = google.live(APP_CAL);
+      expect(shared.length).toBeGreaterThan(0);
+      for (const e of shared) expect(e.colorId).toBe(EVENT_COLOR_PALETTE[0]);
+
+      await rows(
+        `update rnd.tasks set type = 'practice' where id = 'lk' and plan_id = '${PLAN_A}'`,
+      );
+      google.seen = [];
+      await syncAgain();
+      for (const e of google.live(APP_CAL)) {
+        const lk = tagsOf(e).task_id === 'lk';
+        expect(e.colorId).toBe(lk ? NEUTRAL_COLOR_ID : EVENT_COLOR_PALETTE[0]);
+        expect(e.summary).toBe(lk ? 'Practice: Second task' : 'Course: Big course');
+      }
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
+    });
+
+    it('writes the plan data into the description and patches changed details once', async () => {
+      await rows(
+        `update rnd.tasks set url = 'https://example.com/big', how_to_steps = '["Enrol","Do week 1"]'
+         where id = 'big' and plan_id = '${PLAN_A}'`,
+      );
+      await sync();
+      const big = google.live(APP_CAL).find((e) => tagsOf(e).task_id === 'big')!;
+      expect(big.description).toBe(
+        'Plan: Plan\nType: Course\nEstimate: 20 h\nLink: https://example.com/big\n\nSteps:\n1. Enrol\n2. Do week 1',
+      );
+      expect((await links()).every((l) => /^[0-9a-f]{64}$/.test(l.last_detail_hash ?? ''))).toBe(
+        true,
+      );
+
+      // Events written before descriptions existed: no description in Google, no hash stored.
+      for (const e of google.live(APP_CAL)) google.put(APP_CAL, { ...e, description: undefined });
+      await rows(
+        `update rnd.calendar_event_links set last_detail_hash = null where user_id = '${A}'`,
+      );
+      const n = (await links()).length;
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toHaveLength(n);
+      for (const e of google.live(APP_CAL)) expect(e.description).toContain('Plan: Plan');
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
+
+      // Editing a detail patches that task's events once.
+      await rows(`update rnd.tasks set est_hours = 21 where id = 'big' and plan_id = '${PLAN_A}'`);
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes().length).toBeGreaterThan(0);
+      for (const e of google.live(APP_CAL).filter((x) => tagsOf(x).task_id === 'big')) {
+        expect(e.description).toContain('Estimate: 21 h');
+      }
+      google.seen = [];
+      await syncAgain();
+      expect(google.writes()).toEqual([]);
+    });
+
+    describe('one plan at a time', () => {
+      const PLAN_NEW = 'a0000000-0000-4000-8000-000000000002';
+      const addNewerPlan = () =>
+        testDb.admin(async (c) => {
+          await c.query(
+            `insert into rnd.plans (user_id, id, created_from, name, status, start_date, created_at)
+             values ($1, $2, 'builder', 'Real plan', 'active', $3, '2026-10-31T10:00:00Z')`,
+            [A, PLAN_NEW, SUN],
+          );
+          await c.query(
+            `insert into rnd.week_patterns (user_id, plan_id, study_weekdays, default_hours,
+               window_start, window_end, lunch_start, lunch_end, break_minutes, timezone)
+             values ($1, $2, '{0,1,2,3,4}', 7, '09:00', '17:00', '13:00', '14:00', 0, 'Asia/Jerusalem')`,
+            [A, PLAN_NEW],
+          );
+          await c.query(
+            `insert into rnd.tasks (user_id, plan_id, id, title, type, est_hours, sort_order)
+             values ($1, $2, 'new1', 'New course', 'course', 10, 0)`,
+            [A, PLAN_NEW],
+          );
+        });
+      const taskIds = () => new Set(google.live(APP_CAL).map((e) => tagsOf(e).task_id));
+
+      it('writes only the newest created active plan when two are active', async () => {
+        await addNewerPlan();
+        await sync();
+        expect(taskIds()).toEqual(new Set(['new1']));
+        expect((await links()).every((l) => l.plan_id === PLAN_NEW)).toBe(true);
+        google.seen = [];
+        await syncAgain();
+        expect(google.writes()).toEqual([]);
+      });
+
+      it('removes the older plan events when a newer plan appears, and keeps them out', async () => {
+        await sync();
+        expect(taskIds()).toEqual(new Set(['big', 'lk']));
+        await addNewerPlan();
+        await syncAgain();
+        expect(taskIds()).toEqual(new Set(['new1']));
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+        google.seen = [];
+        await syncAgain();
+        expect(google.writes()).toEqual([]);
+        expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      it('keeps the link when the delete is refused as a concurrent change, and retries', async () => {
+        await sync();
+        await addNewerPlan();
+        google.deletePrecondition = 1;
+        await syncAgain();
+        const left = (await links()).filter((l) => l.plan_id === PLAN_A);
+        expect(left).toHaveLength(1);
+        expect(google.get(APP_CAL, left[0]!.event_id)!.status).toBe('confirmed');
+        await syncAgain();
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+        expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      const addOldLink = (eventId: string, lastEnd: string) =>
+        rows(
+          `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+           values ($1, $2, 'old:1', 'big', $3, $4::timestamptz - interval '1 hour', $4)`,
+          [A, PLAN_A, eventId, lastEnd],
+        );
+
+      it('never deletes an untagged event of the user, and forgets the link', async () => {
+        google.put(APP_CAL, timed('foreignevent1', MON, '09:00', '10:00', { summary: 'Mine' }));
+        await addOldLink('foreignevent1', '2026-11-30T10:00:00Z');
+        await addNewerPlan();
+        await sync();
+        expect(google.get(APP_CAL, 'foreignevent1')!.status).toBe('confirmed');
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+      });
+
+      it('keeps past events of other plans', async () => {
+        google.put(
+          APP_CAL,
+          timed('pastevent01', SUN, '09:00', '10:00', {
+            extendedProperties: { private: { source: APP_EVENT_SOURCE, task_id: 'big' } },
+          }),
+        );
+        await addOldLink('pastevent01', '2026-10-31T10:00:00Z');
+        await addNewerPlan();
+        await sync();
+        expect(google.get(APP_CAL, 'pastevent01')!.status).toBe('confirmed');
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toHaveLength(1);
+      });
+
+      it('still writes the current plan when removing an old plan event keeps failing', async () => {
+        await sync();
+        await addNewerPlan();
+        google.deleteFailsWith = 503;
+        const res = await syncAgain();
+        expect(res.statusCode).toBe(503);
+        expect(taskIds().has('new1')).toBe(true);
+        google.deleteFailsWith = null;
+        await syncAgain();
+        expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      it('removes the future events of archived plans when no plan is active any more', async () => {
+        await sync();
+        expect(taskIds().size).toBeGreaterThan(0);
+        await rows(`update rnd.plans set status = 'archived' where id = '${PLAN_A}'`);
+        await syncAgain();
+        expect(google.live(APP_CAL)).toEqual([]);
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+      });
+
+      it('writes the older plan again once it is the newest active plan', async () => {
+        await addNewerPlan();
+        await sync();
+        await rows(`update rnd.plans set status = 'archived' where id = '${PLAN_NEW}'`);
+        await syncAgain();
+        expect(taskIds()).toEqual(new Set(['big', 'lk']));
+      });
     });
 
     it('deletes events whose block no longer exists', async () => {

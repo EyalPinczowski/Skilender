@@ -44,7 +44,7 @@ export interface AppEventDraft {
   id: string;
   summary: string;
   description?: string;
-  /** Google event colour, '1'..'11' (see `colorIdForTask` in the shared package). */
+  /** Google event colour, '1'..'11' (see `colorIdsForTasks` in the shared package). */
   colorId?: string;
   start: CalendarEventTime;
   end: CalendarEventTime;
