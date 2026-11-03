@@ -1,33 +1,58 @@
 /**
- * Event colours for the app calendar (spec 3.8). Pure: a task's position in the plan in, a Google
- * event `colorId` out. Nothing here talks to Google.
+ * Event colours for the app calendar (spec 3.8). Pure: the plan's ordered tasks in, a Google
+ * event `colorId` per task out. Nothing here talks to Google.
  *
- * Google's classic event palette has the ids '1'..'11'. The palette below lists all eleven,
- * ordered for contrast: consecutive entries differ in hue and lightness, so tasks that are
- * neighbours in the plan's order never look alike. Ids: 1 Lavender, 2 Sage, 3 Grape, 4 Flamingo,
- * 5 Banana, 6 Tangerine, 7 Peacock, 8 Graphite, 9 Blueberry, 10 Basil, 11 Tomato.
+ * Google's classic event palette has only the ids '1'..'11', so a colour per task is impossible
+ * (a plan has more tasks). Instead a colour belongs to a GROUP: one course or one exam. Tasks
+ * that share an `externalRef` (for example the parts of one multi-part course) are one group;
+ * a task without it is its own group. Practice, admin and CV tasks are not groups: they all get
+ * graphite, so courses and exams stand out in the calendar.
  *
- * The colour depends only on the order index, so a task always gets the same colour. With 12 or
- * more tasks the colours repeat every 11 tasks (index 0 and index 11 share one); the first 11
- * tasks are all distinct and any two neighbours always differ.
+ * Groups take the colours below in the order they first appear in the plan, cycling. The input
+ * is ALL the plan's tasks (done ones included), so a colour never shifts when tasks are
+ * finished. The ten colours are ordered for contrast and cycle every 10 groups, so two groups
+ * that follow each other never share a colour; with more than 10 groups colours repeat.
+ * Ids: 9 Blueberry, 6 Tangerine, 10 Basil, 4 Flamingo, 7 Peacock, 5 Banana, 3 Grape, 2 Sage,
+ * 11 Tomato, 1 Lavender; 8 Graphite is kept for the non-course tasks.
  */
 export const EVENT_COLOR_PALETTE: readonly string[] = [
-  '9', // Blueberry
-  '6', // Tangerine
-  '10', // Basil
-  '4', // Flamingo
-  '7', // Peacock
-  '5', // Banana
-  '3', // Grape
-  '2', // Sage
-  '11', // Tomato
-  '1', // Lavender
-  '8', // Graphite
+  '9',
+  '6',
+  '10',
+  '4',
+  '7',
+  '5',
+  '3',
+  '2',
+  '11',
+  '1',
 ];
 
-/** The Google `colorId` for the task at `orderIndex` (0-based) among the plan's tasks. */
-export function colorIdForTask(orderIndex: number): string {
-  const n = EVENT_COLOR_PALETTE.length;
-  const i = Number.isFinite(orderIndex) ? Math.trunc(orderIndex) : 0;
-  return EVENT_COLOR_PALETTE[((i % n) + n) % n]!;
+/** Colour of practice, admin and CV tasks. */
+export const NEUTRAL_COLOR_ID = '8';
+
+export interface ColorTask {
+  id: string;
+  type: string;
+  externalRef?: string | null | undefined;
+}
+
+/** Task id to Google `colorId`, for the plan's tasks given in plan order. */
+export function colorIdsForTasks(tasks: readonly ColorTask[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const groups = new Map<string, string>();
+  for (const t of tasks) {
+    if (t.type !== 'course' && t.type !== 'cert_exam') {
+      out.set(t.id, NEUTRAL_COLOR_ID);
+      continue;
+    }
+    const key = t.externalRef ? `ref:${t.externalRef}` : `id:${t.id}`;
+    let color = groups.get(key);
+    if (color === undefined) {
+      color = EVENT_COLOR_PALETTE[groups.size % EVENT_COLOR_PALETTE.length]!;
+      groups.set(key, color);
+    }
+    out.set(t.id, color);
+  }
+  return out;
 }

@@ -182,7 +182,7 @@ describe.skipIf(!dbAvailable)('migrate (real Postgres, non-superuser admin)', ()
     // Put a stub catalog table (with old and new names) in front of the real data fix.
     await rename(
       join(dir, '0012_rename_practice_provider.sql'),
-      join(dir, '0015_rename_practice_provider.sql'),
+      join(dir, '9002_rename_practice_provider.sql'),
     );
     await writeFile(
       join(dir, '0012_catalog_stub.sql'),

@@ -1,10 +1,11 @@
+import { colorIdsForTasks } from '@upversion/shared';
 import type { UserContext } from '../../db/database';
 
 /**
  * SQL for the calendar sync engine. Every function runs inside `db.withUser` (row-level security
  * limits it to the signed-in user); the explicit `user_id = $1` is a second line of defence and
- * the id always comes from the verified token. Nothing here stores an event description,
- * attendee or location.
+ * the id always comes from the verified token. Nothing here stores an event description
+ * (only a hash of it), attendee or location.
  */
 
 export interface SyncSource {
@@ -17,6 +18,7 @@ export interface SyncSource {
 
 export interface ActivePlan {
   id: string;
+  name: string;
   end_date: string | null;
   timezone: string;
 }
@@ -31,6 +33,18 @@ export interface LinkRow {
   etag: string | null;
   last_summary: string | null;
   last_color: string | null;
+  last_detail_hash: string | null;
+}
+
+/** What the sync needs of one task to write its events. */
+export interface PlanTask {
+  title: string;
+  open: boolean;
+  type: string;
+  estHours: number;
+  url: string | null;
+  steps: string[];
+  colorId: string;
 }
 
 export interface LockedRow {
@@ -72,14 +86,14 @@ export const syncRepo = {
     return rows[0]?.sync_timezone ?? null;
   },
 
-  /** The user's active plans that have a week pattern, most recently changed first. */
+  /** The user's active plans that have a week pattern, most recently CREATED first. */
   async activePlans(ctx: UserContext, userId: string, limit: number): Promise<ActivePlan[]> {
     const { rows } = await ctx.client.query<ActivePlan>(
-      `select p.id, p.end_date::text as end_date, w.timezone
+      `select p.id, p.name, p.end_date::text as end_date, w.timezone
        from ${ctx.schema}.plans p
        join ${ctx.schema}.week_patterns w on w.user_id = p.user_id and w.plan_id = p.id
        where p.user_id = $1 and p.status = 'active'
-       order by p.updated_at desc, p.id limit $2`,
+       order by p.created_at desc, p.id limit $2`,
       [userId, limit],
     );
     return rows;
@@ -222,24 +236,32 @@ export const syncRepo = {
     );
   },
 
-  /** Titles are read only to be written to the user's own app calendar; they are never logged. */
+  /**
+   * The plan's tasks, read only to be written to the user's own app calendar (never logged).
+   * Colours are computed over ALL tasks in plan order (done ones included), so they never shift
+   * when tasks are finished.
+   */
   async openTasks(
     ctx: UserContext,
     userId: string,
     planId: string,
-  ): Promise<Map<string, { title: string; open: boolean; orderIndex: number }>> {
-    // orderIndex is the task's position among ALL the plan's tasks (done ones included), so a
-    // task keeps its colour when its neighbours are finished.
+  ): Promise<Map<string, PlanTask>> {
     const { rows } = await ctx.client.query<{
       id: string;
       title: string;
       status: string;
-      order_index: string;
+      type: string;
+      est_hours: string;
+      url: string | null;
+      how_to_steps: unknown;
+      external_ref: string | null;
     }>(
-      `select id, title, status,
-              (row_number() over (order by sort_order, id) - 1)::text as order_index
-       from ${ctx.schema}.tasks where user_id = $1 and plan_id = $2`,
+      `select id, title, status, type, est_hours, url, how_to_steps, external_ref
+       from ${ctx.schema}.tasks where user_id = $1 and plan_id = $2 order by sort_order, id`,
       [userId, planId],
+    );
+    const colors = colorIdsForTasks(
+      rows.map((r) => ({ id: r.id, type: r.type, externalRef: r.external_ref })),
     );
     return new Map(
       rows.map((r) => [
@@ -247,16 +269,38 @@ export const syncRepo = {
         {
           title: r.title,
           open: r.status === 'pending' || r.status === 'in_progress',
-          orderIndex: Number(r.order_index),
+          type: r.type,
+          estHours: Number(r.est_hours),
+          url: r.url,
+          steps: Array.isArray(r.how_to_steps)
+            ? r.how_to_steps.filter((s): s is string => typeof s === 'string')
+            : [],
+          colorId: colors.get(r.id)!,
         },
       ]),
     );
   },
 
+  /** Links of every plan except `keepPlanId` (the events to take out of the calendar). */
+  async linksOfOtherPlans(
+    ctx: UserContext,
+    userId: string,
+    keepPlanId: string,
+  ): Promise<(LinkRow & { plan_id: string })[]> {
+    const { rows } = await ctx.client.query<LinkRow & { plan_id: string }>(
+      `select plan_id, block_key, task_id, event_id, generation, last_start, last_end, etag,
+              last_summary, last_color, last_detail_hash
+       from ${ctx.schema}.calendar_event_links where user_id = $1 and plan_id <> $2
+       order by plan_id, block_key`,
+      [userId, keepPlanId],
+    );
+    return rows;
+  },
+
   async links(ctx: UserContext, userId: string, planId: string): Promise<LinkRow[]> {
     const { rows } = await ctx.client.query<LinkRow>(
       `select block_key, task_id, event_id, generation, last_start, last_end, etag, last_summary,
-              last_color
+              last_color, last_detail_hash
        from ${ctx.schema}.calendar_event_links where user_id = $1 and plan_id = $2
        order by block_key`,
       [userId, planId],
@@ -268,13 +312,13 @@ export const syncRepo = {
     await ctx.client.query(
       `insert into ${ctx.schema}.calendar_event_links
          (user_id, plan_id, block_key, task_id, event_id, generation, last_start, last_end, etag,
-          last_summary, last_color)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          last_summary, last_color, last_detail_hash)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        on conflict (user_id, plan_id, block_key) do update set
          task_id = excluded.task_id, event_id = excluded.event_id, generation = excluded.generation,
          last_start = excluded.last_start, last_end = excluded.last_end, etag = excluded.etag,
          last_summary = excluded.last_summary, last_color = excluded.last_color,
-         updated_at = now()`,
+         last_detail_hash = excluded.last_detail_hash,         updated_at = now()`,
       [
         userId,
         planId,
@@ -287,6 +331,7 @@ export const syncRepo = {
         link.etag,
         link.last_summary,
         link.last_color,
+        link.last_detail_hash,
       ],
     );
   },

@@ -214,6 +214,7 @@ for (const schema of ENVS) {
         await q(`update ${s}.calendar_connections set sync_timezone = 'Asia/Jerusalem'`);
         await q(`update ${s}.calendar_event_links set last_summary = 'Course'`);
         await q(`update ${s}.calendar_event_links set last_color = '7'`);
+        await q(`update ${s}.calendar_event_links set last_detail_hash = 'abc'`);
       });
       await expect(
         as(USER_A, (q) => q(`update ${s}.calendar_event_links set last_color = '12'`)),

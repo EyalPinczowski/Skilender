@@ -1,7 +1,8 @@
 import {
   addDays,
   classifyEvents,
-  colorIdForTask,
+  eventDescription,
+  eventSummary,
   compareDates,
   localDateOf,
   parseTime,
@@ -9,6 +10,7 @@ import {
   type Block,
   type CalendarEvent,
 } from '@upversion/shared';
+import { createHash } from 'node:crypto';
 import { CalendarCryptoError, type CalendarTokenCrypto } from '../../calendar-crypto';
 import type { Database } from '../../db/database';
 import { HttpError } from '../../errors';
@@ -27,6 +29,7 @@ import {
   type BusyInsert,
   type LinkRow,
   type LockedRow,
+  type PlanTask,
   type SyncSource,
 } from './sync-repo';
 import { CalendarWriteRefused, createWriteGuard, type WriteGuard } from './write-guard';
@@ -104,6 +107,8 @@ export interface DesiredBlock {
   end: Date;
   summary: string;
   colorId: string;
+  description: string;
+  detailHash: string;
 }
 
 /**
@@ -113,7 +118,8 @@ export interface DesiredBlock {
  */
 export function desiredBlocks(input: {
   blocks: Block[];
-  tasks: Map<string, { title: string; open: boolean; orderIndex: number }>;
+  planName: string;
+  tasks: Map<string, PlanTask>;
   locked: LockedRow[];
   today: string;
   horizon: string;
@@ -156,13 +162,23 @@ export function desiredBlocks(input: {
       key = `${slot}:${n}`;
     }
     if (out.has(key)) continue;
+    const task = tasks.get(b.taskId)!;
+    const description = eventDescription({
+      planName: input.planName,
+      type: task.type,
+      estHours: task.estHours,
+      url: task.url,
+      steps: task.steps,
+    });
     out.set(key, {
       key,
       taskId: b.taskId,
       start,
       end,
-      summary: clean(tasks.get(b.taskId)!.title, TITLE_MAX),
-      colorId: colorIdForTask(tasks.get(b.taskId)!.orderIndex),
+      summary: eventSummary(task.type, task.title),
+      colorId: task.colorId,
+      description,
+      detailHash: createHash('sha256').update(description).digest('hex'),
     });
   }
   return out;
@@ -501,7 +517,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     userId: string,
     planId: string,
     locked: LockedRow[],
-    tasks: Map<string, { title: string; open: boolean; orderIndex: number }>,
+    tasks: Map<string, PlanTask>,
     blocks: Block[],
     timeZone: string,
   ): Promise<Set<string>> {
@@ -544,6 +560,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     const desiredNow = () =>
       desiredBlocks({
         blocks: schedule.blocks,
+        planName: plan.name,
         tasks: state.tasks,
         locked: state.locked,
         today,
@@ -597,7 +614,8 @@ export function createCalendarSync(options: CalendarSyncOptions) {
           link.last_start.getTime() !== d.start.getTime() ||
           link.last_end.getTime() !== d.end.getTime() ||
           link.last_summary !== d.summary ||
-          link.last_color !== d.colorId
+          link.last_color !== d.colorId ||
+          link.last_detail_hash !== d.detailHash
         ) {
           const patched = await patchBlock(env, link, d, timeZone);
           if (patched) ops.push({ op: 'upsert', link: patched });
@@ -648,6 +666,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
           id,
           summary: d.summary,
           colorId: d.colorId,
+          description: d.description,
           start: timeOf(d.start, timeZone),
           end: timeOf(d.end, timeZone),
         });
@@ -671,12 +690,14 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       if (
         instantOf(event.start) !== d.start.getTime() ||
         instantOf(event.end) !== d.end.getTime() ||
-        event.colorId !== d.colorId
+        event.colorId !== d.colorId ||
+        event.summary !== d.summary
       ) {
         try {
           event = await env.guard.patchAppEvent(env.appCalendarId, id, {
             summary: d.summary,
             colorId: d.colorId,
+            description: d.description,
             start: timeOf(d.start, timeZone),
             end: timeOf(d.end, timeZone),
           });
@@ -696,6 +717,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         etag: event.etag ?? null,
         last_summary: d.summary,
         last_color: d.colorId,
+        last_detail_hash: d.detailHash,
       };
     }
     return null;
@@ -712,6 +734,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       const event = await env.guard.patchAppEvent(env.appCalendarId, link.event_id, {
         summary: d.summary,
         colorId: d.colorId,
+        description: d.description,
         start: timeOf(d.start, timeZone),
         end: timeOf(d.end, timeZone),
       });
@@ -722,6 +745,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         etag: event.etag ?? null,
         last_summary: d.summary,
         last_color: d.colorId,
+        last_detail_hash: d.detailHash,
       };
     } catch (error) {
       if (error instanceof CalendarWriteRefused) {
@@ -732,13 +756,47 @@ export function createCalendarSync(options: CalendarSyncOptions) {
     }
   }
 
+  /**
+   * One plan at a time: events of every plan except the newest active one are removed from the
+   * app calendar (only ones the app wrote, through the guard) and their links forgotten, so the
+   * plans never overlap in Google. They stay gone until that plan is the newest active again,
+   * when its blocks are written afresh. Past events are history and stay.
+   */
+  async function removeOtherPlanEvents(env: WriteEnv, keepPlanId: string): Promise<void> {
+    const { userId } = env;
+    const others = await db.withUser(userId, (ctx) =>
+      syncRepo.linksOfOtherPlans(ctx, userId, keepPlanId),
+    );
+    const nowMs = now().getTime();
+    const gone: { plan_id: string; block_key: string }[] = [];
+    try {
+      for (const link of others) {
+        if (link.last_end.getTime() <= nowMs) continue;
+        try {
+          await env.guard.deleteAppEvent(env.appCalendarId, link.event_id);
+        } catch (error) {
+          if (!(error instanceof CalendarWriteRefused)) throw error;
+          log.warn({ reason: error.reason }, 'calendar event not deleted');
+        }
+        gone.push(link);
+      }
+    } finally {
+      if (gone.length > 0) {
+        await db.withUser(userId, async (ctx) => {
+          for (const g of gone) await syncRepo.deleteLink(ctx, userId, g.plan_id, g.block_key);
+        });
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------------- one run
 
   /** What the last sync did to the schedule, from stored data only (Google is not called). */
   async function impact(userId: string): Promise<Omit<SyncResult, 'status' | 'syncedAt'>> {
-    const plans = await db.withUser(userId, (ctx) =>
-      syncRepo.activePlans(ctx, userId, MAX_ACTIVE_PLANS),
-    );
+    // Only the newest active plan is mirrored to the calendar (see removeOtherPlanEvents).
+    const plans = (
+      await db.withUser(userId, (ctx) => syncRepo.activePlans(ctx, userId, MAX_ACTIVE_PLANS))
+    ).slice(0, 1);
     const moved = new Set<string>();
     let finishChanged = false;
     const texts: string[] = [];
@@ -783,9 +841,10 @@ export function createCalendarSync(options: CalendarSyncOptions) {
       }
       if (conn.status === 'needs_reconnect') throw reconnectRequired();
 
-      const plans = await db.withUser(userId, (ctx) =>
-        syncRepo.activePlans(ctx, userId, MAX_ACTIVE_PLANS),
-      );
+      // Only the newest active plan is read for and written to the calendar.
+      const plans = (
+        await db.withUser(userId, (ctx) => syncRepo.activePlans(ctx, userId, MAX_ACTIVE_PLANS))
+      ).slice(0, 1);
       const refreshToken = crypto.decrypt(conn.refresh_token_ciphertext, userId);
       const provider = options.providerFor(refreshToken);
 
@@ -813,7 +872,8 @@ export function createCalendarSync(options: CalendarSyncOptions) {
             appCalendarId: conn.app_calendar_id,
           };
           try {
-            for (const plan of plans) await syncPlan(env, plan);
+            await removeOtherPlanEvents(env, primary.id);
+            await syncPlan(env, primary);
           } catch (error) {
             failure ??= error;
           }
