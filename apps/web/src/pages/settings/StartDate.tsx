@@ -54,6 +54,10 @@ export function StartDate({ plan }: { plan: PlanDetail }) {
         {formatDate(earliest)}
         {latest ? `. Latest: ${formatDate(latest)}` : ''}.
       </p>
+      <p className="text-muted">
+        The start date can only be moved while the plan has not started; once a study day has begun
+        it is fixed.
+      </p>
       <TextField
         label="Plan start date"
         type="date"

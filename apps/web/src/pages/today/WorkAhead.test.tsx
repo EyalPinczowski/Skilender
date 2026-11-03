@@ -92,6 +92,16 @@ describe('hasPassedBlock', () => {
     expect(hasPassedBlock(CURRENT, CURRENT, TODAY, NOW_MS, zone)).toBe(false);
     const early = [...CURRENT, study('setup', TODAY, '09:30', '10:30', 60)];
     expect(hasPassedBlock(CURRENT, early, TODAY, NOW_MS, zone)).toBe(true);
+    // Extending a block that began earlier only adds time after it: all of that is in the future.
+    const extended = [study('sql1', TODAY, '09:00', '11:00', 120)];
+    const before = [study('sql1', TODAY, '09:00', '10:30', 90)];
+    expect(hasPassedBlock(before, extended, TODAY, Date.parse('2026-11-10T07:30:00Z'), zone)).toBe(
+      false,
+    ); // 09:30 now: 10:30-11:00 is added
+    // The same extension flagged when the added part is already behind us (now 10:45).
+    expect(hasPassedBlock(before, extended, TODAY, Date.parse('2026-11-10T08:45:00Z'), zone)).toBe(
+      true,
+    );
     // Another day, or another zone's date, is not compared.
     expect(hasPassedBlock(CURRENT, early, '2026-11-11', NOW_MS, zone)).toBe(false);
   });

@@ -102,8 +102,12 @@ describe.skipIf(!dbAvailable)('plan start date (real Postgres)', () => {
   });
 
   it('accepts today, in the plan time zone', async () => {
+    expect((await put('2026-11-04')).statusCode).toBe(200);
     expect((await put('2026-11-03')).statusCode).toBe(200);
     await seed('Pacific/Kiritimati');
+    await testDb.admin((c) =>
+      c.query(`update rnd.plans set start_date = '2026-11-06' where id = $1`, [PLAN]),
+    );
     expect((await put('2026-11-03')).statusCode).toBe(422); // already the 4th there
     expect((await put('2026-11-04')).statusCode).toBe(200);
   });
@@ -185,6 +189,22 @@ describe.skipIf(!dbAvailable)('plan start date (real Postgres)', () => {
     expect((await put('2026-11-12')).statusCode).toBe(200);
     await testDb.admin((c) => c.query(`update rnd.tasks set status = 'done' where id = 'exam'`));
     expect((await put('2026-11-13')).statusCode).toBe(200);
+  });
+
+  it('saving the current date again answers 200 and writes no event', async () => {
+    const events = () =>
+      testDb.admin(
+        async (c) =>
+          (await c.query(`select 1 from rnd.events where type = 'plan.start_date_changed'`)).rows,
+      );
+    // Even a start date already in the past is simply unchanged.
+    await testDb.admin((c) =>
+      c.query(`update rnd.plans set start_date = '2026-10-01' where id = $1`, [PLAN]),
+    );
+    const res = await put('2026-10-01');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ startDate: '2026-10-01', endDate: null });
+    expect(await events()).toHaveLength(0);
   });
 
   it('writes a plan.start_date_changed event, and none when refused', async () => {

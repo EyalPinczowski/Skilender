@@ -2,8 +2,10 @@ import {
   addDays,
   compareDates,
   dayCapacity,
+  parseTime,
   findOverride,
   studyWindow,
+  subtractIntervals,
   totalMinutes,
 } from '@upversion/shared';
 import type { Block, DayOverride, WeekPattern } from '../../api/client';
@@ -114,7 +116,16 @@ export function hasPassedBlock(
 ): boolean {
   const now = clockIn(nowMs, timeZone);
   if (now.date !== today) return false;
-  const key = (b: Block) => `${b.taskId}|${b.start}|${b.end}`;
-  const before = new Set(current.filter((b) => b.date === today).map(key));
-  return proposed.some((b) => b.date === today && !before.has(key(b)) && b.start < now.time);
+  const nowMinutes = parseTime(now.time);
+  // Added time = what a proposed block has beyond the same task's current blocks. Extending a
+  // block that began earlier only adds the part after it, so that part decides.
+  return proposed
+    .filter((b) => b.date === today)
+    .some((b) => {
+      const same = current
+        .filter((c) => c.date === today && c.taskId === b.taskId)
+        .map((c) => ({ start: parseTime(c.start), end: parseTime(c.end) }));
+      const added = subtractIntervals([{ start: parseTime(b.start), end: parseTime(b.end) }], same);
+      return added.some((i) => i.start < nowMinutes);
+    });
 }

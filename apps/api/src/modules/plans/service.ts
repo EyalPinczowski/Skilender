@@ -100,6 +100,8 @@ export function createPlanService(db: Database, now: () => Date = () => new Date
         // Serialises with task edits and other plan writes.
         if (!(await repo.lockPlan(ctx, userId, planId))) throw notFound();
         const dates = (await repo.planDates(ctx, userId, planId))!;
+        // Nothing to change: no bounds check, no event.
+        if (startDate === dates.startDate) return { startDate, endDate: dates.endDate };
         const today = localDateOf(now(), dates.timezone ?? 'UTC');
         if (compareDates(startDate, today) < 0) {
           throw new HttpError(

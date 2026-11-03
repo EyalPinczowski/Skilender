@@ -41,6 +41,16 @@ describe('plan start date', () => {
     expect(form.getByText(/Earliest allowed: .*Nov 5/)).toBeInTheDocument();
   });
 
+  it('explains that the start date is fixed once a study day has begun', async () => {
+    open();
+    const form = await startDateForm();
+    expect(
+      form.getByText(
+        'The start date can only be moved while the plan has not started; once a study day has begun it is fixed.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('saves the new date with PUT and confirms', async () => {
     let body: unknown;
     const api = open({
