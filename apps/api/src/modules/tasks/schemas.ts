@@ -9,6 +9,11 @@ export const taskParams = noNulCharacters(
   z.object({ planId: z.uuid(), taskId: z.string().min(1).max(200) }),
 );
 
+/** `?removeDependencies=true` lets a delete also drop the task from its dependents' lists. */
+export const deleteTaskQuery = z.object({
+  removeDependencies: z.enum(['true', 'false']).optional(),
+});
+
 /** A task as the API shows it: the shared task shape (absent optional fields are left out). */
 export const taskView = z.object({
   id: shape.id,

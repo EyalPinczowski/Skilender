@@ -6,7 +6,9 @@ import { installAccountGuard } from '../accounts/guard';
 import { createDaysService } from '../days/service';
 import { createAccountService } from '../accounts/service';
 import type { TokenVerifier } from '../accounts/token-verifier';
+import { z } from 'zod';
 import {
+  deleteTaskQuery,
   logBody,
   logList,
   logResult,
@@ -96,6 +98,32 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
     async (request) => {
       const { planId, taskId } = request.params;
       return service!.patchTask(user(request), planId, taskId, request.body);
+    },
+  );
+
+  app.delete(
+    '/plans/:planId/tasks/:taskId',
+    {
+      schema: {
+        tags,
+        summary: 'Delete a task (the user’s explicit action)',
+        description:
+          'Answers 409 `has_dependents` (with the dependents’ ids and titles) when other tasks depend on it, unless `removeDependencies=true`, which removes the id from their dependsOn in the same transaction. The task’s logs and practice sessions are deleted with it. The schedule is recomputed from the remaining tasks and the calendar sync runs afterwards.',
+        security,
+        params: taskParams,
+        querystring: deleteTaskQuery,
+        response: { 204: z.null(), 409: errorResponseSchema, ...errors },
+      },
+    },
+    async (request, reply) => {
+      const { planId, taskId } = request.params;
+      await service!.deleteTask(
+        user(request),
+        planId,
+        taskId,
+        request.query.removeDependencies === 'true',
+      );
+      return reply.status(204).send(null);
     },
   );
 
