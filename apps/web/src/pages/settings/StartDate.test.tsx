@@ -91,6 +91,21 @@ describe('plan start date', () => {
     expect(await form.findByRole('alert')).toHaveTextContent('cannot be before today');
   });
 
+  it('shows the API’s explanation when a day has already started', async () => {
+    open({
+      [`PUT ${BASE}/start-date`]: () =>
+        apiError(
+          409,
+          'day_started',
+          'The plan already has a day on 2026-11-03, so it can’t start later than that.',
+        ),
+    });
+    const form = await startDateForm();
+    fireDate(form.getByLabelText('Plan start date'), '2026-11-10');
+    await userEvent.setup().click(form.getByRole('button', { name: 'Save start date' }));
+    expect(await form.findByRole('alert')).toHaveTextContent('already has a day on 2026-11-03');
+  });
+
   it('has no accessibility violations', async () => {
     open({ [`GET ${BASE}`]: () => json(planDetail()) });
     await startDateForm();

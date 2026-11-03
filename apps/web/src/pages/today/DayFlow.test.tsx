@@ -362,6 +362,39 @@ describe('Past and future days', () => {
     expect(await screen.findByRole('button', { name: 'Start study day' })).toBeInTheDocument();
   });
 
+  it('shows "Deleted task" for a frozen block whose task no longer exists', async () => {
+    open(
+      {
+        [`GET ${BASE}/days/${YESTERDAY}`]: () =>
+          json(
+            dayState({
+              date: YESTERDAY,
+              status: 'ended',
+              startedAt: NOW,
+              endedAt: NOW,
+              frozen: {
+                frozenAt: NOW,
+                source: 'day_end',
+                blocks: [
+                  {
+                    taskId: 'gone-task-id',
+                    date: YESTERDAY,
+                    start: '09:00',
+                    end: '10:00',
+                    minutes: 60,
+                    kind: 'study',
+                  },
+                ],
+              },
+            }),
+          ),
+      },
+      `/?date=${YESTERDAY}`,
+    );
+    expect(await screen.findByRole('heading', { name: 'Deleted task' })).toBeInTheDocument();
+    expect(screen.queryByText('gone-task-id')).toBeNull();
+  });
+
   it('opens a past day from the address and enables Next day there', async () => {
     open(pastRoutes, `/?date=${YESTERDAY}`);
     expect(await screen.findByText('Monday, Nov 9')).toBeInTheDocument();

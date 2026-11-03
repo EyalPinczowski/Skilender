@@ -144,4 +144,59 @@ describe.skipIf(!dbAvailable)('plan start date (real Postgres)', () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  it('refuses with 409 day_started when a day has already been started, ended or frozen', async () => {
+    await testDb.admin((c) =>
+      c.query(
+        `insert into rnd.day_sessions (user_id, plan_id, date) values ($1, $2, '2026-11-03')`,
+        [A, PLAN],
+      ),
+    );
+    const res = await put('2026-11-10');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('day_started');
+    expect(await stored()).toBe('2026-11-03');
+    // The same date or an earlier one stays possible only where the bounds allow it.
+    expect((await put('2026-11-03')).statusCode).toBe(200);
+  });
+
+  it('refuses with 409 when only a frozen day exists', async () => {
+    await testDb.admin((c) =>
+      c.query(
+        `insert into rnd.schedule_days (user_id, plan_id, date, blocks, source) values ($1, $2, '2026-11-03', '[]', 'auto_rollover')`,
+        [A, PLAN],
+      ),
+    );
+    expect((await put('2026-11-04')).statusCode).toBe(409);
+  });
+
+  it('refuses a start date after the earliest open exam, naming it, but not for a done exam', async () => {
+    await testDb.admin((c) =>
+      c.query(
+        `insert into rnd.tasks (user_id, plan_id, id, title, type, est_hours, sort_order, is_anchor, anchor_date, anchor_start_time)
+         values ($1, $2, 'exam', 'SQL exam', 'cert_exam', 1, 1, true, '2026-11-12', '10:00')`,
+        [A, PLAN],
+      ),
+    );
+    const res = await put('2026-11-13');
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.message).toContain('SQL exam');
+    expect(await stored()).toBe('2026-11-03');
+    expect((await put('2026-11-12')).statusCode).toBe(200);
+    await testDb.admin((c) => c.query(`update rnd.tasks set status = 'done' where id = 'exam'`));
+    expect((await put('2026-11-13')).statusCode).toBe(200);
+  });
+
+  it('writes a plan.start_date_changed event, and none when refused', async () => {
+    const events = () =>
+      testDb.admin(
+        async (c) =>
+          (await c.query(`select payload from rnd.events where type = 'plan.start_date_changed'`))
+            .rows,
+      );
+    await put('2026-11-02');
+    expect(await events()).toHaveLength(0);
+    await put('2026-11-10');
+    expect(await events()).toEqual([{ payload: { from: '2026-11-03', to: '2026-11-10' } }]);
+  });
 });

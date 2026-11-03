@@ -167,6 +167,14 @@ function Detail({
   titleOf: (id: string) => string;
 }) {
   const navigate = useNavigate();
+  // The delete can finish after the person has left this page: then they stay where they went.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const link = safeWebUrl(task.url);
   const deps = dependencyText(task, titleOf);
   const anchor = anchorText(task);
@@ -253,7 +261,9 @@ function Detail({
         <DeleteTask
           planId={planId}
           task={task}
-          onDeleted={() => void navigate('/plan', { state: { taskDeleted: true } })}
+          onDeleted={() => {
+            if (mounted.current) void navigate('/plan', { state: { taskDeleted: true } });
+          }}
         />
       </section>
     </div>

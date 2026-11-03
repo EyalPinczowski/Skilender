@@ -78,3 +78,43 @@ export function workAheadEffect(
   if (before === 0) return `${when} first task, ${titleOf(taskId)}, now starts today.`;
   return `${formatHours((after - before) / 60)} more of ${titleOf(taskId)}, ${when} first task, moves into today.`;
 }
+
+/** The time of day ("HH:MM") and date at `ms` in a time zone. */
+function clockIn(ms: number, timeZone: string): { date: string; time: string } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(ms)
+      .map((p) => [p.type, p.value]),
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+/**
+ * True when a block the proposal adds or changes today starts before the current time in the plan's
+ * zone. The scheduler plans from the start of the day, so extra hours late in the day can land in
+ * the past; the person is told instead of being offered time that is gone.
+ */
+export function hasPassedBlock(
+  current: Block[],
+  proposed: Block[],
+  today: string,
+  nowMs: number,
+  timeZone: string,
+): boolean {
+  const now = clockIn(nowMs, timeZone);
+  if (now.date !== today) return false;
+  const key = (b: Block) => `${b.taskId}|${b.start}|${b.end}`;
+  const before = new Set(current.filter((b) => b.date === today).map(key));
+  return proposed.some((b) => b.date === today && !before.has(key(b)) && b.start < now.time);
+}

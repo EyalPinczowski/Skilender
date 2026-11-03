@@ -229,6 +229,38 @@ export async function planDates(
   return r ? { startDate: r.start_date, endDate: r.end_date, timezone: r.timezone } : null;
 }
 
+/** The earliest date that has a started, ended or frozen day for the plan; null when none. */
+export async function earliestDayState(
+  ctx: UserContext,
+  userId: string,
+  planId: string,
+): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ d: string | null }>(
+    `select least(
+       (select min(date) from ${ctx.schema}.day_sessions where user_id = $1 and plan_id = $2),
+       (select min(date) from ${ctx.schema}.schedule_days where user_id = $1 and plan_id = $2)
+     )::text as d`,
+    [userId, planId],
+  );
+  return rows[0]?.d ?? null;
+}
+
+/** The open (not done, not skipped) anchor task with the earliest date, if any. */
+export async function earliestOpenAnchor(
+  ctx: UserContext,
+  userId: string,
+  planId: string,
+): Promise<{ title: string; date: string } | null> {
+  const { rows } = await ctx.client.query<{ title: string; date: string }>(
+    `select title, anchor_date::text as date from ${ctx.schema}.tasks
+     where user_id = $1 and plan_id = $2 and is_anchor and anchor_date is not null
+       and status in ('pending', 'in_progress')
+     order by anchor_date, sort_order limit 1`,
+    [userId, planId],
+  );
+  return rows[0] ?? null;
+}
+
 export async function updateStartDate(
   ctx: UserContext,
   userId: string,

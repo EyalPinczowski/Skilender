@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DayOverride, Schedule, Task } from '../../api/client';
 import { usePlan, usePreviewSchedule, useSaveTimeSettings } from '../../api/hooks';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Button, ErrorText, TextField } from '../../components/ui';
 import { formatHours } from '../../lib/format';
 import { describeError } from '../../lib/messages';
-import { addedMinutes, EXTRA_HOUR_CHOICES, todayCapacity, workAheadEffect } from './work-ahead';
+import {
+  addedMinutes,
+  EXTRA_HOUR_CHOICES,
+  hasPassedBlock,
+  todayCapacity,
+  workAheadEffect,
+} from './work-ahead';
 
 interface Proposal {
   override: DayOverride;
@@ -12,6 +19,8 @@ interface Proposal {
   text: string;
   /** Minutes of study the schedule really gains today (the study window may be the limit). */
   addedMinutes: number;
+  /** A new or changed block for today starts before the current time. */
+  passed: boolean;
 }
 
 const requestedMinutes = (override: DayOverride, currentHours: number) =>
@@ -40,6 +49,7 @@ export function WorkAhead({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   // The pressed button is replaced after a save, so focus moves to the result message.
   const messageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -75,6 +85,13 @@ export function WorkAhead({
             override,
             text: [effect, result.summary.text].filter(Boolean).join(' '),
             addedMinutes: addedMinutes(schedule.blocks, result.proposed.blocks, schedule.today),
+            passed: hasPassedBlock(
+              schedule.blocks,
+              result.proposed.blocks,
+              schedule.today,
+              Date.now(),
+              data!.weekPattern!.timezone,
+            ),
           });
         },
       },
@@ -101,6 +118,8 @@ export function WorkAhead({
   function approve() {
     if (!proposal) return;
     const { override } = proposal;
+    // What today really gets: the hours it had plus the study time that fits, not the request.
+    const resulting = Math.round((cap.hours + proposal.addedMinutes / 60) * 100) / 100;
     save.mutate(
       { upsertOverrides: [override], removeOverrideDates: [] },
       {
@@ -108,7 +127,7 @@ export function WorkAhead({
           setOpen(false);
           reset();
           setMessage(
-            `Today now has ${formatHours(override.capacityHours ?? 0)} of study.${proposal.text ? ` ${proposal.text}` : ''}`,
+            `Today now has ${formatHours(resulting)} of study.${proposal.text ? ` ${proposal.text}` : ''}`,
           );
         },
       },
@@ -125,6 +144,7 @@ export function WorkAhead({
           reset();
           setMessage('Back to normal: today follows your usual hours again.');
         },
+        onSettled: () => setConfirmingReset(false),
       },
     );
   }
@@ -134,11 +154,14 @@ export function WorkAhead({
   return (
     <section aria-labelledby="work-ahead-heading" className="space-y-3">
       <h2 id="work-ahead-heading">Work ahead</h2>
-      <div ref={messageRef} tabIndex={-1} aria-live="polite">
+      {/* The one live region of this section: results, "checking" and "preview ready". */}
+      <div ref={messageRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
         {message ? (
-          <p role="status" className="font-bold text-ok">
-            {message}
-          </p>
+          <p className="font-bold text-ok">{message}</p>
+        ) : preview.isPending ? (
+          <p className="text-muted">Checking the change…</p>
+        ) : proposal ? (
+          <p className="text-muted">Preview ready. Check it below, then approve.</p>
         ) : null}
       </div>
       {cap.override ? (
@@ -166,7 +189,7 @@ export function WorkAhead({
           </Button>
         )}
         {cap.override ? (
-          <Button onClick={backToNormal} disabled={busy}>
+          <Button onClick={() => setConfirmingReset(true)} disabled={busy}>
             Back to normal
           </Button>
         ) : null}
@@ -217,7 +240,6 @@ export function WorkAhead({
             </div>
           )}
 
-          {preview.isPending ? <p role="status">Checking the change…</p> : null}
           {preview.isError ? (
             <ErrorText>
               {describeError(preview.error, 'The change could not be checked.')}
@@ -226,7 +248,7 @@ export function WorkAhead({
           {proposal ? (
             <div className="space-y-3 border-l-4 border-accent bg-accent-soft p-4 text-accent-soft-text">
               <h3 className="font-bold">What this would change</h3>
-              <p role="status">
+              <p>
                 {proposal.text ||
                   `Today would have ${formatHours(proposal.override.capacityHours ?? 0)} of study.`}
               </p>
@@ -242,6 +264,12 @@ export function WorkAhead({
                   today.
                 </p>
               ) : null}
+              {proposal.passed ? (
+                <p className="font-bold">
+                  Part of this time has already passed today, so it can’t be added now. Try again
+                  with fewer hours, or leave it for tomorrow.
+                </p>
+              ) : null}
               <p>Nothing is saved until you approve.</p>
               {save.isError ? (
                 <ErrorText>{describeError(save.error, 'The change could not be saved.')}</ErrorText>
@@ -250,7 +278,7 @@ export function WorkAhead({
                 <Button
                   variant="primary"
                   onClick={approve}
-                  disabled={save.isPending || proposal.addedMinutes <= 0}
+                  disabled={save.isPending || proposal.addedMinutes <= 0 || proposal.passed}
                 >
                   {save.isPending
                     ? 'Saving…'
@@ -274,6 +302,25 @@ export function WorkAhead({
             Close
           </Button>
         </div>
+      ) : null}
+      {confirmingReset ? (
+        <ConfirmDialog
+          title="Remove today’s exception?"
+          confirmLabel={save.isPending ? 'Removing…' : 'Remove the exception'}
+          cancelLabel="Keep it"
+          busy={save.isPending}
+          onCancel={() => setConfirmingReset(false)}
+          onConfirm={backToNormal}
+        >
+          <p>
+            Today has its own setting:{' '}
+            {cap.override?.isStudyDay
+              ? `a study day${cap.override.capacityHours !== undefined ? ` of ${formatHours(cap.override.capacityHours)}` : ''}`
+              : 'a day off'}
+            . It may have been set in Settings. Removing it makes today follow your usual weekly
+            hours again.
+          </p>
+        </ConfirmDialog>
       ) : null}
     </section>
   );

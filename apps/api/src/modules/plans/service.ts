@@ -97,8 +97,9 @@ export function createPlanService(db: Database, now: () => Date = () => new Date
      */
     putStartDate: (userId: string, planId: string, startDate: string) =>
       db.withUser(userId, async (ctx) => {
-        const dates = await repo.planDates(ctx, userId, planId);
-        if (!dates) throw notFound();
+        // Serialises with task edits and other plan writes.
+        if (!(await repo.lockPlan(ctx, userId, planId))) throw notFound();
+        const dates = (await repo.planDates(ctx, userId, planId))!;
         const today = localDateOf(now(), dates.timezone ?? 'UTC');
         if (compareDates(startDate, today) < 0) {
           throw new HttpError(
@@ -114,7 +115,29 @@ export function createPlanService(db: Database, now: () => Date = () => new Date
             `The start date cannot be after the end date (${dates.endDate}).`,
           );
         }
+        // A day that was started, ended or frozen cannot end up before the plan begins.
+        const firstDayState = await repo.earliestDayState(ctx, userId, planId);
+        if (firstDayState && compareDates(startDate, firstDayState) > 0) {
+          throw new HttpError(
+            409,
+            'day_started',
+            `The plan already has a day on ${firstDayState}, so it can't start later than that.`,
+          );
+        }
+        // An exam that would fall before the plan begins can never be scheduled.
+        const anchor = await repo.earliestOpenAnchor(ctx, userId, planId);
+        if (anchor && compareDates(startDate, anchor.date) > 0) {
+          throw new HttpError(
+            422,
+            'unprocessable',
+            `The start date can't be after “${anchor.title}”, which is fixed on ${anchor.date}.`,
+          );
+        }
         await repo.updateStartDate(ctx, userId, planId, startDate);
+        await repo.insertEvent(ctx, userId, planId, 'plan.start_date_changed', {
+          from: dates.startDate,
+          to: startDate,
+        });
         return { startDate, endDate: dates.endDate };
       }),
 

@@ -92,8 +92,8 @@ export function DeleteTask({
             </>
           ) : (
             <p>
-              The time you logged on this task is removed too, and the schedule is recalculated.
-              This cannot be undone.
+              The time you logged on this task and its practice sessions are deleted too, and the
+              schedule is recalculated. This cannot be undone.
             </p>
           )}
           {failure ? <ErrorText>{failure}</ErrorText> : null}

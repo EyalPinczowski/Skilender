@@ -370,6 +370,29 @@ describe('End-of-day review form', () => {
     });
   });
 
+  it('leaves out an answer for a task that has been deleted since, and does not send it', async () => {
+    const api = open({
+      [`GET ${BASE}/days/${DATE}/review`]: () =>
+        json(
+          storedReview({
+            outcomes: [
+              { taskId: 'sql1', outcome: 'done' },
+              { taskId: 'deleted-task', outcome: 'done' },
+            ],
+          }),
+        ),
+      [PUT]: () => savedResponse({}, false),
+    });
+    const user = userEvent.setup();
+    await formReady();
+    expect(screen.queryByRole('radio', { name: 'Done: deleted-task' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Update review' }));
+    await waitFor(() => expect(api.count(PUT)).toBe(1));
+    const request = api.calls.find((c) => `${c.method} ${new URL(c.url).pathname}` === PUT)!;
+    const sent = (await bodyOf(request)) as { outcomes: { taskId: string }[] };
+    expect(sent.outcomes.map((o) => o.taskId)).toEqual(['sql1']);
+  });
+
   it('shows the friendly state for a day that cannot be reviewed yet (422)', async () => {
     open({
       [`GET ${BASE}/days/${DATE}/briefing`]: () =>

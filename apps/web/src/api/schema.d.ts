@@ -3107,7 +3107,7 @@ export interface paths {
         get?: never;
         /**
          * Change the plan’s start date (moves the whole schedule)
-         * @description Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone or after the end date. Only the date is stored: how a start date is read by the scheduler does not change.
+         * @description Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone, after the end date, or after the earliest open exam; 409 `day_started` when a day on or before it was already started, ended or frozen. Only the date is stored: how a start date is read by the scheduler does not change.
          */
         put: {
             parameters: {
@@ -3203,6 +3203,27 @@ export interface paths {
                 };
                 /** @description Default Response */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

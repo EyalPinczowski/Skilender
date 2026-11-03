@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Block } from '../../api/client';
 import { expectNoAxeViolations } from '../../test/axe';
 import { apiError, fakeAuth, installApi, json, renderApp, SESSION } from '../../test/helpers';
@@ -13,9 +13,16 @@ import {
   previewResult,
   schedule,
 } from '../../test/plan-fixtures';
-import { addedMinutes, workAheadEffect } from './work-ahead';
+import { addedMinutes, hasPassedBlock, workAheadEffect } from './work-ahead';
+
+// 10:00 in Jerusalem (UTC+2) on the fixture's today, so "already passed" is predictable.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-10T08:00:00Z'));
+});
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   saved.length = 0;
 });
@@ -76,6 +83,20 @@ describe('work-ahead helpers', () => {
 
 const saved: unknown[] = [];
 
+describe('hasPassedBlock', () => {
+  const NOW_MS = Date.parse('2026-11-10T08:00:00Z'); // 10:00 in Jerusalem
+  it('flags only new or changed blocks that start before the current time', () => {
+    const zone = 'Asia/Jerusalem';
+    expect(hasPassedBlock(CURRENT, PROPOSED, TODAY, NOW_MS, zone)).toBe(false);
+    // The block that was already planned from 09:00 is not new, so it is not flagged.
+    expect(hasPassedBlock(CURRENT, CURRENT, TODAY, NOW_MS, zone)).toBe(false);
+    const early = [...CURRENT, study('setup', TODAY, '09:30', '10:30', 60)];
+    expect(hasPassedBlock(CURRENT, early, TODAY, NOW_MS, zone)).toBe(true);
+    // Another day, or another zone's date, is not compared.
+    expect(hasPassedBlock(CURRENT, early, '2026-11-11', NOW_MS, zone)).toBe(false);
+  });
+});
+
 function open(extra: Parameters<typeof planRoutes>[0] = {}) {
   const api = installApi(
     planRoutes({
@@ -127,7 +148,7 @@ describe('Work ahead on Today', () => {
     await waitFor(() => expect(api.count(`PUT ${BASE}/day-overrides/${TODAY}`)).toBe(1));
     expect(saved).toEqual([{ isStudyDay: true, capacityHours: 9 }]);
     expect(
-      await screen.findByText(/Today now has 9 h of study\. Tomorrow’s first task/),
+      await screen.findByText(/Today now has 8 h of study\. Tomorrow’s first task/),
     ).toBeInTheDocument();
   });
 
@@ -228,6 +249,18 @@ describe('Work ahead on Today', () => {
       await screen.findByText(/Today has its own setting: study day, 9 h/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back to normal' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent(/study day of 9 h/);
+    expect(dialog).toHaveTextContent(/may have been set in Settings/);
+    expect(api.count(`DELETE ${BASE}/day-overrides/${TODAY}`)).toBe(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Keep it' }));
+    expect(api.count(`DELETE ${BASE}/day-overrides/${TODAY}`)).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Back to normal' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Remove the exception',
+      }),
+    );
     await waitFor(() => expect(api.count(`DELETE ${BASE}/day-overrides/${TODAY}`)).toBe(1));
     expect(
       await screen.findByText(/Back to normal: today follows your usual hours/),
@@ -268,6 +301,73 @@ describe('Work ahead on Today', () => {
     expect(
       await screen.findByText('A plan can have at most 1000 day overrides.'),
     ).toBeInTheDocument();
+  });
+
+  it('names a day off in the Back to normal confirmation', async () => {
+    open(dayOff);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Back to normal' }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/a day off/);
+  });
+
+  it('reports the hours that really result, not the hours asked for', async () => {
+    open({
+      [`POST ${BASE}/schedule/preview`]: () =>
+        json({
+          ...previewResult('1 task moved.'),
+          proposed: {
+            finishDate: '2026-11-20',
+            warnings: [],
+            blocks: [...CURRENT, study('setup', TODAY, '12:00', '12:30', 30)],
+          },
+        }),
+    });
+    const user = userEvent.setup();
+    await user.click(await workAheadButton());
+    await user.click(screen.getByRole('button', { name: 'Add 2 hours' }));
+    await user.click(await screen.findByRole('button', { name: 'Add 2 h to today' }));
+    expect(await screen.findByText(/Today now has 7\.5 h of study/)).toBeInTheDocument();
+  });
+
+  it('says part of the time has passed and offers no approval when new time starts before now', async () => {
+    const api = open({
+      [`POST ${BASE}/schedule/preview`]: () =>
+        json({
+          ...previewResult('1 task moved.'),
+          proposed: {
+            finishDate: '2026-11-20',
+            warnings: [],
+            blocks: [...CURRENT, study('setup', TODAY, '09:00', '10:00', 60)],
+          },
+        }),
+    });
+    const user = userEvent.setup();
+    await user.click(await workAheadButton());
+    await user.click(screen.getByRole('button', { name: 'Add 1 hour' }));
+    expect(await screen.findByText(/Part of this time has already passed/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add 1 h to today' })).toBeDisabled();
+    expect(api.count(`PUT ${BASE}/day-overrides/${TODAY}`)).toBe(0);
+  });
+
+  it('keeps one live region at a time, never nested', async () => {
+    open();
+    const user = userEvent.setup();
+    await user.click(await workAheadButton());
+    const section = () =>
+      screen.getByRole('heading', { name: 'Work ahead', level: 2 }).closest('section')!;
+    const live = () => Array.from(section().querySelectorAll('[aria-live], [role="status"]'));
+    const check = () => {
+      expect(live().length).toBeLessThanOrEqual(1);
+      for (const el of live()) expect(el.querySelector('[aria-live], [role="status"]')).toBeNull();
+    };
+    check();
+    await user.click(screen.getByRole('button', { name: 'Add 2 hours' }));
+    await screen.findByText('What this would change');
+    check();
+    expect(screen.getByText(/Preview ready/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add 2 h to today' }));
+    await screen.findByText(/Today now has/);
+    check();
+    expect(live()).toHaveLength(1);
   });
 
   it('has no accessibility violations with the preview open', async () => {

@@ -176,11 +176,11 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
         tags: ['plans'],
         summary: 'Change the plan’s start date (moves the whole schedule)',
         description:
-          'Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone or after the end date. Only the date is stored: how a start date is read by the scheduler does not change.',
+          'Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone, after the end date, or after the earliest open exam; 409 `day_started` when a day on or before it was already started, ended or frozen. Only the date is stored: how a start date is read by the scheduler does not change.',
         security: [{ bearerAuth: [] }],
         params: planIdParams,
         body: startDateBody,
-        response: { 200: startDateResult, ...errors },
+        response: { 200: startDateResult, 409: errorResponseSchema, ...errors },
       },
     },
     async (request) =>
