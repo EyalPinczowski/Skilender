@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import type { Task } from '../api/client';
 import { useDeletePlan, useTasks } from '../api/hooks';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DeleteTask } from '../components/DeleteTask';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
 import { Button, ErrorText, linkClass } from '../components/ui';
@@ -14,7 +15,17 @@ import { ImportPlan } from '../plan/ImportPlan';
 import { useActivePlan } from '../plan/context';
 import { PlanGate, PlanSwitcher } from '../plan/PlanGate';
 
-function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => string }) {
+function TaskRow({
+  planId,
+  task,
+  titleOf,
+  onDeleted,
+}: {
+  planId: string;
+  task: Task;
+  titleOf: (id: string) => string;
+  onDeleted: () => void;
+}) {
   const deps = dependencyText(task, titleOf);
   const anchor = anchorText(task);
   return (
@@ -38,6 +49,7 @@ function TaskRow({ task, titleOf }: { task: Task; titleOf: (id: string) => strin
       </h3>
       {anchor ? <p className="font-bold">{anchor}</p> : null}
       {deps ? <p className="text-muted">{deps}</p> : null}
+      <DeleteTask planId={planId} task={task} onDeleted={onDeleted} />
     </li>
   );
 }
@@ -47,11 +59,22 @@ export function PlanPage() {
   // Confirming a delete resets the notice and the hook callback sets it after the delete, so each
   // delete announces and focuses again.
   const [deleted, setDeleted] = useState(false);
+  // How many tasks were deleted: the task page sends the person here with `taskDeleted` in the
+  // router state. Counted, so a second delete focuses the heading again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const arrivedAfterDelete = (location.state as { taskDeleted?: boolean } | null)?.taskDeleted;
+  const [tasksDeleted, setTasksDeleted] = useState(arrivedAfterDelete ? 1 : 0);
   const heading = useRef<HTMLHeadingElement>(null);
-  // The deleted plan's button is gone: focus moves to the page heading, which stays.
+  // The deleted plan's or task's button is gone: focus moves to the page heading, which stays.
   useEffect(() => {
-    if (deleted) heading.current?.focus();
-  }, [deleted]);
+    // After the shell's own focus move to the page content on a route change (same commit).
+    if (deleted || tasksDeleted > 0) queueMicrotask(() => heading.current?.focus());
+  }, [deleted, tasksDeleted]);
+  // The notice is shown once: a reload must not bring it back.
+  useEffect(() => {
+    if (arrivedAfterDelete) void navigate(location.pathname, { replace: true, state: null });
+  }, [arrivedAfterDelete, location.pathname, navigate]);
   // The mutation lives here, not in the part that disappears with the deleted plan.
   const remove = useDeletePlan(() => setDeleted(true));
   // An old delete error must not come back when the person returns to that plan.
@@ -67,7 +90,7 @@ export function PlanPage() {
         Plan
       </h1>
       <div role="status" className="font-bold text-ok empty:hidden">
-        {deleted ? 'Plan deleted.' : null}
+        {deleted ? 'Plan deleted.' : tasksDeleted > 0 ? 'Task deleted.' : null}
       </div>
       <PlanSwitcher />
       <PlanGate
@@ -83,7 +106,14 @@ export function PlanPage() {
       >
         {(plan) => (
           <>
-            <TaskList planId={plan.id} name={plan.name} />
+            <TaskList
+              planId={plan.id}
+              name={plan.name}
+              onTaskDeleted={() => {
+                setDeleted(false);
+                setTasksDeleted((n) => n + 1);
+              }}
+            />
             <ManagePlans
               key={plan.id}
               planId={plan.id}
@@ -98,7 +128,15 @@ export function PlanPage() {
   );
 }
 
-function TaskList({ planId, name }: { planId: string; name: string }) {
+function TaskList({
+  planId,
+  name,
+  onTaskDeleted,
+}: {
+  planId: string;
+  name: string;
+  onTaskDeleted: () => void;
+}) {
   const tasks = useTasks(planId);
   return (
     <QueryView query={tasks} label="Loading your tasks…">
@@ -110,7 +148,13 @@ function TaskList({ planId, name }: { planId: string; name: string }) {
             <p className="text-muted">{list.length} tasks</p>
             <ul className="space-y-3">
               {list.map((task) => (
-                <TaskRow key={task.id} task={task} titleOf={titleOf} />
+                <TaskRow
+                  key={task.id}
+                  planId={planId}
+                  task={task}
+                  titleOf={titleOf}
+                  onDeleted={onTaskDeleted}
+                />
               ))}
             </ul>
           </section>

@@ -249,6 +249,28 @@ export function usePatchTask(planId: string) {
   });
 }
 
+/**
+ * Deletes a task (an explicit user action). `onDeleted` is a hook-level callback so it still runs
+ * when the component that started the delete is already gone (its task row disappears).
+ */
+export function useDeleteTask(planId: string, onDeleted?: (taskId: string) => void) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidatePlanData();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: ({ taskId, removeDependencies }: { taskId: string; removeDependencies: boolean }) =>
+      api.deleteTask(planId, taskId, removeDependencies).then(() => taskId),
+    onSuccess: async (taskId) => {
+      onDeleted?.(taskId);
+      queryClient.setQueryData<{ tasks: { id: string }[] }>(tasksKey(planId), (old) =>
+        old ? { ...old, tasks: old.tasks.filter((t) => t.id !== taskId) } : old,
+      );
+      await invalidate(planId);
+    },
+  });
+}
+
 /** Computes what a time-settings change would do. Saves nothing. */
 export function usePreviewSchedule(planId: string) {
   const api = useApi();

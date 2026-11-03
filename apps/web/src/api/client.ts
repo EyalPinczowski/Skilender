@@ -134,6 +134,15 @@ export function createApiClient({
           body,
         }),
       ),
+    deleteTask: (planId: string, taskId: string, removeDependencies: boolean) =>
+      unwrap(
+        raw.DELETE('/api/v1/plans/{planId}/tasks/{taskId}', {
+          params: {
+            path: { planId, taskId },
+            ...(removeDependencies ? { query: { removeDependencies: 'true' as const } } : {}),
+          },
+        }),
+      ),
     addLog: (planId: string, taskId: string, body: LogRequest) =>
       unwrap(
         raw.POST('/api/v1/plans/{planId}/tasks/{taskId}/logs', {

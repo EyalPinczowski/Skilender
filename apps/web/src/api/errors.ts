@@ -8,6 +8,7 @@ const errorBodySchema = z.object({
     requestId: z.string().optional(),
     sessionId: z.string().optional(),
     fallbacks: z.array(z.string()).optional(),
+    dependents: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
   }),
 });
 
@@ -26,6 +27,8 @@ export class ApiError extends Error {
     public readonly sessionId?: string,
     /** What still works when the AI cannot answer (429 `ai_user_cap`, 503 `ai_unavailable`). */
     public readonly fallbacks?: readonly string[],
+    /** The tasks that depend on the one being deleted, on 409 `has_dependents`. */
+    public readonly dependents?: readonly { id: string; title: string }[],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -34,8 +37,17 @@ export class ApiError extends Error {
   static fromBody(status: number, body: unknown): ApiError {
     const parsed = errorBodySchema.safeParse(body);
     if (parsed.success) {
-      const { code, message, requestId, sessionId, fallbacks } = parsed.data.error;
-      return new ApiError('http', status, code, message, requestId, sessionId, fallbacks);
+      const { code, message, requestId, sessionId, fallbacks, dependents } = parsed.data.error;
+      return new ApiError(
+        'http',
+        status,
+        code,
+        message,
+        requestId,
+        sessionId,
+        fallbacks,
+        dependents,
+      );
     }
     return new ApiError('http', status, 'unknown', `The server answered with status ${status}.`);
   }
