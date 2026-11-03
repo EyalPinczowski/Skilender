@@ -1122,6 +1122,31 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     });
   });
 
+  describe('changing the start date', () => {
+    it('syncs in the background: no event is left before the new start', async () => {
+      await sync();
+      const before = google
+        .live(APP_CAL)
+        .filter((e) => startOf(e) < Date.parse(L('2026-11-04', '00:00')));
+      expect(before.length).toBeGreaterThan(0);
+      clock = minutesLater(clock, 6);
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/plans/${PLAN_A}/start-date`,
+        headers: await asUser(A),
+        payload: { startDate: '2026-11-04' },
+      });
+      expect(res.statusCode).toBe(200);
+      await waitFor(async () => {
+        const early = google
+          .live(APP_CAL)
+          .filter((e) => startOf(e) < Date.parse(L('2026-11-04', '00:00')));
+        expect(early).toEqual([]);
+      });
+      expect(google.live(APP_CAL).length).toBeGreaterThan(0);
+    });
+  });
+
   describe('review fixes', () => {
     it('keeps the event of a block the user moved beyond the 14-day window', async () => {
       await sync();

@@ -17,6 +17,12 @@ export const MAX_OVERRIDES_PER_PLAN = 1000;
 export const planIdParams = z.object({ id: z.uuid() });
 export const dayOverrideParams = z.object({ id: z.uuid(), date: LocalDateSchema });
 
+export const startDateBody = z.object({ startDate: LocalDateSchema }).strict();
+export const startDateResult = z.object({
+  startDate: LocalDateSchema,
+  endDate: LocalDateSchema.nullable(),
+});
+
 export const planStatusSchema = z.enum(['draft', 'active', 'archived', 'done']);
 
 /**

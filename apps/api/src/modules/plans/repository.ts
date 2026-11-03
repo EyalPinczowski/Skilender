@@ -208,6 +208,39 @@ export async function deletePlan(
   return rowCount === 1;
 }
 
+/** The plan's own dates and the time zone of its week pattern (null before it has one). */
+export async function planDates(
+  ctx: UserContext,
+  userId: string,
+  planId: string,
+): Promise<{ startDate: string; endDate: string | null; timezone: string | null } | null> {
+  const { rows } = await ctx.client.query<{
+    start_date: string;
+    end_date: string | null;
+    timezone: string | null;
+  }>(
+    `select p.start_date::text, p.end_date::text, w.timezone
+     from ${ctx.schema}.plans p
+     left join ${ctx.schema}.week_patterns w on w.user_id = p.user_id and w.plan_id = p.id
+     where p.user_id = $1 and p.id = $2`,
+    [userId, planId],
+  );
+  const r = rows[0];
+  return r ? { startDate: r.start_date, endDate: r.end_date, timezone: r.timezone } : null;
+}
+
+export async function updateStartDate(
+  ctx: UserContext,
+  userId: string,
+  planId: string,
+  startDate: string,
+): Promise<void> {
+  await ctx.client.query(
+    `update ${ctx.schema}.plans set start_date = $3, updated_at = now() where user_id = $1 and id = $2`,
+    [userId, planId, startDate],
+  );
+}
+
 export async function touchPlan(ctx: UserContext, userId: string, planId: string): Promise<void> {
   await ctx.client.query(
     `update ${ctx.schema}.plans set updated_at = now() where user_id = $1 and id = $2`,
