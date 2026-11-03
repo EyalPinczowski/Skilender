@@ -134,8 +134,12 @@ export function WorkAhead({
   return (
     <section aria-labelledby="work-ahead-heading" className="space-y-3">
       <h2 id="work-ahead-heading">Work ahead</h2>
-      <div ref={messageRef} tabIndex={-1} role="status" aria-live="polite">
-        {message ? <p className="font-bold text-ok">{message}</p> : null}
+      <div ref={messageRef} tabIndex={-1} aria-live="polite">
+        {message ? (
+          <p role="status" className="font-bold text-ok">
+            {message}
+          </p>
+        ) : null}
       </div>
       {cap.override ? (
         <p className="text-muted">

@@ -88,7 +88,7 @@ describe('plan start date', () => {
     const form = await startDateForm();
     fireDate(form.getByLabelText('Plan start date'), '2026-11-10');
     await userEvent.setup().click(form.getByRole('button', { name: 'Save start date' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('cannot be before today');
+    expect(await form.findByRole('alert')).toHaveTextContent('cannot be before today');
   });
 
   it('has no accessibility violations', async () => {

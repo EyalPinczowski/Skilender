@@ -1122,6 +1122,26 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     });
   });
 
+  describe('deleting a task', () => {
+    it('removes the events of the deleted task after the response, and keeps the others', async () => {
+      await sync();
+      expect((await links()).some((x) => x.task_id === 'big')).toBe(true);
+      expect(google.live(APP_CAL).some((e) => tagsOf(e).task_id === 'big')).toBe(true);
+      clock = minutesLater(clock, 6);
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/plans/${PLAN_A}/tasks/big`,
+        headers: await asUser(A),
+      });
+      expect(res.statusCode).toBe(204);
+      await waitFor(async () => {
+        expect(google.live(APP_CAL).some((e) => tagsOf(e).task_id === 'big')).toBe(false);
+      });
+      expect((await links()).filter((x) => x.task_id === 'big')).toEqual([]);
+      expect(google.live(APP_CAL).some((e) => tagsOf(e).task_id === 'lk')).toBe(true);
+    });
+  });
+
   describe('changing the start date', () => {
     it('syncs in the background: no event is left before the new start', async () => {
       await sync();
