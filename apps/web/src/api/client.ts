@@ -114,6 +114,10 @@ export function createApiClient({
       unwrap(raw.POST('/api/v1/plans/{id}/schedule/preview', { params: { path: { id } }, body })),
     putWeekPattern: (id: string, body: WeekPattern) =>
       unwrap(raw.PUT('/api/v1/plans/{id}/week-pattern', { params: { path: { id } }, body })),
+    putStartDate: (id: string, startDate: string) =>
+      unwrap(
+        raw.PUT('/api/v1/plans/{id}/start-date', { params: { path: { id } }, body: { startDate } }),
+      ),
     putDayOverride: (id: string, date: string, body: Omit<DayOverride, 'date'>) =>
       unwrap(
         raw.PUT('/api/v1/plans/{id}/day-overrides/{date}', {

@@ -304,6 +304,17 @@ export function useSaveTimeSettings(planId: string) {
   });
 }
 
+/** Moves the plan's start date (an explicit user action); the schedule then starts from it. */
+export function useSaveStartDate(planId: string) {
+  const api = useApi();
+  const invalidate = useInvalidatePlanData();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: (startDate: string) => api.putStartDate(planId, startDate),
+    onSuccess: () => invalidate(planId),
+  });
+}
+
 /**
  * Starts a study day. The API call is idempotent (a repeat answers 200 with the same state), so a
  * retry after a lost answer is safe. The returned state replaces the cached day.

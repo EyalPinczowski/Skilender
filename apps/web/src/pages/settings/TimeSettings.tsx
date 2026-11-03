@@ -8,6 +8,7 @@ import { Button, ErrorText, TextField } from '../../components/ui';
 import { formatDate, formatHours } from '../../lib/format';
 import { describeError } from '../../lib/messages';
 import { PlanGate, PlanSwitcher } from '../../plan/PlanGate';
+import { StartDate } from './StartDate';
 import {
   diffTimeSettings,
   draftFromPattern,
@@ -415,6 +416,7 @@ function Editor({ planId }: { planId: string }) {
               setVersion((v) => v + 1);
             }}
           />
+          <StartDate plan={data} />
         </div>
       )}
     </QueryView>
