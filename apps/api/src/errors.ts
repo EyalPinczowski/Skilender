@@ -15,6 +15,8 @@ export const errorResponseSchema = z.object({
     fallbacks: z.array(z.string()).optional(),
     /** The running practice session, on 409 `practice_session_active`. */
     sessionId: z.string().optional(),
+    /** The tasks that depend on the one being deleted, on 409 `has_dependents`. */
+    dependents: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
   }),
 });
 

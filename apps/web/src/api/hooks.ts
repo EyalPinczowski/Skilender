@@ -249,6 +249,28 @@ export function usePatchTask(planId: string) {
   });
 }
 
+/**
+ * Deletes a task (an explicit user action). `onDeleted` is a hook-level callback so it still runs
+ * when the component that started the delete is already gone (its task row disappears).
+ */
+export function useDeleteTask(planId: string, onDeleted?: (taskId: string) => void) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidatePlanData();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: ({ taskId, removeDependencies }: { taskId: string; removeDependencies: boolean }) =>
+      api.deleteTask(planId, taskId, removeDependencies).then(() => taskId),
+    onSuccess: async (taskId) => {
+      onDeleted?.(taskId);
+      queryClient.setQueryData<{ tasks: { id: string }[] }>(tasksKey(planId), (old) =>
+        old ? { ...old, tasks: old.tasks.filter((t) => t.id !== taskId) } : old,
+      );
+      await invalidate(planId);
+    },
+  });
+}
+
 /** Computes what a time-settings change would do. Saves nothing. */
 export function usePreviewSchedule(planId: string) {
   const api = useApi();
@@ -279,6 +301,17 @@ export function useSaveTimeSettings(planId: string) {
     },
     // Even a half-finished save changes the plan, so refresh on failure too.
     onSettled: () => invalidate(planId),
+  });
+}
+
+/** Moves the plan's start date (an explicit user action); the schedule then starts from it. */
+export function useSaveStartDate(planId: string) {
+  const api = useApi();
+  const invalidate = useInvalidatePlanData();
+  return useMutation({
+    ...mutationDefaults,
+    mutationFn: (startDate: string) => api.putStartDate(planId, startDate),
+    onSuccess: () => invalidate(planId),
   });
 }
 

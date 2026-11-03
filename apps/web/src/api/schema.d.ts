@@ -182,6 +182,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -199,6 +203,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -216,6 +224,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -265,6 +277,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -282,6 +298,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -299,6 +319,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -316,6 +340,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -333,6 +361,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -401,6 +433,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -418,6 +454,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -435,6 +475,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -514,6 +558,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -531,6 +579,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -548,6 +600,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -565,6 +621,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -690,6 +750,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -707,6 +771,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -724,6 +792,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -788,6 +860,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -805,6 +881,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -822,6 +902,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -839,6 +923,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -856,6 +944,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -873,6 +965,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -916,6 +1012,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -933,6 +1033,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -950,6 +1054,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -967,6 +1075,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -984,6 +1096,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1001,6 +1117,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1059,6 +1179,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1076,6 +1200,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1093,6 +1221,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1110,6 +1242,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1127,6 +1263,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1144,6 +1284,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1218,6 +1362,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1235,6 +1383,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1252,6 +1404,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1269,6 +1425,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1286,6 +1446,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1303,6 +1467,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1375,6 +1543,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1392,6 +1564,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1409,6 +1585,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1426,6 +1606,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1443,6 +1627,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1460,6 +1648,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1477,6 +1669,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1548,6 +1744,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1565,6 +1765,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1582,6 +1786,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1599,6 +1807,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1616,6 +1828,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1633,6 +1849,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1650,6 +1870,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1916,6 +2140,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1933,6 +2161,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1950,6 +2182,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1967,6 +2203,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -1984,6 +2224,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2001,6 +2245,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2018,6 +2266,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2035,6 +2287,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2104,6 +2360,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2121,6 +2381,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2138,6 +2402,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2155,6 +2423,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2172,6 +2444,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2189,6 +2465,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2339,6 +2619,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2356,6 +2640,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2373,6 +2661,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2390,6 +2682,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2407,6 +2703,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2424,6 +2724,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2466,6 +2770,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2483,6 +2791,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2500,6 +2812,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2517,6 +2833,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2534,6 +2854,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2551,6 +2875,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2647,6 +2975,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2664,6 +2996,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2681,6 +3017,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2698,6 +3038,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2715,6 +3059,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2732,6 +3080,207 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{id}/start-date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the plan’s start date (moves the whole schedule)
+         * @description Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone, after the end date, or after the earliest open exam; 409 `day_started` when a day on or before it was already started, ended or frozen. Only the date is stored: how a start date is read by the scheduler does not change.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        startDate: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            startDate: string;
+                            endDate: string | null;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2799,6 +3348,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2816,6 +3369,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2833,6 +3390,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2850,6 +3411,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2867,6 +3432,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2884,6 +3453,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2926,6 +3499,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2943,6 +3520,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2960,6 +3541,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2977,6 +3562,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -2994,6 +3583,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3011,6 +3604,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3086,6 +3683,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3103,6 +3704,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3120,6 +3725,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3137,6 +3746,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3154,6 +3767,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3171,6 +3788,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3298,6 +3919,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3315,6 +3940,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3332,6 +3961,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3349,6 +3982,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3366,6 +4003,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3383,6 +4024,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3457,6 +4102,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3474,6 +4123,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3491,6 +4144,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3508,6 +4165,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3525,6 +4186,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3542,6 +4207,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3648,6 +4317,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3665,6 +4338,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3682,6 +4359,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3699,6 +4380,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3716,6 +4401,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3733,6 +4422,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3843,6 +4536,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3860,6 +4557,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3877,6 +4578,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3894,6 +4599,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3911,6 +4620,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -3928,6 +4641,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4007,6 +4724,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4024,6 +4745,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4041,6 +4766,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4058,6 +4787,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4075,6 +4808,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4092,6 +4829,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4169,6 +4910,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4186,6 +4931,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4203,6 +4952,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4220,6 +4973,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4237,6 +4994,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4254,6 +5015,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4330,6 +5095,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4347,6 +5116,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4364,6 +5137,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4381,6 +5158,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4398,6 +5179,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4415,6 +5200,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4432,6 +5221,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4710,6 +5503,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4727,6 +5524,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4744,6 +5545,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4761,6 +5566,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4778,6 +5587,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4795,6 +5608,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4812,6 +5629,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4879,6 +5700,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4896,6 +5721,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4913,6 +5742,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4930,6 +5763,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4947,6 +5784,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4964,6 +5805,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -4981,6 +5826,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5117,6 +5966,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5134,6 +5987,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5151,6 +6008,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5168,6 +6029,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5185,6 +6050,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5202,6 +6071,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5219,6 +6092,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5328,6 +6205,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5345,6 +6226,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5362,6 +6247,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5379,6 +6268,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5396,6 +6289,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5413,6 +6310,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5430,6 +6331,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5547,6 +6452,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5564,6 +6473,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5581,6 +6494,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5598,6 +6515,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5615,6 +6536,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5632,6 +6557,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5649,6 +6578,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5763,6 +6696,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5780,6 +6717,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5797,6 +6738,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5814,6 +6759,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5831,6 +6780,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5848,6 +6801,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5865,6 +6822,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5925,6 +6886,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5942,6 +6907,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5959,6 +6928,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5976,6 +6949,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -5993,6 +6970,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6010,6 +6991,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6027,6 +7012,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6044,6 +7033,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6098,6 +7091,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6115,6 +7112,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6132,6 +7133,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6149,6 +7154,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6166,6 +7175,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6183,6 +7196,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6200,6 +7217,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6217,6 +7238,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6290,6 +7315,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6307,6 +7336,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6324,6 +7357,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6341,6 +7378,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6358,6 +7399,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6375,6 +7420,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6392,6 +7441,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6409,6 +7462,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6568,6 +7625,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6585,6 +7646,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6602,6 +7667,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6619,6 +7688,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6636,6 +7709,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6653,6 +7730,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6670,6 +7751,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6687,6 +7772,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6792,6 +7881,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6809,6 +7902,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6826,6 +7923,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6843,6 +7944,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6860,6 +7965,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6877,6 +7986,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6894,6 +8007,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -6911,6 +8028,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7057,6 +8178,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7074,6 +8199,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7091,6 +8220,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7108,6 +8241,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7125,6 +8262,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7142,6 +8283,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7159,6 +8304,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7176,6 +8325,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7346,6 +8499,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7363,6 +8520,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7380,6 +8541,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7397,6 +8562,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7414,6 +8583,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7431,6 +8604,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7448,6 +8625,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7465,6 +8646,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7640,6 +8825,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7657,6 +8846,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7674,6 +8867,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7691,6 +8888,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7708,6 +8909,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7725,6 +8930,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7742,6 +8951,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7759,6 +8972,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7845,6 +9062,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7862,6 +9083,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7879,6 +9104,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7896,6 +9125,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7913,6 +9146,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7930,6 +9167,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7947,6 +9188,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -7964,6 +9209,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8040,6 +9289,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8057,6 +9310,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8074,6 +9331,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8091,6 +9352,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8108,6 +9373,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8125,6 +9394,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8142,6 +9415,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8159,6 +9436,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8233,6 +9514,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8250,6 +9535,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8267,6 +9556,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8284,6 +9577,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8301,6 +9598,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8318,6 +9619,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8335,6 +9640,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8352,6 +9661,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8459,6 +9772,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8476,6 +9793,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8493,6 +9814,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8510,6 +9835,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8527,6 +9856,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8633,6 +9966,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8650,6 +9987,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8667,6 +10008,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8684,6 +10029,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8701,6 +10050,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8709,7 +10062,161 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a task (the user’s explicit action)
+         * @description Answers 409 `has_dependents` (with the dependents’ ids and titles) when other tasks depend on it, unless `removeDependencies=true`, which removes the id from their dependsOn in the same transaction. The task’s logs and practice sessions are deleted with it. The schedule is recomputed from the remaining tasks and the calendar sync runs afterwards.
+         */
+        delete: {
+            parameters: {
+                query?: {
+                    removeDependencies?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    planId: string;
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": null;
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                requestId: string;
+                                fallbacks?: string[];
+                                sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         /**
@@ -8828,6 +10335,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8845,6 +10356,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8862,6 +10377,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8879,6 +10398,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8896,6 +10419,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -8913,6 +10440,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9123,6 +10654,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9140,6 +10675,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9157,6 +10696,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9174,6 +10717,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9191,6 +10738,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9208,6 +10759,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9317,6 +10872,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9334,6 +10893,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9351,6 +10914,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9368,6 +10935,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9385,6 +10956,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9402,6 +10977,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9511,6 +11090,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9528,6 +11111,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9545,6 +11132,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9562,6 +11153,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9579,6 +11174,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9596,6 +11195,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9705,6 +11308,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9722,6 +11329,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9739,6 +11350,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9756,6 +11371,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9773,6 +11392,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9790,6 +11413,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9871,6 +11498,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9888,6 +11519,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9905,6 +11540,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9922,6 +11561,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -9939,6 +11582,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10012,6 +11659,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10029,6 +11680,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10046,6 +11701,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10063,6 +11722,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10080,6 +11743,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10164,6 +11831,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10181,6 +11852,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10198,6 +11873,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };
@@ -10215,6 +11894,10 @@ export interface paths {
                                 requestId: string;
                                 fallbacks?: string[];
                                 sessionId?: string;
+                                dependents?: {
+                                    id: string;
+                                    title: string;
+                                }[];
                             };
                         };
                     };

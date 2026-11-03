@@ -42,7 +42,11 @@ function ReviewContent({ planId, date }: { planId: string; date: string }) {
                 type: t.type,
               }));
               const taskType = new Map((tasks.data?.tasks ?? []).map((t) => [t.id, t.type]));
+              // A task that was deleted since must not be sent again: the API refuses outcomes for
+              // tasks that are not in the plan.
+              const existing = tasks.data ? new Set(tasks.data.tasks.map((t) => t.id)) : null;
               for (const o of stored?.outcomes ?? []) {
+                if (existing && !existing.has(o.taskId)) continue;
                 if (!rows.some((r) => r.id === o.taskId)) {
                   rows.push({
                     id: o.taskId,

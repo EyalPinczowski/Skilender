@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import type { Task, TaskPatch } from '../api/client';
 import { usePatchTask, useSchedule, useTaskAction, useTasks } from '../api/hooks';
+import { DeleteTask } from '../components/DeleteTask';
 import { QueryView } from '../components/QueryView';
 import { TaskStatusLabel, TaskTypeChip } from '../components/TaskChips';
 import { Button, ErrorText, linkClass, TextAreaField, TextField } from '../components/ui';
@@ -165,6 +166,15 @@ function Detail({
   task: Task;
   titleOf: (id: string) => string;
 }) {
+  const navigate = useNavigate();
+  // The delete can finish after the person has left this page: then they stay where they went.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const link = safeWebUrl(task.url);
   const deps = dependencyText(task, titleOf);
   const anchor = anchorText(task);
@@ -244,6 +254,18 @@ function Detail({
       ) : null}
 
       <EditForm planId={planId} task={task} />
+
+      <section aria-labelledby="delete-heading" className="space-y-2 border-t border-border pt-6">
+        <h2 id="delete-heading">Delete this task</h2>
+        <p className="text-muted">Removes it from the plan and recalculates the schedule.</p>
+        <DeleteTask
+          planId={planId}
+          task={task}
+          onDeleted={() => {
+            if (mounted.current) void navigate('/plan', { state: { taskDeleted: true } });
+          }}
+        />
+      </section>
     </div>
   );
 }

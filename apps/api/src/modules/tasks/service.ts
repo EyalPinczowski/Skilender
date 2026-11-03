@@ -401,6 +401,45 @@ export function createTaskService(db: Database, now: () => Date = () => new Date
       }),
 
     /**
+     * Deletes a task in one transaction (the user's explicit action). Tasks that depend on it
+     * block the delete (409 has_dependents, listing them) unless `removeDependencies` is set, which
+     * drops the id from their dependsOn first. Its logs and practice sessions go with it (foreign
+     * keys cascade), so progress totals only count tasks that still exist.
+     */
+    deleteTask: (userId: string, planId: string, taskId: string, removeDependencies: boolean) =>
+      run(userId, async (ctx) => {
+        await requirePlan(ctx, userId, planId, true);
+        await lockTask(ctx, userId, planId, taskId);
+        const { rows: dependents } = await ctx.client.query<{ id: string; title: string }>(
+          `select id, title from ${ctx.schema}.tasks
+           where user_id = $1 and plan_id = $2 and $3 = any(depends_on)
+           order by sort_order, id`,
+          [userId, planId, taskId],
+        );
+        if (dependents.length > 0) {
+          if (!removeDependencies) {
+            throw new HttpError(409, 'has_dependents', 'Other tasks depend on this task.', {
+              dependents,
+            });
+          }
+          await ctx.client.query(
+            `update ${ctx.schema}.tasks
+             set depends_on = array_remove(depends_on, $3), updated_at = now()
+             where user_id = $1 and plan_id = $2 and $3 = any(depends_on)`,
+            [userId, planId, taskId],
+          );
+        }
+        await ctx.client.query(
+          `delete from ${ctx.schema}.tasks where user_id = $1 and plan_id = $2 and id = $3`,
+          [userId, planId, taskId],
+        );
+        await writeEvent(ctx, userId, planId, 'task.deleted', {
+          taskId,
+          removedDependencyFrom: dependents.map((d) => d.id),
+        });
+      }),
+
+    /**
      * Adds a log in one transaction: the log, done_hours raised by its hours, pending to
      * in_progress on the first log, and the events. Never closes the task by itself.
      */

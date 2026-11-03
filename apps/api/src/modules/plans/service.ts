@@ -1,4 +1,4 @@
-import type { DayOverride, WeekPattern } from '@upversion/shared';
+import { compareDates, localDateOf, type DayOverride, type WeekPattern } from '@upversion/shared';
 import type { Database } from '../../db/database';
 import { HttpError } from '../../errors';
 import { summarize, type ValidImport } from './import';
@@ -23,7 +23,7 @@ export interface ImportResult {
  * Plan operations. Every query runs inside db.withUser, so row-level security applies, and a
  * plan that is not the caller's looks exactly like one that does not exist.
  */
-export function createPlanService(db: Database) {
+export function createPlanService(db: Database, now: () => Date = () => new Date()) {
   async function importOnce(userId: string, planId: string, input: ValidImport) {
     return db.withUser(userId, async (ctx): Promise<ImportResult> => {
       const existing = await repo.planExists(ctx, userId, planId);
@@ -88,6 +88,59 @@ export function createPlanService(db: Database) {
         await repo.upsertWeekPattern(ctx, userId, planId, pattern);
         await repo.touchPlan(ctx, userId, planId);
         return (await repo.loadPlan(ctx, userId, planId))!.weekPattern!;
+      }),
+
+    /**
+     * Stores a new start date and nothing else; the schedule, which reads the plan on every
+     * request, then starts from that day (the start-date semantics are unchanged). The date must
+     * not be before today in the plan's time zone and not after the end date, if there is one.
+     */
+    putStartDate: (userId: string, planId: string, startDate: string) =>
+      db.withUser(userId, async (ctx) => {
+        // Serialises with task edits and other plan writes.
+        if (!(await repo.lockPlan(ctx, userId, planId))) throw notFound();
+        const dates = (await repo.planDates(ctx, userId, planId))!;
+        // Nothing to change: no bounds check, no event.
+        if (startDate === dates.startDate) return { startDate, endDate: dates.endDate };
+        const today = localDateOf(now(), dates.timezone ?? 'UTC');
+        if (compareDates(startDate, today) < 0) {
+          throw new HttpError(
+            422,
+            'unprocessable',
+            `The start date cannot be before today (${today}).`,
+          );
+        }
+        if (dates.endDate && compareDates(startDate, dates.endDate) > 0) {
+          throw new HttpError(
+            422,
+            'unprocessable',
+            `The start date cannot be after the end date (${dates.endDate}).`,
+          );
+        }
+        // A day that was started, ended or frozen cannot end up before the plan begins.
+        const firstDayState = await repo.earliestDayState(ctx, userId, planId);
+        if (firstDayState && compareDates(startDate, firstDayState) > 0) {
+          throw new HttpError(
+            409,
+            'day_started',
+            `The plan already has a day on ${firstDayState}, so it can't start later than that.`,
+          );
+        }
+        // An exam that would fall before the plan begins can never be scheduled.
+        const anchor = await repo.earliestOpenAnchor(ctx, userId, planId);
+        if (anchor && compareDates(startDate, anchor.date) > 0) {
+          throw new HttpError(
+            422,
+            'unprocessable',
+            `The start date can't be after “${anchor.title}”, which is fixed on ${anchor.date}.`,
+          );
+        }
+        await repo.updateStartDate(ctx, userId, planId, startDate);
+        await repo.insertEvent(ctx, userId, planId, 'plan.start_date_changed', {
+          from: dates.startDate,
+          to: startDate,
+        });
+        return { startDate, endDate: dates.endDate };
       }),
 
     putDayOverride: (userId: string, planId: string, override: DayOverride) =>

@@ -19,7 +19,7 @@ const LOG2 = 'c0000000-0000-4000-8000-000000000002';
 const LOG3 = 'c0000000-0000-4000-8000-000000000003';
 
 type Progress = z.infer<typeof progressView>;
-type Method = 'GET' | 'PATCH' | 'POST';
+type Method = 'GET' | 'PATCH' | 'POST' | 'DELETE';
 
 describe.skipIf(!dbAvailable)('tasks and logs (real Postgres, locally signed tokens)', () => {
   let testDb: TestDb;
@@ -143,6 +143,7 @@ describe.skipIf(!dbAvailable)('tasks and logs (real Postgres, locally signed tok
       ['GET', `/plans/${PLAN_A}/tasks`],
       ['GET', `/plans/${PLAN_A}/tasks/t1`],
       ['PATCH', `/plans/${PLAN_A}/tasks/t1`, { title: 'x' }],
+      ['DELETE', `/plans/${PLAN_A}/tasks/t1`],
       ['POST', `/plans/${PLAN_A}/tasks/t1/logs`, { id: LOG1, date: '2026-11-03', hours: 1 }],
       ['POST', `/plans/${PLAN_A}/tasks/t1/complete`],
       ['GET', `/plans/${PLAN_A}/progress`],
@@ -792,6 +793,101 @@ describe.skipIf(!dbAvailable)('tasks and logs (real Postgres, locally signed tok
     });
   });
 
+  describe('deleting a task', () => {
+    const dependsOnOf = async (id: string) =>
+      (
+        await rows<{ depends_on: string[] }>(
+          `select depends_on from rnd.tasks where user_id = $1 and plan_id = $2 and id = $3`,
+          [A, PLAN_A, id],
+        )
+      )[0]?.depends_on;
+    const taskIds = async () =>
+      (
+        await rows<{ id: string }>(
+          `select id from rnd.tasks where user_id = $1 and plan_id = $2 order by id`,
+          [A, PLAN_A],
+        )
+      ).map((r) => r.id);
+
+    it('deletes a task nobody depends on with 204 and writes a task.deleted event', async () => {
+      const res = await call('DELETE', T('t4'), await asA());
+      expect(res.statusCode).toBe(204);
+      expect(await taskIds()).toEqual(['t1', 't2', 't3']);
+      expect(await eventTypes()).toContain('task.deleted');
+      expect((await call('GET', T('t4'), await asA())).statusCode).toBe(404);
+    });
+
+    it('answers 409 has_dependents with the dependents and changes nothing', async () => {
+      const res = await call('DELETE', T('t1'), await asA());
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toMatchObject({
+        code: 'has_dependents',
+        dependents: [{ id: 't2', title: 'Task t2' }],
+      });
+      expect(await taskIds()).toEqual(['t1', 't2', 't3', 't4']);
+      expect(await dependsOnOf('t2')).toEqual(['t1']);
+      const explicitFalse = await call(
+        'DELETE',
+        `${T('t1')}?removeDependencies=false`,
+        await asA(),
+      );
+      expect(explicitFalse.statusCode).toBe(409);
+    });
+
+    it('with removeDependencies=true drops the id from the dependents and deletes the task', async () => {
+      const res = await call('DELETE', `${T('t1')}?removeDependencies=true`, await asA());
+      expect(res.statusCode).toBe(204);
+      expect(await taskIds()).toEqual(['t2', 't3', 't4']);
+      expect(await dependsOnOf('t2')).toEqual([]);
+    });
+
+    it('removes the task from the schedule, and its logs and hours from the totals', async () => {
+      const h = await asA();
+      await rows(
+        `insert into rnd.week_patterns (user_id, plan_id, study_weekdays, default_hours,
+           window_start, window_end, break_minutes, timezone)
+         values ($1, $2, '{0,1,2,3,4,5,6}', 8, '08:00', '18:00', 0, 'UTC')`,
+        [A, PLAN_A],
+      );
+      await call('POST', `${T('t4')}/logs`, h, logBody({ hours: 1 }));
+      const before = (await call('GET', `/plans/${PLAN_A}/progress`, h)).json() as Progress;
+      expect(before.hours.done).toBe(1);
+      expect(before.tasks.total).toBe(4);
+      const scheduled = async () =>
+        (
+          (await call('GET', `/plans/${PLAN_A}/schedule?today=2026-11-03`, h)).json() as {
+            blocks: { taskId: string }[];
+          }
+        ).blocks.map((b) => b.taskId);
+      expect(await scheduled()).toContain('t4');
+
+      expect((await call('DELETE', T('t4'), h)).statusCode).toBe(204);
+
+      const after = (await call('GET', `/plans/${PLAN_A}/progress`, h)).json() as Progress;
+      expect(after.hours).toEqual({ planned: before.hours.planned - 2, done: 0 });
+      expect(after.tasks.total).toBe(3);
+      expect(after.byDay).toEqual([]);
+      expect(
+        await rows(`select 1 from rnd.logs where task_id = 't4' and plan_id = $1`, [PLAN_A]),
+      ).toHaveLength(0);
+      expect(await scheduled()).not.toContain('t4');
+    });
+
+    it('answers 404 for another user, another plan and an unknown task, and deletes nothing', async () => {
+      expect((await call('DELETE', T('t1'), await asB())).statusCode).toBe(404);
+      expect((await call('DELETE', T('t1', PLAN_B), await asA())).statusCode).toBe(404);
+      expect((await call('DELETE', T('nope'), await asA())).statusCode).toBe(404);
+      expect(await taskIds()).toEqual(['t1', 't2', 't3', 't4']);
+    });
+
+    it('ignores a user_id in the query', async () => {
+      const res = await call('DELETE', `${T('t4')}?user_id=${B}`, await asA());
+      expect(res.statusCode).toBe(204);
+      expect(await taskIds()).toEqual(['t1', 't2', 't3']);
+      expect(await rows(`select 1 from rnd.tasks where user_id = $1`, [B])).toHaveLength(1);
+    });
+  });
+
   describe('OpenAPI', () => {
     it('documents every endpoint', async () => {
       const spec = (await app.inject({ method: 'GET', url: '/api/v1/openapi.json' })).json() as {
@@ -799,7 +895,11 @@ describe.skipIf(!dbAvailable)('tasks and logs (real Postgres, locally signed tok
       };
       const p = '/api/v1/plans/{planId}';
       expect(Object.keys(spec.paths[`${p}/tasks`]!)).toEqual(['get']);
-      expect(Object.keys(spec.paths[`${p}/tasks/{taskId}`]!).sort()).toEqual(['get', 'patch']);
+      expect(Object.keys(spec.paths[`${p}/tasks/{taskId}`]!).sort()).toEqual([
+        'delete',
+        'get',
+        'patch',
+      ]);
       for (const path of ['logs', 'progress', 'tasks/{taskId}/logs', 'tasks/{taskId}/complete']) {
         expect(spec.paths[`${p}/${path}`], path).toBeDefined();
       }

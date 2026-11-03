@@ -27,6 +27,8 @@ import {
   planDetailSchema,
   planIdParams,
   planListSchema,
+  startDateBody,
+  startDateResult,
 } from './schemas';
 import { createPlanService } from './service';
 
@@ -68,7 +70,7 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
   // The user id comes only from the verified token (set by the guard), never from the request.
   const userId = (request: FastifyRequest) => request.accountId!;
   // Without a database the guard already answered 503, so a handler never runs with `plans` null.
-  const plans = createPlanService(db!);
+  const plans = createPlanService(db!, now);
 
   app.post(
     '/plans/import',
@@ -165,6 +167,24 @@ export const planRoutes: FastifyPluginAsyncZod<PlanRoutesOptions> = async (
       },
     },
     async (request) => plans.putWeekPattern(userId(request), request.params.id, request.body),
+  );
+
+  app.put(
+    '/plans/:id/start-date',
+    {
+      schema: {
+        tags: ['plans'],
+        summary: 'Change the plan’s start date (moves the whole schedule)',
+        description:
+          'Stores the new start date; the schedule then starts from that day. 422 when the date is before today in the plan’s time zone, after the end date, or after the earliest open exam; 409 `day_started` when a day on or before it was already started, ended or frozen. Only the date is stored: how a start date is read by the scheduler does not change.',
+        security: [{ bearerAuth: [] }],
+        params: planIdParams,
+        body: startDateBody,
+        response: { 200: startDateResult, 409: errorResponseSchema, ...errors },
+      },
+    },
+    async (request) =>
+      plans.putStartDate(userId(request), request.params.id, request.body.startDate),
   );
 
   app.put(

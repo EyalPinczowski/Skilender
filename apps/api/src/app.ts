@@ -78,7 +78,7 @@ const HEALTH_URL = '/api/v1/health';
  * adjustments. Everything else (reads, practice, reviews' notes) leaves the calendar alone.
  */
 const RESCHEDULING_ROUTE =
-  /^\/api\/v1\/plans\/import$|^\/api\/v1\/plans\/:(?:id|planId)\/(?:week-pattern$|day-overrides\/|tasks\/|days\/:date\/end$|suggestions\/:id\/accept$|practice\/sessions\/:sessionId\/finish$)/;
+  /^\/api\/v1\/plans\/import$|^\/api\/v1\/plans\/:(?:id|planId)\/(?:week-pattern$|start-date$|day-overrides\/|tasks\/|days\/:date\/end$|suggestions\/:id\/accept$|practice\/sessions\/:sessionId\/finish$)/;
 
 /** A plugin that shares the root scope, so its hooks apply to every route (like fastify-plugin). */
 const sharedScope = (fn: (instance: FastifyInstance) => void) =>

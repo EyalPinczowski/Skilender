@@ -114,6 +114,10 @@ export function createApiClient({
       unwrap(raw.POST('/api/v1/plans/{id}/schedule/preview', { params: { path: { id } }, body })),
     putWeekPattern: (id: string, body: WeekPattern) =>
       unwrap(raw.PUT('/api/v1/plans/{id}/week-pattern', { params: { path: { id } }, body })),
+    putStartDate: (id: string, startDate: string) =>
+      unwrap(
+        raw.PUT('/api/v1/plans/{id}/start-date', { params: { path: { id } }, body: { startDate } }),
+      ),
     putDayOverride: (id: string, date: string, body: Omit<DayOverride, 'date'>) =>
       unwrap(
         raw.PUT('/api/v1/plans/{id}/day-overrides/{date}', {
@@ -132,6 +136,15 @@ export function createApiClient({
         raw.PATCH('/api/v1/plans/{planId}/tasks/{taskId}', {
           params: { path: { planId, taskId } },
           body,
+        }),
+      ),
+    deleteTask: (planId: string, taskId: string, removeDependencies: boolean) =>
+      unwrap(
+        raw.DELETE('/api/v1/plans/{planId}/tasks/{taskId}', {
+          params: {
+            path: { planId, taskId },
+            ...(removeDependencies ? { query: { removeDependencies: 'true' as const } } : {}),
+          },
         }),
       ),
     addLog: (planId: string, taskId: string, body: LogRequest) =>

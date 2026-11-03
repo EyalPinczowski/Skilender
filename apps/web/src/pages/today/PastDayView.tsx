@@ -17,7 +17,7 @@ function FrozenBlock({ block, task }: { block: Block; task: Task | undefined }) 
         {task ? <TaskTypeChip type={task.type} /> : null}
         {task ? <TaskStatusLabel status={task.status} /> : null}
       </div>
-      <h3 className="text-lg font-bold">{task?.title ?? block.taskId}</h3>
+      <h3 className="text-lg font-bold">{task?.title ?? 'Deleted task'}</h3>
       <p className="text-muted tabular-nums">
         <time>
           {block.start}–{block.end}

@@ -406,3 +406,175 @@ describe('Manage plans', () => {
     expect(bodies).toHaveLength(1);
   });
 });
+
+describe('Delete a task', () => {
+  /** A stateful stand-in for the API: a task with dependents answers 409 unless told to remove. */
+  function withDelete() {
+    let tasks = TASKS;
+    const seen: string[] = [];
+    const api = installApi(
+      planRoutes({
+        [`GET ${BASE}/tasks`]: () => json({ tasks }),
+        [`DELETE ${BASE}/tasks/setup`]: (request) => {
+          seen.push(new URL(request.url).search);
+          const remove = new URL(request.url).searchParams.get('removeDependencies') === 'true';
+          if (!remove) {
+            return json(
+              {
+                error: {
+                  code: 'has_dependents',
+                  message: 'Other tasks depend on this task.',
+                  requestId: 'req-1',
+                  dependents: [{ id: 'sql1', title: 'Intro to SQL' }],
+                },
+              },
+              409,
+            );
+          }
+          tasks = tasks.filter((t) => t.id !== 'setup');
+          return new Response(null, { status: 204 });
+        },
+        [`DELETE ${BASE}/tasks/exam`]: () => {
+          tasks = tasks.filter((t) => t.id !== 'exam');
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    return { api, seen };
+  }
+
+  it('deletes a task from the plan list only after confirmation, then announces it', async () => {
+    const { api } = withDelete();
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent(/cannot be undone/i);
+    expect(dialog).toHaveTextContent(/practice sessions/i);
+    expect(api.count(`DELETE ${BASE}/tasks/exam`)).toBe(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete task' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'SQL exam' })).toBeNull());
+    expect(screen.getByRole('status')).toHaveTextContent('Task deleted.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Plan' })).toHaveFocus();
+    expect(api.count(`DELETE ${BASE}/tasks/exam`)).toBe(1);
+  });
+
+  it('cancelling deletes nothing', async () => {
+    const { api } = withDelete();
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await user.click(screen.getByRole('button', { name: 'Keep this task' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}/tasks/exam`)).toBe(0);
+  });
+
+  it('lists the dependent tasks on 409 and deletes only after the second confirmation', async () => {
+    const { api, seen } = withDelete();
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: Set up accounts' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete task' }),
+    );
+    const dialog = await screen.findByText(/These tasks come after this one/);
+    const box = dialog.closest('[role="alertdialog"]') as HTMLElement;
+    expect(within(box).getByText('Intro to SQL')).toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}/tasks/setup`)).toBe(1);
+    expect(seen).toEqual(['']);
+    await user.click(within(box).getByRole('button', { name: 'Delete and remove the dependency' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Set up accounts' })).toBeNull());
+    expect(seen).toEqual(['', '?removeDependencies=true']);
+    expect(screen.getByRole('status')).toHaveTextContent('Task deleted.');
+  });
+
+  it('shows an error and keeps the task when the delete fails', async () => {
+    open('/plan', { [`DELETE ${BASE}/tasks/exam`]: () => apiError(500, 'internal_error', 'boom') });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete task' }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong on our side.');
+    expect(screen.getByRole('link', { name: 'SQL exam' })).toBeInTheDocument();
+  });
+
+  it('on the task page: deletes, returns to the plan and focuses the heading', async () => {
+    const { api } = withDelete();
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan/exam' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete task' }),
+    );
+    expect(await screen.findByRole('heading', { level: 1, name: 'Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Task deleted.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Plan' })).toHaveFocus();
+    expect(screen.queryByRole('link', { name: 'SQL exam' })).not.toBeInTheDocument();
+    expect(api.count(`DELETE ${BASE}/tasks/exam`)).toBe(1);
+  });
+
+  it('still announces and focuses the heading when the list refetch after the delete is slow', async () => {
+    let tasks = TASKS;
+    installApi(
+      planRoutes({
+        [`GET ${BASE}/tasks`]: async () => {
+          const snapshot = tasks;
+          if (snapshot.length < TASKS.length) await new Promise((r) => setTimeout(r, 50));
+          return json({ tasks: snapshot });
+        },
+        [`DELETE ${BASE}/tasks/exam`]: () => {
+          tasks = tasks.filter((t) => t.id !== 'exam');
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete task' }),
+    );
+    // The row is gone from the list while the refetch is still running.
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'SQL exam' })).toBeNull());
+    expect(await screen.findByText('Task deleted.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: 'Plan' })).toHaveFocus(),
+    );
+  });
+
+  it('does not pull the person back to the plan when they left the task page before the delete finished', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    installApi(
+      planRoutes({
+        [`DELETE ${BASE}/tasks/exam`]: async () => {
+          await gate;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    );
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan/exam' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete task' }),
+    );
+    await user.click(screen.getByRole('link', { name: /Settings/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+    release();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Plan' })).toBeNull();
+  });
+
+  it('has no accessibility violations with the dialog open', async () => {
+    withDelete();
+    renderApp({ auth: fakeAuth(SESSION), path: '/plan' });
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Delete task: SQL exam' }));
+    await screen.findByRole('alertdialog');
+    await expectNoAxeViolations();
+  });
+});
