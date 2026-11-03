@@ -59,6 +59,10 @@ class GoogleStub {
   tokensExpired = false;
   /** A delete removes the event entirely (404 afterwards) instead of cancelling it. */
   hardDelete = false;
+  /** The next N event deletes answer 412 (the event changed meanwhile). */
+  deletePrecondition = 0;
+  /** Every event delete answers this status. */
+  deleteFailsWith: number | null = null;
   pageSize = 3;
   /** Calendar ids whose requests answer 503 (the others work). */
   failCals = new Set<string>();
@@ -192,6 +196,11 @@ class GoogleStub {
           return send(res, 200, this.get(cal, id!));
         }
         if (req.method === 'DELETE') {
+          if (this.deleteFailsWith) return send(res, this.deleteFailsWith, {});
+          if (this.deletePrecondition > 0) {
+            this.deletePrecondition -= 1;
+            return send(res, 412, {});
+          }
           if (this.hardDelete) bucket.delete(id!);
           else this.put(cal, { ...found.raw, status: 'cancelled' });
           res.writeHead(204);
@@ -451,6 +460,8 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
     google.grantRevoked = false;
     google.tokensExpired = false;
     google.hardDelete = false;
+    google.deletePrecondition = 0;
+    google.deleteFailsWith = null;
     await testDb.admin(async (c) => {
       await c.query('delete from rnd.app_users');
       await c.query('delete from rnd.allowed_emails');
@@ -1002,6 +1013,70 @@ describe.skipIf(!dbAvailable)('calendar sync (real Postgres, stub Google)', () =
         await syncAgain();
         expect(google.writes()).toEqual([]);
         expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      it('keeps the link when the delete is refused as a concurrent change, and retries', async () => {
+        await sync();
+        await addNewerPlan();
+        google.deletePrecondition = 1;
+        await syncAgain();
+        const left = (await links()).filter((l) => l.plan_id === PLAN_A);
+        expect(left).toHaveLength(1);
+        expect(google.get(APP_CAL, left[0]!.event_id)!.status).toBe('confirmed');
+        await syncAgain();
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+        expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      const addOldLink = (eventId: string, lastEnd: string) =>
+        rows(
+          `insert into rnd.calendar_event_links (user_id, plan_id, block_key, task_id, event_id, last_start, last_end)
+           values ($1, $2, 'old:1', 'big', $3, $4::timestamptz - interval '1 hour', $4)`,
+          [A, PLAN_A, eventId, lastEnd],
+        );
+
+      it('never deletes an untagged event of the user, and forgets the link', async () => {
+        google.put(APP_CAL, timed('foreignevent1', MON, '09:00', '10:00', { summary: 'Mine' }));
+        await addOldLink('foreignevent1', '2026-11-30T10:00:00Z');
+        await addNewerPlan();
+        await sync();
+        expect(google.get(APP_CAL, 'foreignevent1')!.status).toBe('confirmed');
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
+      });
+
+      it('keeps past events of other plans', async () => {
+        google.put(
+          APP_CAL,
+          timed('pastevent01', SUN, '09:00', '10:00', {
+            extendedProperties: { private: { source: APP_EVENT_SOURCE, task_id: 'big' } },
+          }),
+        );
+        await addOldLink('pastevent01', '2026-10-31T10:00:00Z');
+        await addNewerPlan();
+        await sync();
+        expect(google.get(APP_CAL, 'pastevent01')!.status).toBe('confirmed');
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toHaveLength(1);
+      });
+
+      it('still writes the current plan when removing an old plan event keeps failing', async () => {
+        await sync();
+        await addNewerPlan();
+        google.deleteFailsWith = 503;
+        const res = await syncAgain();
+        expect(res.statusCode).toBe(503);
+        expect(taskIds().has('new1')).toBe(true);
+        google.deleteFailsWith = null;
+        await syncAgain();
+        expect(taskIds()).toEqual(new Set(['new1']));
+      });
+
+      it('removes the future events of archived plans when no plan is active any more', async () => {
+        await sync();
+        expect(taskIds().size).toBeGreaterThan(0);
+        await rows(`update rnd.plans set status = 'archived' where id = '${PLAN_A}'`);
+        await syncAgain();
+        expect(google.live(APP_CAL)).toEqual([]);
+        expect((await links()).filter((l) => l.plan_id === PLAN_A)).toEqual([]);
       });
 
       it('writes the older plan again once it is the newest active plan', async () => {

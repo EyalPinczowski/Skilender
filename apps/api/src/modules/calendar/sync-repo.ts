@@ -281,16 +281,16 @@ export const syncRepo = {
     );
   },
 
-  /** Links of every plan except `keepPlanId` (the events to take out of the calendar). */
+  /** Links of every plan except `keepPlanId` (null: all plans; the events to take out of the calendar). */
   async linksOfOtherPlans(
     ctx: UserContext,
     userId: string,
-    keepPlanId: string,
+    keepPlanId: string | null,
   ): Promise<(LinkRow & { plan_id: string })[]> {
     const { rows } = await ctx.client.query<LinkRow & { plan_id: string }>(
       `select plan_id, block_key, task_id, event_id, generation, last_start, last_end, etag,
               last_summary, last_color, last_detail_hash
-       from ${ctx.schema}.calendar_event_links where user_id = $1 and plan_id <> $2
+       from ${ctx.schema}.calendar_event_links where user_id = $1 and plan_id is distinct from $2::uuid
        order by plan_id, block_key`,
       [userId, keepPlanId],
     );
@@ -318,7 +318,7 @@ export const syncRepo = {
          task_id = excluded.task_id, event_id = excluded.event_id, generation = excluded.generation,
          last_start = excluded.last_start, last_end = excluded.last_end, etag = excluded.etag,
          last_summary = excluded.last_summary, last_color = excluded.last_color,
-         last_detail_hash = excluded.last_detail_hash,         updated_at = now()`,
+         last_detail_hash = excluded.last_detail_hash, updated_at = now()`,
       [
         userId,
         planId,

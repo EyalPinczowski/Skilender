@@ -762,7 +762,7 @@ export function createCalendarSync(options: CalendarSyncOptions) {
    * plans never overlap in Google. They stay gone until that plan is the newest active again,
    * when its blocks are written afresh. Past events are history and stay.
    */
-  async function removeOtherPlanEvents(env: WriteEnv, keepPlanId: string): Promise<void> {
+  async function removeOtherPlanEvents(env: WriteEnv, keepPlanId: string | null): Promise<void> {
     const { userId } = env;
     const others = await db.withUser(userId, (ctx) =>
       syncRepo.linksOfOtherPlans(ctx, userId, keepPlanId),
@@ -777,6 +777,11 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         } catch (error) {
           if (!(error instanceof CalendarWriteRefused)) throw error;
           log.warn({ reason: error.reason }, 'calendar event not deleted');
+          // A concurrent change (or any other refusal) keeps the link: the next sync retries.
+          // Only an event that is not ours is forgotten, and it is never touched.
+          if (error.reason !== 'not_tagged_as_app_event' && error.reason !== 'missing_task_id') {
+            continue;
+          }
         }
         gone.push(link);
       }
@@ -871,8 +876,13 @@ export function createCalendarSync(options: CalendarSyncOptions) {
             guard: createWriteGuard(provider, conn.app_calendar_id),
             appCalendarId: conn.app_calendar_id,
           };
+          // Removing other plans' events must not stop the current plan from being written.
           try {
             await removeOtherPlanEvents(env, primary.id);
+          } catch (error) {
+            failure ??= error;
+          }
+          try {
             await syncPlan(env, primary);
           } catch (error) {
             failure ??= error;
@@ -880,6 +890,22 @@ export function createCalendarSync(options: CalendarSyncOptions) {
         }
       } else {
         readDone = reads;
+        // No active plan left: the future app events of archived and done plans go too.
+        if (conn.app_calendar_id) {
+          try {
+            await removeOtherPlanEvents(
+              {
+                userId,
+                provider,
+                guard: createWriteGuard(provider, conn.app_calendar_id),
+                appCalendarId: conn.app_calendar_id,
+              },
+              null,
+            );
+          } catch (error) {
+            failure = error;
+          }
+        }
       }
       if (failure !== null) throw failure;
       await db.withUser(userId, (ctx) => syncRepo.markSynced(ctx, userId, now(), readDone));
